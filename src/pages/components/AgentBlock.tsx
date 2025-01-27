@@ -39,7 +39,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [modelResponse, setModelResponse] = useState<string | null>(null);
   const [selectedVariableId, setSelectedVariableId] = useState<string>("");
   const [selectedSource, setSelectedSource] = useState<string>("");
-  const sources = useSourceStore((state) => state.sources);
+  const sources = useSourceStore((state) => state.sources) || {};
 
   const handleVariableSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (e.target.value === "add_new" && props.onOpenTools) {
@@ -292,7 +292,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             }}
           >
             <option value="">None</option>
-            {Object.entries(sources).map(([name, source]) => (
+            {Object.entries(sources || {}).map(([name, source]) => (
               <option key={name} value={name}>
                 {name}
               </option>

@@ -64,6 +64,8 @@ const usePromptStore = create<PromptStore>()(
   )
 );
 
+// Original source store implementation (commented out)
+/*
 export const useSourceStore = create<SourceStore>((set) => ({
   sources: {},
   addSource: (source) =>
@@ -76,5 +78,28 @@ export const useSourceStore = create<SourceStore>((set) => ({
       return { sources: rest };
     }),
 }));
+*/
+
+// New implementation with persist middleware and initial state
+export const useSourceStore = create<SourceStore>()(
+  persist(
+    (set) => ({
+      sources: {}, // Initialize with empty object
+      addSource: (source) =>
+        set((state) => ({
+          sources: { ...state.sources, [source.name]: source },
+        })),
+      removeSource: (name) =>
+        set((state) => {
+          const { [name]: _, ...rest } = state.sources;
+          return { sources: rest };
+        }),
+    }),
+    {
+      name: "source-storage", // unique name for localStorage
+      version: 1,
+    }
+  )
+);
 
 export default usePromptStore;

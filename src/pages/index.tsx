@@ -10,6 +10,9 @@ import ToolsSheet from "./components/ToolsSheet";
 import { Variable } from "@/types/types";
 import usePromptStore from "../lib/store";
 import { api } from "@/tools/api";
+import { AgentBlockRef } from "./components/AgentBlock";
+import posthog from "posthog-js";
+// import { SourcesList } from "@/pages/components/SourcesList"; // commented out
 import {
   Table,
   TableHeader,
@@ -17,10 +20,7 @@ import {
   TableHead,
   TableBody,
 } from "@/components/ui/table";
-import { AgentBlockRef } from "./components/AgentBlock";
-import { Button } from "@/components/ui/button";
-import posthog from "posthog-js";
-import { SourcesList } from "@/pages/components/SourcesList";
+// import { Button } from "@/components/ui/button"; // commented out
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -39,19 +39,13 @@ const mainStyle: CSSProperties = {
 };
 
 export default function Home() {
-  const [showOutput, setShowOutput] = useState(false);
-  const [outputText, setOutputText] = useState<string>("");
   const [isApiKeySheetOpen, setIsApiKeySheetOpen] = useState(false);
   const [isToolsSheetOpen, setIsToolsSheetOpen] = useState(false);
   const [variables, setVariables] = useState<Variable[]>([]);
-  const [blockNumberInput, setBlockNumberInput] = useState<string>("");
-  const [promptTypeSelect, setPromptTypeSelect] = useState<"system" | "user">(
-    "system"
-  );
-
-  // stuff for the api
-  const [apiResponse, setApiResponse] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // const [blockNumberInput, setBlockNumberInput] = useState<string>("");
+  // const [promptTypeSelect, setPromptTypeSelect] = useState<"system" | "user">(
+  //   "system"
+  // );
 
   const [apiCallCount, setApiCallCount] = useState<number>(0);
 
@@ -66,21 +60,14 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const blockRefs = useRef<{ [key: number]: AgentBlockRef }>({});
 
-  const testBackend = async () => {
-    try {
-      setIsLoading(true);
-      const data = await api.get("/api/test");
-      setApiResponse(data);
-      setOutputText(JSON.stringify(data, null, 2));
-      setShowOutput(true);
-    } catch (error) {
-      console.error("Error fetching from backend:", error);
-      setOutputText("Error fetching from backend");
-      setShowOutput(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // const testBackend = async () => {
+  //   try {
+  //     const data = await api.get("/api/test");
+  //     setApiCallCount(data.count);
+  //   } catch (error) {
+  //     console.error("Error fetching from backend:", error);
+  //   }
+  // };
 
   const { addPrompt, getPrompt, getAllPrompts, clearPrompts } =
     usePromptStore();
@@ -113,51 +100,41 @@ export default function Home() {
     });
   };
 
-  const displayBlockPrompts = () => {
-    const blockNumber = parseInt(blockNumberInput);
-    if (isNaN(blockNumber)) {
-      setOutputText("Please enter a valid block number");
-      setShowOutput(true);
-      return;
-    }
+  // const displayBlockPrompts = () => {
+  //   const blockNumber = parseInt(blockNumberInput);
+  //   if (isNaN(blockNumber)) {
+  //     return;
+  //   }
 
-    const promptValue = getPrompt(blockNumber, promptTypeSelect);
+  //   const promptValue = getPrompt(blockNumber, promptTypeSelect);
 
-    if (!promptValue) {
-      setOutputText(
-        `No ${promptTypeSelect} prompt found for block ${blockNumber}`
-      );
-    } else {
-      setOutputText(
-        `Block ${blockNumber} ${promptTypeSelect} prompt:\n${promptValue}`
-      );
-    }
-    setShowOutput(true);
-  };
+  //   if (!promptValue) {
+  //     return;
+  //   }
+  // };
 
-  const displayAllPrompts = () => {
-    const allPrompts = getAllPrompts();
-    const promptsByBlock = allPrompts.reduce(
-      (acc: Record<number, any>, prompt) => {
-        if (!acc[prompt.id]) {
-          acc[prompt.id] = {};
-        }
-        acc[prompt.id][prompt.type] = prompt.value;
-        return acc;
-      },
-      {}
-    );
+  // const displayAllPrompts = () => {
+  //   const allPrompts = getAllPrompts();
+  //   const promptsByBlock = allPrompts.reduce(
+  //     (acc: Record<number, any>, prompt) => {
+  //       if (!acc[prompt.id]) {
+  //         acc[prompt.id] = {};
+  //       }
+  //       acc[prompt.id][prompt.type] = prompt.value;
+  //       return acc;
+  //     },
+  //     {}
+  //   );
 
-    const promptsText = Object.entries(promptsByBlock)
-      .map(
-        ([blockId, prompts]: [string, any]) =>
-          `Block ${blockId}:\nSystem: ${prompts.system || "None"}\nUser: ${prompts.user || "None"}\n`
-      )
-      .join("\n");
+  //   const promptsText = Object.entries(promptsByBlock)
+  //     .map(
+  //       ([blockId, prompts]: [string, any]) =>
+  //         `Block ${blockId}:\nSystem: ${prompts.system || "None"}\nUser: ${prompts.user || "None"}\n`
+  //     )
+  //     .join("\n");
 
-    setOutputText(promptsText);
-    setShowOutput(true);
-  };
+  //   return promptsText;
+  // };
 
   const handleAddVariable = (newVariable: Variable) => {
     setVariables((prev) => {
@@ -222,11 +199,11 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", handleKeyPress);
     };
-  }, []);
+  }, [handleKeyPress]);
 
   React.useEffect(() => {
     // Generate a random ID for anonymous users
-    const anonymousId = Math.random().toString(36).substring(2, 15);
+    // const anonymousId = Math.random().toString(36).substring(2, 15);
 
     posthog
       .identify
@@ -305,7 +282,7 @@ export default function Home() {
       </main>
       <Footer
         onRun={runAllBlocks}
-        onClearPrompts={handleClearPrompts}
+        // onClearPrompts={handleClearPrompts}
         isProcessing={isProcessing}
       />
       <ApiKeySheet

@@ -7,14 +7,14 @@ import {
   VideoCameraOutlined,
 } from "@ant-design/icons";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+// import {
+//   Sheet,
+//   SheetContent,
+//   SheetDescription,
+//   SheetHeader,
+//   SheetTitle,
+//   SheetTrigger,
+// } from "@/components/ui/sheet";
 import VideoGuide from "./VideoGuide";
 import CodeAlert from "./CodeAlert";
 
@@ -58,17 +58,17 @@ const navStyle: CSSProperties = {
   gap: "16px",
 };
 
-const buttonStyle: CSSProperties = {
-  background: "none",
-  border: "none",
-  color: "#d1d5db",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  padding: "8px 12px",
-  borderRadius: "4px",
-  cursor: "pointer",
-};
+// const buttonStyle: CSSProperties = {
+//   background: "none",
+//   border: "none",
+//   color: "#d1d5db",
+//   display: "flex",
+//   alignItems: "center",
+//   gap: "8px",
+//   padding: "8px 12px",
+//   borderRadius: "4px",
+//   cursor: "pointer",
+// };
 
 export default function Header({ onApiKeyClick, onToolsClick }: HeaderProps) {
   const [isVideoGuideOpen, setIsVideoGuideOpen] = useState(false);

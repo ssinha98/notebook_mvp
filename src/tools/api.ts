@@ -3,6 +3,16 @@ import { useSourceStore } from "@/lib/store";
 // const API_URL = "http://127.0.0.1:5000";
 const API_URL = "https://test-render-q8l2.onrender.com/";
 
+// Original interface
+// interface ApiData {
+//   [key: string]: any;
+// }
+
+// New interface with better type safety
+interface ApiData {
+  [key: string]: string | number | boolean | object;
+}
+
 export const api = {
   async get(endpoint: string) {
     const response = await fetch(`${API_URL}${endpoint}`);
@@ -12,7 +22,7 @@ export const api = {
     return response.json();
   },
 
-  async post(endpoint: string, data: any) {
+  async post(endpoint: string, data: ApiData) {
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: "POST",
       headers: {

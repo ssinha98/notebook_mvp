@@ -3,7 +3,7 @@ import {
   PlayCircleOutlined,
   ShareAltOutlined,
   CloudUploadOutlined,
-  ClearOutlined,
+  // ClearOutlined,
 } from "@ant-design/icons";
 import { Button } from "@/components/ui/button";
 import ShareAlert from "./ShareAlert";
@@ -39,19 +39,19 @@ const buttonStyle: CSSProperties = {
   fontSize: "14px",
 };
 
-const runButtonStyle: CSSProperties = {
-  ...buttonStyle,
-  backgroundColor: "#09CE6B",
-  color: "white",
-  border: "none",
-};
+// const runButtonStyle: CSSProperties = {
+//   ...buttonStyle,
+//   backgroundColor: "#09CE6B",
+//   color: "white",
+//   border: "none",
+// };
 
-const outlineButtonStyle: CSSProperties = {
-  ...buttonStyle,
-  backgroundColor: "transparent",
-  color: "#d1d5db",
-  border: "1px solid #4b5563",
-};
+// const outlineButtonStyle: CSSProperties = {
+//   ...buttonStyle,
+//   backgroundColor: "transparent",
+//   color: "#d1d5db",
+//   border: "1px solid #4b5563",
+// };
 
 const inputStyle: CSSProperties = {
   width: "64px",
@@ -64,13 +64,13 @@ const inputStyle: CSSProperties = {
 
 interface FooterProps {
   onRun: () => void;
-  onClearPrompts?: () => void;
+  // onClearPrompts?: () => void;
   isProcessing?: boolean;
 }
 
 export default function Footer({
   onRun,
-  onClearPrompts,
+  // onClearPrompts,
   isProcessing = false,
 }: FooterProps) {
   const [isShareAlertOpen, setIsShareAlertOpen] = useState(false);

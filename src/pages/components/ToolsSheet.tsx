@@ -8,13 +8,13 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Wrench, FileText, Settings, Check, X } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+// import {
+//   Dialog,
+//   DialogContent,
+//   DialogHeader,
+//   DialogTitle,
+// } from "@/components/ui/dialog";
+// import { Input } from "@/components/ui/input";
 import { Variable } from "@/types/types";
 import {
   Sheet,
@@ -83,7 +83,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
                 <AddSourceDialog
                   open={isSourceDialogOpen}
                   onOpenChange={setIsSourceDialogOpen}
-                  onAddSource={(source) => console.log(source)}
+                  // onAddSource={(source) => console.log(source)}
                   // onClose={() => setIsDialogOpen(false)}
                 />
                 <Table>
@@ -185,7 +185,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
       <AddSourceDialog
         open={isSourceDialogOpen}
         onOpenChange={setIsSourceDialogOpen}
-        onAddSource={(source) => console.log(source)}
+        // onAddSource={(source) => console.log(source)}
       />
     </>
   );

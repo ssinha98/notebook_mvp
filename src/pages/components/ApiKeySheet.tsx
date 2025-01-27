@@ -4,17 +4,17 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
+  // SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-} from "@/components/ui/table";
+// import {
+//   Table,
+//   TableHeader,
+//   TableRow,
+//   TableHead,
+//   TableBody,
+// } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { KeyRound, Plus, Check, X } from "lucide-react";
+import { KeyRound, X } from "lucide-react";
 import { api } from "@/tools/api";
 
 interface ApiKeySheetProps {
@@ -23,11 +23,15 @@ interface ApiKeySheetProps {
   apiCallCount: number;
 }
 
-const ApiKeySheet: React.FC<ApiKeySheetProps> = ({ open, onOpenChange, apiCallCount }) => {
+const ApiKeySheet: React.FC<ApiKeySheetProps> = ({
+  open,
+  onOpenChange,
+  apiCallCount,
+}) => {
   const [apiKey, setApiKey] = useState<string>("");
   const [hasCustomKey, setHasCustomKey] = useState<boolean>(false);
   const [savedKey, setSavedKey] = useState<string>("");
-  
+
   useEffect(() => {
     const checkCustomKey = async () => {
       try {
@@ -100,7 +104,9 @@ const ApiKeySheet: React.FC<ApiKeySheetProps> = ({ open, onOpenChange, apiCallCo
           {hasCustomKey ? (
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between bg-gray-700 p-2 rounded">
-                <span className="text-white">Custom API Key: {savedKey.slice(0, 8)}...</span>
+                <span className="text-white">
+                  Custom API Key: {savedKey.slice(0, 8)}...
+                </span>
                 <Button variant="destructive" onClick={handleRemoveKey}>
                   Remove Key
                 </Button>
@@ -126,11 +132,9 @@ const ApiKeySheet: React.FC<ApiKeySheetProps> = ({ open, onOpenChange, apiCallCo
         <div className="absolute bottom-6 left-6 flex flex-col gap-2 w-full pr-12">
           {!hasCustomKey && (
             <p className="text-sm text-gray-400">
-              {apiCallCount >= 3 ? (
-                "You've reached the free tier limit. Please add your API key for unlimited usage."
-              ) : (
-                `You have ${Math.max(0, 3 - apiCallCount)} free runs left! Get unlimited runs by adding your own API key.`
-              )}
+              {apiCallCount >= 3
+                ? "You've reached the free tier limit. Please add your API key for unlimited usage."
+                : `You have ${Math.max(0, 3 - apiCallCount)} free runs left! Get unlimited runs by adding your own API key.`}
             </p>
           )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>

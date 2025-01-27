@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useSourceStore } from "@/lib/store";
+// import { useSourceStore } from "@/lib/store";
 import { api } from "@/tools/api";
 
 interface Source {
@@ -21,13 +21,13 @@ interface Source {
 interface AddSourceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddSource: (source: Source) => void;
+  // onAddSource: (source: Source) => void;
 }
 
 const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   open,
   onOpenChange,
-  onAddSource,
+  // onAddSource,
 }) => {
   const [step, setStep] = useState<"select" | "details">("select");
   const [selectedType, setSelectedType] = useState<Source["type"]>("pdf");

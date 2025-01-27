@@ -35,7 +35,11 @@ export const api = {
     return response.json();
   },
 
-  async uploadFile(file: File, type: string, name: string) {
+  async uploadFile(
+    file: File,
+    type: "image" | "csv" | "pdf" | "website",
+    name: string
+  ) {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("type", type);
@@ -58,6 +62,7 @@ export const api = {
         type,
         filepath: result.filepath,
         processedData: result.processed_data,
+        content: "",
       });
     }
 

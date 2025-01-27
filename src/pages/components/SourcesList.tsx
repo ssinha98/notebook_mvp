@@ -52,3 +52,6 @@ export function SourcesList() {
     </Card>
   );
 }
+
+// Add default export
+export default SourcesList;

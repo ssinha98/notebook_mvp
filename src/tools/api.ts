@@ -1,6 +1,7 @@
 import { useSourceStore } from "@/lib/store";
 
-const API_URL = "http://127.0.0.1:5000";
+// const API_URL = "http://127.0.0.1:5000";
+const API_URL = "https://test-render-q8l2.onrender.com/";
 
 export const api = {
   async get(endpoint: string) {
@@ -19,16 +20,18 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    
+
     if (response.status === 403) {
       // Handle free tier limit
-      throw new Error("Free tier limit reached. Please add your API key for unlimited usage.");
+      throw new Error(
+        "Free tier limit reached. Please add your API key for unlimited usage."
+      );
     }
-    
+
     if (!response.ok) {
       throw new Error(`API Error: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 

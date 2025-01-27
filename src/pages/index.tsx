@@ -1,16 +1,16 @@
 "use client";
 
 import { CSSProperties, useState, useRef } from "react";
-import Header from "./components/header";
-import Footer from "./components/footer";
-import CollapsibleBox from "./components/CollapsibleBox";
+import Header from "../components/custom_components/header";
+import Footer from "../components/custom_components/footer";
+import CollapsibleBox from "../components/custom_components/CollapsibleBox";
 import React from "react";
-import ApiKeySheet from "./components/ApiKeySheet";
-import ToolsSheet from "./components/ToolsSheet";
+import ApiKeySheet from "../components/custom_components/ApiKeySheet";
+import ToolsSheet from "../components/custom_components/ToolsSheet";
 import { Variable } from "@/types/types";
 import usePromptStore from "../lib/store";
 import { api } from "@/tools/api";
-import { AgentBlockRef } from "./components/AgentBlock";
+import { AgentBlockRef } from "../components/custom_components/AgentBlock";
 import posthog from "posthog-js";
 // import { SourcesList } from "@/pages/components/SourcesList"; // commented out
 import {

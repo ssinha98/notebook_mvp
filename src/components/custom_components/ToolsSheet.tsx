@@ -22,7 +22,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import AddVariableDialog from "@/pages/components/AddVariableDialog";
+import AddVariableDialog from "@/components/custom_components/AddVariableDialog";
 import AddSourceDialog from "./AddSourceDialog";
 import { useSourceStore } from "@/lib/store";
 
@@ -41,7 +41,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
 }) => {
   const [isVariableDialogOpen, setIsVariableDialogOpen] = useState(false);
   const [isSourceDialogOpen, setIsSourceDialogOpen] = useState(false);
-  const sources = useSourceStore((state) => state.sources);
+  const sources = useSourceStore((state) => state.sources) || [];
 
   const handleAddVariable = () => {
     setIsVariableDialogOpen(true);

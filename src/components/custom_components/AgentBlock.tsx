@@ -1,7 +1,7 @@
 import React, { useState, useImperativeHandle, forwardRef } from "react";
 import { Variable } from "@/types/types";
 import { Button } from "@/components/ui/button";
-import AddVariableDialog from "@/pages/components/AddVariableDialog";
+import AddVariableDialog from "@/components/custom_components/AddVariableDialog";
 import { api } from "@/tools/api";
 import { useSourceStore } from "@/lib/store";
 
@@ -312,11 +312,13 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             <option value="" disabled selected>
               Variables
             </option>
-            {variables.filter((v) => v.type === "intermediate").map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
+            {variables
+              .filter((v) => v.type === "intermediate")
+              .map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
             <option disabled className="bg-gray-800 text-gray-500 h-px my-1">
               ───────────────
             </option>

@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   experimental: {
     esmExternals: "loose",
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;

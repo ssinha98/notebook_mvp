@@ -26,12 +26,25 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
       props.isExpandedByDefault || false
     );
     const [blocks, setBlocks] = useState([1]);
+    const [processingBlocks, setProcessingBlocks] = useState<{
+      [key: number]: boolean;
+    }>({});
 
     const addNewBlock = () => {
       setBlocks((currentBlocks) => [
         ...currentBlocks,
         currentBlocks.length + 1,
       ]);
+    };
+
+    const handleProcessingChange = (
+      blockNumber: number,
+      isProcessing: boolean
+    ) => {
+      setProcessingBlocks((prev) => ({
+        ...prev,
+        [blockNumber]: isProcessing,
+      }));
     };
 
     const boxStyle: CSSProperties = {
@@ -105,8 +118,16 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
                         props.blockRefs.current[blockNumber] = el;
                       }
                     }}
-                    isProcessing={false}
-                    onProcessingChange={() => {}}
+                    isProcessing={processingBlocks[blockNumber] || false}
+                    onProcessingChange={(isProcessing) =>
+                      handleProcessingChange(blockNumber, isProcessing)
+                    }
+                    onProcessedPrompts={(system, user) => {
+                      console.log(`Block ${blockNumber} processed:`, {
+                        system,
+                        user,
+                      });
+                    }}
                   />
                 ))}
               </div>

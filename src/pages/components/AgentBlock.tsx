@@ -41,6 +41,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [selectedSource, setSelectedSource] = useState<string>("");
   const sources = useSourceStore((state) => state.sources) || {};
 
+  // Add null check for variables prop
+  const variables = props.variables || [];
+
   const handleVariableSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (e.target.value === "add_new" && props.onOpenTools) {
       props.onOpenTools();
@@ -66,7 +69,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       }
 
       // Check if variable exists
-      const varExists = props.variables.some((v) => v.name === varName.trim());
+      const varExists = variables.some((v) => v.name === varName.trim());
 
       // Add the variable part with appropriate styling
       parts.push(
@@ -93,7 +96,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const processVariablesInText = (text: string): string => {
     const regex = /{{(.*?)}}/g;
     return text.replace(regex, (match, varName) => {
-      const variable = props.variables.find((v) => v.name === varName.trim());
+      const variable = variables.find((v) => v.name === varName.trim());
       return variable?.value || `no value saved to ${varName.trim()}`;
     });
   };
@@ -124,7 +127,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         setModelResponse(response.response);
 
         if (selectedVariableId) {
-          const selectedVariable = props.variables.find(
+          const selectedVariable = variables.find(
             (v) => v.id === selectedVariableId
           );
           if (selectedVariable) {
@@ -309,13 +312,11 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             <option value="" disabled selected>
               Variables
             </option>
-            {props.variables
-              .filter((v) => v.type === "intermediate")
-              .map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
+            {variables.filter((v) => v.type === "intermediate").map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
             <option disabled className="bg-gray-800 text-gray-500 h-px my-1">
               ───────────────
             </option>
@@ -390,7 +391,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           {selectedVariableId && (
             <div className="mt-2 text-sm text-green-400">
               Saved as{" "}
-              {props.variables.find((v) => v.id === selectedVariableId)?.name}
+              {variables.find((v) => v.id === selectedVariableId)?.name}
             </div>
           )}
         </div>

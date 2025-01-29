@@ -21,6 +21,7 @@ import {
   TableBody,
 } from "@/components/ui/table";
 // import { Button } from "@/components/ui/button"; // commented out
+import { useSourceStore } from "@/lib/store";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -49,14 +50,6 @@ export default function Home() {
 
   const [apiCallCount, setApiCallCount] = useState<number>(0);
 
-  const [blocks, setBlocks] = useState<
-    Array<{
-      blockNumber: number;
-      systemPrompt: string;
-      userPrompt: string;
-    }>
-  >([]);
-
   const [isProcessing, setIsProcessing] = useState(false);
   const blockRefs = useRef<{ [key: number]: AgentBlockRef }>({});
 
@@ -72,6 +65,10 @@ export default function Home() {
   const { addPrompt, getPrompt, getAllPrompts, clearPrompts } =
     usePromptStore();
 
+  // Keep only one instance of blocks from the store
+  const blocks = useSourceStore((state) => state.blocks);
+  const updateBlock = useSourceStore((state) => state.updateBlock);
+
   const handleSavePrompts = (
     blockNumber: number,
     systemPrompt: string,
@@ -80,23 +77,10 @@ export default function Home() {
     addPrompt(blockNumber, "system", systemPrompt);
     addPrompt(blockNumber, "user", userPrompt);
 
-    // Update blocks array
-    setBlocks((prev) => {
-      const existingBlockIndex = prev.findIndex(
-        (b) => b.blockNumber === blockNumber
-      );
-      if (existingBlockIndex >= 0) {
-        const updatedBlocks = [...prev];
-        updatedBlocks[existingBlockIndex] = {
-          blockNumber,
-          systemPrompt,
-          userPrompt,
-        };
-        return updatedBlocks;
-      }
-      return [...prev, { blockNumber, systemPrompt, userPrompt }].sort(
-        (a, b) => a.blockNumber - b.blockNumber
-      );
+    // Update the block in the store instead of local state
+    updateBlock(blockNumber, {
+      systemPrompt,
+      userPrompt
     });
   };
 

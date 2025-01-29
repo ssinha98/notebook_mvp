@@ -8,6 +8,14 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Wrench, FileText, Settings, Check, X } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 // import {
 //   Dialog,
 //   DialogContent,
@@ -25,6 +33,7 @@ import {
 import AddVariableDialog from "@/components/custom_components/AddVariableDialog";
 import AddSourceDialog from "./AddSourceDialog";
 import { useSourceStore } from "@/lib/store";
+import SourcesList from "./SourcesList";
 
 interface ToolsSheetProps {
   open: boolean;
@@ -42,9 +51,29 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
   const [isVariableDialogOpen, setIsVariableDialogOpen] = useState(false);
   const [isSourceDialogOpen, setIsSourceDialogOpen] = useState(false);
   const sources = useSourceStore((state) => state.sources) || [];
+  const removeSource = useSourceStore((state) => state.removeSource);
+  const blocks = useSourceStore((state) => state.blocks);
+  const removeBlock = useSourceStore((state) => state.removeBlock);
 
   const handleAddVariable = () => {
     setIsVariableDialogOpen(true);
+  };
+
+  const handleSourceDelete = (sourceName: string) => {
+    removeSource(sourceName);
+
+    blocks
+      .filter(
+        (block) =>
+          block.type === "transform" &&
+          (block.sourceName === sourceName ||
+            block.originalFilePath?.includes(sourceName))
+      )
+      .forEach((block) => {
+        removeBlock(block.blockNumber);
+      });
+
+    toast.success(`Removed source "${sourceName}" and its transformations`);
   };
 
   return (
@@ -80,25 +109,55 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
                     Add new
                   </Button>
                 </div>
+                <p className="text-sm text-gray-500">
+                  To delete a source, right click and select delete
+                </p>
                 <AddSourceDialog
                   open={isSourceDialogOpen}
                   onOpenChange={setIsSourceDialogOpen}
+                  onAddSource={(source) => console.log(source)}
                   // onAddSource={(source) => console.log(source)}
                   // onClose={() => setIsDialogOpen(false)}
                 />
+                {/* <SourcesList /> */}
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Type</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {Object.entries(sources).map(([name, source]) => (
-                      <TableRow key={name}>
-                        <td className="px-4 py-2">{name}</td>
-                        <td className="px-4 py-2">{source.type}</td>
-                      </TableRow>
+                      <ContextMenu key={name}>
+                        <ContextMenuTrigger>
+                          <TableRow className="cursor-pointer hover:bg-secondary/80">
+                            <td className="px-4 py-2">{name}</td>
+                            <td className="px-4 py-2">{source.type}</td>
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSourceDelete(name);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 h-4 w-4 p-0 text-muted-foreground hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </TableRow>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem
+                            className="text-destructive focus:text-destructive flex items-center gap-2"
+                            onClick={() => handleSourceDelete(name)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
                     ))}
                   </TableBody>
                 </Table>
@@ -185,7 +244,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
       <AddSourceDialog
         open={isSourceDialogOpen}
         onOpenChange={setIsSourceDialogOpen}
-        // onAddSource={(source) => console.log(source)}
+        onAddSource={(source) => console.log(source)}
       />
     </>
   );

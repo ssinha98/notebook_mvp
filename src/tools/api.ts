@@ -66,13 +66,19 @@ export const api = {
     const result = await response.json();
 
     if (result.success) {
-      // Add to Zustand store
-      useSourceStore.getState().addSource({
-        name,
+      // Add to Zustand store with the new signature (name, source)
+      useSourceStore.getState().addSource(name, {
         type,
-        filepath: result.filepath,
         processedData: result.processed_data,
-        content: "",
+        rawData: [],
+        originalName: file.name,
+        filterCriteria: [],
+        metadata: {
+          original_row_count: 0,
+          filtered_row_count: 0,
+          columns: [],
+          applied_filters: [],
+        },
       });
     }
 

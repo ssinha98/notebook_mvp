@@ -11,9 +11,12 @@
   "dependencies": {
     "@ant-design/icons": "^5.5.2",
     "@radix-ui/react-alert-dialog": "^1.1.4",
+    "@radix-ui/react-context-menu": "^2.2.5",
     "@radix-ui/react-dialog": "^1.1.4",
+    "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-select": "^2.1.4",
     "@radix-ui/react-slot": "^1.1.1",
+    "@radix-ui/react-tabs": "^1.1.2",
     "@supabase/supabase-js": "^2.47.12",
     "antd": "^5.23.0",
     "class-variance-authority": "^0.7.1",
@@ -26,6 +29,7 @@
     "sonner": "^1.7.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "xlsx": "^0.18.5",
     "zustand": "^5.0.3"
   },
   "devDependencies": {

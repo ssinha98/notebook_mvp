@@ -26,15 +26,50 @@ export interface PromptStore {
 }
 
 export interface Source {
-  name: string;
-  type: "image" | "csv" | "pdf" | "website";
-  filepath: string;
-  processedData: any;
-  content: string;
+  type: string;
+  processedData: string;
+  rawData?: any[];  // For CSV data in JSON format
+  originalName: string;
+  filterCriteria?: FilterCriteria[];
+  metadata?: {
+    original_row_count: number;
+    filtered_row_count: number;
+    columns: string[];
+    applied_filters: FilterCriteria[];
+  };
 }
 
 export interface SourceStore {
-  sources: { [key: string]: Source };
-  addSource: (source: Source) => void;
+  sources: Record<string, Source>;
+  addSource: (name: string, source: Source) => void;
   removeSource: (name: string) => void;
+}
+
+export interface FilterCriteria {
+  id: string;
+  column: string;
+  operator: string;
+  value: string;
+}
+
+export interface Block {
+  type: 'transform' | 'agent';  // Add more block types as needed
+  blockNumber: number;
+  originalFilePath?: string;
+  sourceName?: string;
+  fileType?: "image" | "csv" | "pdf" | "website";
+  transformations?: {
+    filterCriteria: Array<{
+      id: string;
+      column: string;
+      operator: string;
+      value: string;
+    }>;
+    columns?: string[];
+    previewData?: any[];
+  };
+  // Add these new properties
+  systemPrompt?: string;
+  userPrompt?: string;
+  // Add other block-specific properties as needed
 }

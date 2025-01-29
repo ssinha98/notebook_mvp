@@ -3,6 +3,8 @@ import { ExpandAltOutlined, ShrinkOutlined } from "@ant-design/icons";
 import AgentBlock from "./AgentBlock";
 import { Variable } from "@/types/types";
 import { AgentBlockRef } from "./AgentBlock";
+import TransformBlock from "./TransformBlock";
+import { useSourceStore } from "@/lib/store";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -25,16 +27,21 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
     const [isMaximized, setIsMaximized] = useState(
       props.isExpandedByDefault || false
     );
-    const [blocks, setBlocks] = useState([1]);
+    const blocks = useSourceStore((state) => state.blocks);
+    const updateBlock = useSourceStore((state) => state.updateBlock);
+    const addBlockToNotebook = useSourceStore((state) => state.addBlockToNotebook);
+    const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
     const [processingBlocks, setProcessingBlocks] = useState<{
       [key: number]: boolean;
     }>({});
 
     const addNewBlock = () => {
-      setBlocks((currentBlocks) => [
-        ...currentBlocks,
-        currentBlocks.length + 1,
-      ]);
+      addBlockToNotebook({
+        type: 'agent',
+        blockNumber: nextBlockNumber,
+        systemPrompt: '',
+        userPrompt: ''
+      });
     };
 
     const handleProcessingChange = (
@@ -105,25 +112,43 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
           {props.title === "Agent Flow" ? (
             <>
               <div style={blockContainerStyle}>
-                {blocks.map((blockNumber) => (
+                {blocks.filter(block => block.type === 'transform').map((block) => (
+                  <TransformBlock
+                    key={block.blockNumber}
+                    blockNumber={block.blockNumber}
+                    originalFilePath={block.originalFilePath || ''}
+                    sourceName={block.sourceName || ''}
+                    fileType={block.fileType || 'csv'}
+                    transformations={{
+                      filterCriteria: block.transformations?.filterCriteria || [],
+                      columns: block.transformations?.columns || [],
+                      previewData: block.transformations?.previewData || []
+                    }}
+                    onTransformationsUpdate={(updates) => 
+                      updateBlock(block.blockNumber, updates)
+                    }
+                  />
+                ))}
+
+                {blocks.filter(block => block.type === 'agent').map((block) => (
                   <AgentBlock
-                    key={blockNumber}
-                    blockNumber={blockNumber}
+                    key={block.blockNumber}
+                    blockNumber={block.blockNumber}
                     variables={props.variables || []}
                     onAddVariable={props.onAddVariable || (() => {})}
                     onOpenTools={props.onOpenTools}
                     onSavePrompts={props.onSavePrompts}
                     ref={(el) => {
                       if (el && props.blockRefs) {
-                        props.blockRefs.current[blockNumber] = el;
+                        props.blockRefs.current[block.blockNumber] = el;
                       }
                     }}
-                    isProcessing={processingBlocks[blockNumber] || false}
+                    isProcessing={processingBlocks[block.blockNumber] || false}
                     onProcessingChange={(isProcessing) =>
-                      handleProcessingChange(blockNumber, isProcessing)
+                      handleProcessingChange(block.blockNumber, isProcessing)
                     }
                     onProcessedPrompts={(system, user) => {
-                      console.log(`Block ${blockNumber} processed:`, {
+                      console.log(`Block ${block.blockNumber} processed:`, {
                         system,
                         user,
                       });

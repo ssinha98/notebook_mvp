@@ -1,7 +1,24 @@
 // store.ts
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { PromptStore, PromptType, SourceStore } from "../types/types";
+import {
+  PromptStore,
+  PromptType,
+  Source,
+  Block,
+} from "../types/types";
+
+// Define the SourceStore interface here since it's specific to this file
+interface SourceStore {
+  sources: Record<string, Source>;
+  blocks: Block[];
+  nextBlockNumber: number;
+  addSource: (name: string, source: Source) => void;
+  removeSource: (name: string) => void;
+  addBlockToNotebook: (block: Block) => void;
+  updateBlock: (blockNumber: number, updates: Partial<Block>) => void;
+  removeBlock: (blockNumber: number) => void;
+}
 
 const usePromptStore = create<PromptStore>()(
   persist(
@@ -85,18 +102,35 @@ export const useSourceStore = create<SourceStore>()(
   persist(
     (set) => ({
       sources: {}, // Initialize with empty object
-      addSource: (source) =>
+      blocks: [],
+      nextBlockNumber: 1,
+      addSource: (name: string, source: Source) =>
         set((state) => ({
-          sources: { ...state.sources, [source.name]: source },
+          sources: { ...state.sources, [name]: source },
         })),
-      removeSource: (name) =>
+      removeSource: (name: string) =>
         set((state) => {
           const { [name]: _, ...rest } = state.sources;
           return { sources: rest };
         }),
+      addBlockToNotebook: (block: Block) =>
+        set((state) => ({
+          blocks: [...state.blocks, block],
+          nextBlockNumber: state.nextBlockNumber + 1,
+        })),
+      updateBlock: (blockNumber: number, updates: Partial<Block>) =>
+        set((state) => ({
+          blocks: state.blocks.map((block) =>
+            block.blockNumber === blockNumber ? { ...block, ...updates } : block
+          ),
+        })),
+      removeBlock: (blockNumber: number) =>
+        set((state) => ({
+          blocks: state.blocks.filter((block) => block.blockNumber !== blockNumber),
+        })),
     }),
     {
-      name: "source-storage", // unique name for localStorage
+      name: "source-storage",
       version: 1,
     }
   )

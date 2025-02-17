@@ -23,6 +23,7 @@ import CodeAlert from "./CodeAlert";
 interface HeaderProps {
   onApiKeyClick: () => void;
   onToolsClick: () => void;
+  onLogout: () => void;
 }
 
 const headerStyle: CSSProperties = {
@@ -70,7 +71,7 @@ const navStyle: CSSProperties = {
 //   cursor: "pointer",
 // };
 
-export default function Header({ onApiKeyClick, onToolsClick }: HeaderProps) {
+const Header: React.FC<HeaderProps> = ({ onApiKeyClick, onToolsClick, onLogout }) => {
   const [isVideoGuideOpen, setIsVideoGuideOpen] = useState(false);
   const [isCodeAlertOpen, setIsCodeAlertOpen] = useState(false);
 
@@ -93,30 +94,20 @@ export default function Header({ onApiKeyClick, onToolsClick }: HeaderProps) {
             <KeyOutlined />
             API Keys
           </Button>
-          <Button
-            // style={buttonStyle}
-            onClick={onToolsClick}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "#1f2937")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
-          >
+          <Button onClick={onToolsClick}>
             <ToolOutlined />
             Tools
           </Button>
-          <Button
-            onClick={() => setIsCodeAlertOpen(true)}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "#1f2937")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
-          >
+          <Button onClick={() => setIsCodeAlertOpen(true)}>
             <CodeOutlined />
             Code
+          </Button>
+          <Button
+            onClick={onLogout}
+            variant="outline"
+            className="text-red-500 border-red-500 hover:bg-red-950 hover:text-red-400"
+          >
+            Logout
           </Button>
         </nav>
       </div>
@@ -124,4 +115,6 @@ export default function Header({ onApiKeyClick, onToolsClick }: HeaderProps) {
       <CodeAlert open={isCodeAlertOpen} onOpenChange={setIsCodeAlertOpen} />
     </header>
   );
-}
+};
+
+export default Header;

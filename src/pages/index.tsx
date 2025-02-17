@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, useState, useRef } from "react";
+import { CSSProperties, useState, useRef, useEffect } from "react";
 import Header from "../components/custom_components/header";
 import Footer from "../components/custom_components/footer";
 import CollapsibleBox from "../components/custom_components/CollapsibleBox";
@@ -22,6 +22,9 @@ import {
 } from "@/components/ui/table";
 // import { Button } from "@/components/ui/button"; // commented out
 import { useSourceStore } from "@/lib/store";
+import { useRouter } from 'next/router';
+import { auth } from "@/tools/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -52,6 +55,8 @@ export default function Home() {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const blockRefs = useRef<{ [key: number]: AgentBlockRef }>({});
+
+  const router = useRouter();
 
   // const testBackend = async () => {
   //   try {
@@ -216,11 +221,22 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.push('/login/signup');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
   return (
     <div style={pageStyle}>
       <Header
         onApiKeyClick={() => setIsApiKeySheetOpen(true)}
         onToolsClick={() => setIsToolsSheetOpen(true)}
+        onLogout={() => router.push('/login/signout')}
       />
       <main style={mainStyle}>
         <CollapsibleBox

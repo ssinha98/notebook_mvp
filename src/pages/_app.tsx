@@ -10,6 +10,8 @@ import type { AppProps } from "next/app";
 import posthog from "posthog-js";
 import { useEffect } from "react";
 import { useRouter } from "next/router";
+import { auth } from "@/tools/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 // Check that PostHog is client-side
 if (typeof window !== "undefined") {
@@ -29,10 +31,26 @@ export default function App({ Component, pageProps }: AppProps) {
     const handleRouteChange = () => posthog.capture("$pageview");
     router.events.on("routeChangeComplete", handleRouteChange);
 
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Identify user in PostHog when they log in
+        posthog.identify(user.uid, {
+          email: user.email,
+          name: user.displayName,
+          firebase_uid: user.uid
+        });
+      } else if (router.pathname !== '/login/signup') {
+        router.push('/login/signup');
+        // Reset the user identification when they log out
+        posthog.reset();
+      }
+    });
+
     return () => {
       router.events.off("routeChangeComplete", handleRouteChange);
+      unsubscribe();
     };
-  }, [router.events]);
+  }, [router.events, router]);
 
   return <Component {...pageProps} />;
 }

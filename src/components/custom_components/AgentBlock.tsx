@@ -4,6 +4,11 @@ import { Button } from "@/components/ui/button";
 import AddVariableDialog from "@/components/custom_components/AddVariableDialog";
 import { api } from "@/tools/api";
 import { useSourceStore } from "@/lib/store";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface AgentBlockProps {
   blockNumber: number;
@@ -18,6 +23,7 @@ interface AgentBlockProps {
   onProcessedPrompts?: (processedSystem: string, processedUser: string) => void;
   isProcessing: boolean;
   onProcessingChange: (isProcessing: boolean) => void;
+  onDeleteBlock: (blockNumber: number) => void;
 }
 
 // Add this interface to define the ref methods
@@ -40,6 +46,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [selectedVariableId, setSelectedVariableId] = useState<string>("");
   const [selectedSource, setSelectedSource] = useState<string>("");
   const sources = useSourceStore((state) => state.sources) || {};
+  const [saveAsCsv, setSaveAsCsv] = useState(false);
+  const [saveAsJson, setSaveAsJson] = useState(false);
 
   // Add null check for variables prop
   const variables = props.variables || [];
@@ -115,15 +123,32 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           system_prompt: processedSystemPrompt,
           user_prompt: processedUserPrompt,
           processed_data: sourceData.processedData,
+          save_as_csv: saveAsCsv,
+          save_as_json: saveAsJson,
         });
       } else {
         response = await api.post("/api/call-model", {
           system_prompt: processedSystemPrompt,
           user_prompt: processedUserPrompt,
+          save_as_csv: saveAsCsv,
+          save_as_json: saveAsJson,
         });
       }
 
       if (response.success) {
+        // Handle CSV download if present
+        if (saveAsCsv && response.csv_content) {
+          const blob = new Blob([response.csv_content], { type: "text/csv" });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = response.filename || "response.csv";
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          a.remove();
+        }
+
         setModelResponse(response.response);
 
         if (selectedVariableId) {
@@ -157,6 +182,14 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     }
   };
 
+  const handleDeleteBlock = () => {
+    if (typeof props.onDeleteBlock === "function") {
+      props.onDeleteBlock(props.blockNumber);
+    } else {
+      console.error("onDeleteBlock is not properly defined");
+    }
+  };
+
   useImperativeHandle(ref, () => ({
     processBlock: handleProcessBlock,
   }));
@@ -177,9 +210,21 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
               <option value="gpt-3.5">GPT-3.5</option>
             </select>
           </div>
-          <span className="text-gray-400 hover:text-gray-200 cursor-pointer">
-            ⚙️
-          </span>
+          <Popover>
+            <PopoverTrigger>
+              <span className="text-gray-400 hover:text-gray-200 cursor-pointer">
+                ⚙️
+              </span>
+            </PopoverTrigger>
+            <PopoverContent className="w-40 p-0 bg-black border border-red-500">
+              <button
+                className="w-full px-4 py-2 text-red-500 hover:bg-red-950 text-left transition-colors"
+                onClick={handleDeleteBlock}
+              >
+                Delete Block
+              </button>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* System Prompt Section */}
@@ -326,6 +371,32 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
               + Add new variable
             </option>
           </select>
+        </div>
+
+        <hr className="border-gray-700 my-4" />
+
+        <div className="mb-4">
+          <h4 className="text-gray-300 mb-2">Save Output as</h4>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-gray-300">
+              <input
+                type="checkbox"
+                checked={saveAsCsv}
+                onChange={(e) => setSaveAsCsv(e.target.checked)}
+                className="form-checkbox bg-gray-700 border-gray-600"
+              />
+              CSV
+            </label>
+            <label className="flex items-center gap-2 text-gray-300">
+              <input
+                type="checkbox"
+                checked={saveAsJson}
+                onChange={(e) => setSaveAsJson(e.target.checked)}
+                className="form-checkbox bg-gray-700 border-gray-600"
+              />
+              JSON
+            </label>
+          </div>
         </div>
 
         <div className="mt-4 flex justify-start">

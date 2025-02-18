@@ -18,6 +18,7 @@ interface SourceStore {
   addBlockToNotebook: (block: Block) => void;
   updateBlock: (blockNumber: number, updates: Partial<Block>) => void;
   removeBlock: (blockNumber: number) => void;
+  deleteBlock: (blockNumber: number) => void;
 }
 
 const usePromptStore = create<PromptStore>()(
@@ -127,6 +128,10 @@ export const useSourceStore = create<SourceStore>()(
       removeBlock: (blockNumber: number) =>
         set((state) => ({
           blocks: state.blocks.filter((block) => block.blockNumber !== blockNumber),
+        })),
+      deleteBlock: (blockNumber: number) => 
+        set((state) => ({
+          blocks: state.blocks.filter(block => block.blockNumber !== blockNumber)
         })),
     }),
     {

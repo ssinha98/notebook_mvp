@@ -20,6 +20,7 @@ interface CollapsibleBoxProps {
     userPrompt: string
   ) => void;
   blockRefs?: React.MutableRefObject<{ [key: number]: AgentBlockRef }>;
+  onDeleteBlock?: (blockNumber: number) => void;
 }
 
 const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
@@ -29,7 +30,10 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
     );
     const blocks = useSourceStore((state) => state.blocks);
     const updateBlock = useSourceStore((state) => state.updateBlock);
-    const addBlockToNotebook = useSourceStore((state) => state.addBlockToNotebook);
+    const addBlockToNotebook = useSourceStore(
+      (state) => state.addBlockToNotebook
+    );
+    const deleteBlock = useSourceStore((state) => state.deleteBlock);
     const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
     const [processingBlocks, setProcessingBlocks] = useState<{
       [key: number]: boolean;
@@ -37,10 +41,10 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
 
     const addNewBlock = () => {
       addBlockToNotebook({
-        type: 'agent',
+        type: "agent",
         blockNumber: nextBlockNumber,
-        systemPrompt: '',
-        userPrompt: ''
+        systemPrompt: "",
+        userPrompt: "",
       });
     };
 
@@ -112,49 +116,60 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
           {props.title === "Agent Flow" ? (
             <>
               <div style={blockContainerStyle}>
-                {blocks.filter(block => block.type === 'transform').map((block) => (
-                  <TransformBlock
-                    key={block.blockNumber}
-                    blockNumber={block.blockNumber}
-                    originalFilePath={block.originalFilePath || ''}
-                    sourceName={block.sourceName || ''}
-                    fileType={block.fileType || 'csv'}
-                    transformations={{
-                      filterCriteria: block.transformations?.filterCriteria || [],
-                      columns: block.transformations?.columns || [],
-                      previewData: block.transformations?.previewData || []
-                    }}
-                    onTransformationsUpdate={(updates) => 
-                      updateBlock(block.blockNumber, updates)
-                    }
-                  />
-                ))}
-
-                {blocks.filter(block => block.type === 'agent').map((block) => (
-                  <AgentBlock
-                    key={block.blockNumber}
-                    blockNumber={block.blockNumber}
-                    variables={props.variables || []}
-                    onAddVariable={props.onAddVariable || (() => {})}
-                    onOpenTools={props.onOpenTools}
-                    onSavePrompts={props.onSavePrompts}
-                    ref={(el) => {
-                      if (el && props.blockRefs) {
-                        props.blockRefs.current[block.blockNumber] = el;
+                {blocks
+                  .filter((block) => block.type === "transform")
+                  .map((block) => (
+                    <TransformBlock
+                      key={block.blockNumber}
+                      blockNumber={block.blockNumber}
+                      originalFilePath={block.originalFilePath || ""}
+                      sourceName={block.sourceName || ""}
+                      fileType={block.fileType || "csv"}
+                      transformations={{
+                        filterCriteria:
+                          block.transformations?.filterCriteria || [],
+                        columns: block.transformations?.columns || [],
+                        previewData: block.transformations?.previewData || [],
+                      }}
+                      onTransformationsUpdate={(updates) =>
+                        updateBlock(block.blockNumber, updates)
                       }
-                    }}
-                    isProcessing={processingBlocks[block.blockNumber] || false}
-                    onProcessingChange={(isProcessing) =>
-                      handleProcessingChange(block.blockNumber, isProcessing)
-                    }
-                    onProcessedPrompts={(system, user) => {
-                      console.log(`Block ${block.blockNumber} processed:`, {
-                        system,
-                        user,
-                      });
-                    }}
-                  />
-                ))}
+                    />
+                  ))}
+
+                {blocks
+                  .filter((block) => block.type === "agent")
+                  .map((block) => (
+                    <AgentBlock
+                      key={block.blockNumber}
+                      blockNumber={block.blockNumber}
+                      variables={props.variables || []}
+                      onAddVariable={props.onAddVariable || (() => {})}
+                      onOpenTools={props.onOpenTools}
+                      onSavePrompts={props.onSavePrompts}
+                      ref={(el) => {
+                        if (el && props.blockRefs) {
+                          props.blockRefs.current[block.blockNumber] = el;
+                        }
+                      }}
+                      isProcessing={
+                        processingBlocks[block.blockNumber] || false
+                      }
+                      onProcessingChange={(isProcessing) =>
+                        handleProcessingChange(block.blockNumber, isProcessing)
+                      }
+                      onProcessedPrompts={(system, user) => {
+                        console.log(`Block ${block.blockNumber} processed:`, {
+                          system,
+                          user,
+                        });
+                      }}
+                      onDeleteBlock={(blockNumber) => {
+                        deleteBlock(blockNumber);
+                        props.onDeleteBlock?.(blockNumber);
+                      }}
+                    />
+                  ))}
               </div>
               <button
                 style={fabStyle}

@@ -122,11 +122,16 @@ const ApiKeySheet: React.FC<ApiKeySheetProps> = ({
                 onChange={(e) => setApiKey(e.target.value)}
               />
               <Button onClick={handleSubmit}>Save API Key</Button>
+              <a 
+                href="https://platform.openai.com/api-keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="border border-gray-600 rounded-lg p-3 text-gray-400 hover:text-gray-300 text-sm transition-colors"
+              >
+                How to grab an OpenAI key →
+              </a>
             </>
           )}
-          <Button variant="outline" onClick={handleReset}>
-            Reset API Call Count
-          </Button>
         </div>
 
         <div className="absolute bottom-6 left-6 flex flex-col gap-2 w-full pr-12">

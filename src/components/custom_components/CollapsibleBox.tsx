@@ -174,13 +174,6 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
                     />
                   ))}
               </div>
-              <button
-                style={fabStyle}
-                className="hover:bg-blue-500"
-                onClick={addNewBlock}
-              >
-                +
-              </button>
             </>
           ) : (
             props.children

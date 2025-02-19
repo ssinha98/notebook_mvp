@@ -14,6 +14,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface AgentBlockProps {
   blockNumber: number;
@@ -53,9 +60,10 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [modelResponse, setModelResponse] = useState<string | null>(null);
   const [selectedVariableId, setSelectedVariableId] = useState<string>("");
-  const [selectedSource, setSelectedSource] = useState<string>("");
+  const [selectedSource, setSelectedSource] = useState<string>("none");
   const sources = useSourceStore((state) => state.sources) || {};
   const [saveAsCsv, setSaveAsCsv] = useState(props.initialSaveAsCsv || false);
+  const [selectedModel, setSelectedModel] = useState<string>("");
 
   // Add null check for variables prop
   const variables = props.variables || [];
@@ -77,12 +85,12 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     }
   }, [props.initialSaveAsCsv]);
 
-  const handleVariableSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (e.target.value === "add_new" && props.onOpenTools) {
+  // Update handler to work with shadcn Select
+  const handleVariableSelect = (value: string) => {
+    if (value === "add_new" && props.onOpenTools) {
       props.onOpenTools();
-      e.target.value = "";
     } else {
-      setSelectedVariableId(e.target.value);
+      setSelectedVariableId(value);
     }
   };
 
@@ -142,7 +150,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       const processedUserPrompt = processVariablesInText(userPrompt);
 
       let response;
-      if (selectedSource && sources[selectedSource]) {
+      if (selectedSource && selectedSource !== "none" && sources[selectedSource]) {
         const sourceData = sources[selectedSource];
         response = await api.post("/api/call-model-with-source", {
           system_prompt: processedSystemPrompt,
@@ -230,13 +238,15 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             <h3 className="text-lg font-semibold text-white">
               Block #{props.blockNumber}
             </h3>
-            <select className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-gray-200">
-              <option value="" disabled selected>
-                Select model
-              </option>
-              <option value="gpt-4">GPT-4</option>
-              <option value="gpt-3.5">GPT-3.5</option>
-            </select>
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gpt-4">GPT-4</SelectItem>
+                <SelectItem value="gpt-3.5">GPT-3.5</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Popover>
             <PopoverTrigger>
@@ -343,54 +353,43 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
 
         <div className="flex items-center gap-2 text-gray-300 mb-4">
           <span>Source:</span>
-          <select
-            className="bg-gray-700 border border-gray-600 rounded px-2 py-1"
-            value={selectedSource}
-            onChange={(e) => {
-              setSelectedSource(e.target.value);
-              if (e.target.value && sources[e.target.value]) {
-                const preview = sources[
-                  e.target.value
-                ].processedData?.substring(0, 100);
-                console.log(
-                  `Source preview for ${e.target.value}:`,
-                  preview ? `${preview}...` : "No processed data available"
-                );
-              }
-            }}
-          >
-            <option value="">None</option>
-            {Object.entries(sources || {}).map(([name, source]) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
+          <Select value={selectedSource} onValueChange={setSelectedSource}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="None" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              {Object.entries(sources || {}).map(([name, source]) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center gap-2 text-gray-300">
           <span>Set output as:</span>
-          <select
-            className="bg-gray-700 border border-gray-600 rounded px-2 py-1"
-            onChange={handleVariableSelect}
+          <Select
+            value={selectedVariableId}
+            onValueChange={handleVariableSelect}
           >
-            <option value="" disabled selected>
-              Variables
-            </option>
-            {variables
-              .filter((v) => v.type === "intermediate")
-              .map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            <option disabled className="bg-gray-800 text-gray-500 h-px my-1">
-              ───────────────
-            </option>
-            <option value="add_new" className="text-blue-400">
-              + Add new variable
-            </option>
-          </select>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Variables" />
+            </SelectTrigger>
+            <SelectContent>
+              {variables
+                .filter((v) => v.type === "intermediate")
+                .map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name}
+                  </SelectItem>
+                ))}
+              <SelectItem value="add_new" className="text-blue-400">
+                + Add new variable
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <hr className="border-gray-700 my-4" />

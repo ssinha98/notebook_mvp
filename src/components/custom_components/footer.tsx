@@ -5,12 +5,26 @@ import {
   CloudUploadOutlined,
   SaveOutlined,
   // ClearOutlined,
+  UpOutlined,
+  DownOutlined,
 } from "@ant-design/icons";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import ShareAlert from "./ShareAlert";
 import DeployAlert from "./DeployAlert";
 import { useAgentStore } from "@/lib/agentStore";
 import { useSourceStore } from "@/lib/store";
+import { LuBrainCircuit } from "react-icons/lu";
+import { FaDatabase } from "react-icons/fa";
+import { SiMinutemailer } from "react-icons/si";
+import { IoPlaySkipForwardCircle } from "react-icons/io5";
+import ToolsSheet from "./ToolsSheet";
+import { Variable } from "@/types/types";
 
 const footerStyle: CSSProperties = {
   position: "sticky",
@@ -69,82 +83,224 @@ interface FooterProps {
   onRun: () => void;
   // onClearPrompts?: () => void;
   isProcessing?: boolean;
+  variables?: Variable[];
+  onAddVariable?: (variable: Variable) => void;
 }
+
+// Add this interface for tool buttons
+interface ToolButton {
+  id: string;
+  icon: React.ReactNode;
+  label: string;
+  tooltip: string;
+  onClick: () => void;
+}
+
+// Update the ToolsPanel to accept toolButtons as a prop
+const ToolsPanel = ({
+  isExpanded,
+  onToggle,
+  toolButtons,
+}: {
+  isExpanded: boolean;
+  onToggle: () => void;
+  toolButtons: ToolButton[];
+}) => {
+  return (
+    <div
+      className={`transition-all duration-300 ease-in-out bg-gray-900 border-t border-gray-700
+        fixed bottom-[65px] w-full z-40
+        ${isExpanded ? "h-[25vh]" : "h-10"}`}
+    >
+      <div
+        className="flex justify-between items-center px-4 h-10 cursor-pointer"
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-2 text-gray-300">
+          <span className="text-base font-bold">Tools</span>
+          <span className="text-xl">⚒️</span>
+        </div>
+        {isExpanded ? <DownOutlined /> : <UpOutlined />}
+      </div>
+
+      {isExpanded && (
+        <div className="p-4 overflow-x-auto">
+          <div className="flex gap-4 min-w-min">
+            <TooltipProvider>
+              {toolButtons.map((tool) => (
+                <Tooltip key={tool.id}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="flex flex-col p-4 w-72 h-32 rounded-lg border border-gray-700 hover:bg-gray-800 flex-shrink-0"
+                      onClick={tool.onClick}
+                    >
+                      <span className="text-[5rem]">{tool.icon}</span>
+                      <span className="text-base text-gray-300 break-words w-full overflow-hidden text-center mt-2">
+                        {tool.label}
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{tool.tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </TooltipProvider>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function Footer({
   onRun,
   // onClearPrompts,
   isProcessing = false,
+  variables = [],
+  onAddVariable = () => {},
 }: FooterProps) {
+  const [isToolsPanelExpanded, setIsToolsPanelExpanded] = useState(false);
   const [isShareAlertOpen, setIsShareAlertOpen] = useState(false);
   const [isDeployAlertOpen, setIsDeployAlertOpen] = useState(false);
+  const [isToolsSheetOpen, setIsToolsSheetOpen] = useState(false);
+
+  // Add these from the store
+  const addBlockToNotebook = useSourceStore(
+    (state) => state.addBlockToNotebook
+  );
+  const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
+
+  // Create the addNewBlock function
+  const addNewBlock = () => {
+    addBlockToNotebook({
+      type: "agent",
+      blockNumber: nextBlockNumber,
+      systemPrompt: "",
+      userPrompt: "",
+    });
+  };
+
+  // Define toolButtons inside the component
+  const toolButtons: ToolButton[] = [
+    {
+      id: "agent",
+      icon: <LuBrainCircuit className="text-2xl" />,
+      label: "Agent Block",
+      tooltip:
+        "Add a new agent block to generate content, summarize information or answer questions",
+      onClick: addNewBlock,
+    },
+    {
+      id: "data",
+      icon: <FaDatabase className="text-2xl" />,
+      label: "Data and Transformations",
+      tooltip:
+        "Load in some data and apply any transformations that help out your agent",
+      onClick: () => setIsToolsSheetOpen(true),
+    },
+    {
+      id: "contact",
+      icon: <SiMinutemailer className="text-2xl" />,
+      label: "Contact",
+      tooltip: "Have your agent send its work to yourself or a team member",
+      onClick: () => console.log("Added Contact Block to notebook"),
+    },
+    {
+      id: "checkin",
+      icon: <IoPlaySkipForwardCircle className="text-2xl" />,
+      label: "Check In",
+      tooltip:
+        "Tell your agent to pause it's run, and check in with you before proceeding",
+      onClick: () => console.log("Added Check In Block to notebook"),
+    },
+  ];
 
   return (
-    <footer style={footerStyle}>
-      <div style={containerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <Button
-            style={{ backgroundColor: "#09CE6B", color: "white" }}
-            disabled={isProcessing}
-            onClick={() => {
-              console.log("run started");
-              onRun();
-            }}
-          >
-            {isProcessing ? (
-              <>
-                <span className="animate-spin mr-2">⟳</span>
-                Running...
-              </>
-            ) : (
-              <>
-                <PlayCircleOutlined />
-                Run
-              </>
-            )}
-            <span className="ml-2 text-xs border border-opacity-40 rounded px-1">
-              ⌘↵
-            </span>
-          </Button>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <input type="number" style={inputStyle} defaultValue={1} min={1} />
-            <span style={{ color: "#d1d5db" }}>runs</span>
+    <>
+      <ToolsPanel
+        isExpanded={isToolsPanelExpanded}
+        onToggle={() => setIsToolsPanelExpanded(!isToolsPanelExpanded)}
+        toolButtons={toolButtons}
+      />
+      <footer style={footerStyle}>
+        <div style={containerStyle}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <Button
+              style={{ backgroundColor: "#09CE6B", color: "white" }}
+              disabled={isProcessing}
+              onClick={() => {
+                console.log("run started");
+                onRun();
+              }}
+            >
+              {isProcessing ? (
+                <>
+                  <span className="animate-spin mr-2">⟳</span>
+                  Running...
+                </>
+              ) : (
+                <>
+                  <PlayCircleOutlined />
+                  Run
+                </>
+              )}
+              <span className="ml-2 text-xs border border-opacity-40 rounded px-1">
+                ⌘↵
+              </span>
+            </Button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input
+                type="number"
+                style={inputStyle}
+                defaultValue={1}
+                min={1}
+              />
+              <span style={{ color: "#d1d5db" }}>runs</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <Button
+              variant="outline"
+              onClick={() => setIsShareAlertOpen(true)}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "#1f2937")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
+            >
+              <ShareAltOutlined />
+              Share
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeployAlertOpen(true)}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "#1f2937")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
+            >
+              <CloudUploadOutlined />
+              Deploy
+            </Button>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <Button
-            variant="outline"
-            onClick={() => setIsShareAlertOpen(true)}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "#1f2937")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
-          >
-            <ShareAltOutlined />
-            Share
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setIsDeployAlertOpen(true)}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "#1f2937")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
-          >
-            <CloudUploadOutlined />
-            Deploy
-          </Button>
-        </div>
-      </div>
+      </footer>
       <ShareAlert open={isShareAlertOpen} onOpenChange={setIsShareAlertOpen} />
       <DeployAlert
         open={isDeployAlertOpen}
         onOpenChange={setIsDeployAlertOpen}
       />
-    </footer>
+      <ToolsSheet
+        open={isToolsSheetOpen}
+        onOpenChange={setIsToolsSheetOpen}
+        variables={variables}
+        onAddVariable={onAddVariable}
+      />
+    </>
   );
 }

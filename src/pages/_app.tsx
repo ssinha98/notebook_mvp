@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { auth } from "@/tools/firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { AuthWrapper } from "@/components/custom_components/SessionHandler";
 
 // Check that PostHog is client-side
 if (typeof window !== "undefined") {
@@ -37,10 +38,9 @@ export default function App({ Component, pageProps }: AppProps) {
         posthog.identify(user.uid, {
           email: user.email,
           name: user.displayName,
-          firebase_uid: user.uid
+          firebase_uid: user.uid,
         });
-      } else if (router.pathname !== '/login/signup') {
-        router.push('/login/signup');
+      } else {
         // Reset the user identification when they log out
         posthog.reset();
       }
@@ -52,5 +52,9 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, [router.events, router]);
 
-  return <Component {...pageProps} />;
+  return (
+    <AuthWrapper>
+      <Component {...pageProps} />
+    </AuthWrapper>
+  );
 }

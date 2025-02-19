@@ -97,9 +97,7 @@ const Header: React.FC<HeaderProps> = ({
             <RobotOutlined />
             Agents
           </Button>
-
           <div className="h-6 w-px bg-gray-600 mx-2" /> {/* Divider */}
-
           <Button
             className="flex items-center"
             onClick={() => setIsVideoGuideOpen(true)}
@@ -119,9 +117,7 @@ const Header: React.FC<HeaderProps> = ({
             <CodeOutlined />
             Code
           </Button>
-
           <div className="h-6 w-px bg-gray-600 mx-2" /> {/* Divider */}
-
           <Button
             onClick={onLogout}
             variant="outline"

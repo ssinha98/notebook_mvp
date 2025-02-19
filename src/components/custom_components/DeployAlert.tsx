@@ -33,4 +33,4 @@ const DeployAlert: React.FC<DeployAlertProps> = ({ open, onOpenChange }) => {
   );
 };
 
-export default DeployAlert; 
+export default DeployAlert;

@@ -28,7 +28,7 @@ export interface PromptStore {
 export interface Source {
   type: string;
   processedData: string;
-  rawData?: any[];  // For CSV data in JSON format
+  rawData?: any[]; // For CSV data in JSON format
   originalName: string;
   filterCriteria?: FilterCriteria[];
   metadata?: {
@@ -53,7 +53,7 @@ export interface FilterCriteria {
 }
 
 export interface Block {
-  type: 'transform' | 'agent';  // Add more block types as needed
+  type: "transform" | "agent"; // Add more block types as needed
   blockNumber: number;
   originalFilePath?: string;
   sourceName?: string;
@@ -71,5 +71,25 @@ export interface Block {
   // Add these new properties
   systemPrompt?: string;
   userPrompt?: string;
+  saveAsCsv?: boolean;
   // Add other block-specific properties as needed
+}
+
+export interface Agent {
+  id: string;
+  name: string;
+  userId: string;
+  createdAt: string;
+  blocks: Block[];
+}
+
+export interface AgentStore {
+  agents: Agent[];
+  currentAgent: Agent | null;
+  loadAgents: () => Promise<void>;
+  createAgent: (name: string) => Promise<void>;
+  saveAgent: (blocks: Block[]) => Promise<void>;
+  loadAgent: (agentId: string) => Promise<void>;
+  deleteAgent: (agentId: string) => Promise<void>;
+  updateAgentName: (agentId: string, newName: string) => Promise<void>;
 }

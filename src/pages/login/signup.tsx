@@ -4,7 +4,8 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
 } from "firebase/auth";
-import { auth, googleProvider } from "@/tools/firebase";
+import { doc, setDoc, getFirestore } from "firebase/firestore";
+import { auth, googleProvider, db } from "@/tools/firebase";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,15 +19,33 @@ const SignUp = () => {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  const createUserDocument = async (uid: string, email: string) => {
+    try {
+      const userRef = doc(db, "users", uid);
+      await setDoc(userRef, {
+        email,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error("Error creating user document:", error);
+      setError("Failed to create user profile");
+    }
+  };
+
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
     if (passwordOne === passwordTwo) {
       try {
-        await createUserWithEmailAndPassword(auth, email, passwordOne);
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          passwordOne
+        );
+        await createUserDocument(userCredential.user.uid, email);
         console.log("Success. The user is created in Firebase");
-        router.push("/"); // Redirect to home page after signup
+        router.push("/");
       } catch (error: any) {
         setError(error.message);
       }
@@ -37,7 +56,8 @@ const SignUp = () => {
 
   const signInWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      await createUserDocument(result.user.uid, result.user.email!);
       router.push("/");
     } catch (error: any) {
       setError(error.message);

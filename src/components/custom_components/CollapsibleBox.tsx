@@ -168,6 +168,9 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
                         deleteBlock(blockNumber);
                         props.onDeleteBlock?.(blockNumber);
                       }}
+                      initialSystemPrompt={block.systemPrompt || ""}
+                      initialUserPrompt={block.userPrompt || ""}
+                      initialSaveAsCsv={block.saveAsCsv || false}
                     />
                   ))}
               </div>

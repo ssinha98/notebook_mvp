@@ -3,11 +3,14 @@ import {
   PlayCircleOutlined,
   ShareAltOutlined,
   CloudUploadOutlined,
+  SaveOutlined,
   // ClearOutlined,
 } from "@ant-design/icons";
 import { Button } from "@/components/ui/button";
 import ShareAlert from "./ShareAlert";
 import DeployAlert from "./DeployAlert";
+import { useAgentStore } from "@/lib/agentStore";
+import { useSourceStore } from "@/lib/store";
 
 const footerStyle: CSSProperties = {
   position: "sticky",

@@ -1,4 +1,9 @@
-import React, { useState, useImperativeHandle, forwardRef } from "react";
+import React, {
+  useState,
+  useImperativeHandle,
+  forwardRef,
+  useEffect,
+} from "react";
 import { Variable } from "@/types/types";
 import { Button } from "@/components/ui/button";
 import AddVariableDialog from "@/components/custom_components/AddVariableDialog";
@@ -18,12 +23,16 @@ interface AgentBlockProps {
   onSavePrompts: (
     blockNumber: number,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    saveAsCsv: boolean
   ) => void;
   onProcessedPrompts?: (processedSystem: string, processedUser: string) => void;
   isProcessing: boolean;
   onProcessingChange: (isProcessing: boolean) => void;
   onDeleteBlock: (blockNumber: number) => void;
+  initialSystemPrompt?: string;
+  initialUserPrompt?: string;
+  initialSaveAsCsv?: boolean;
 }
 
 // Add this interface to define the ref methods
@@ -36,9 +45,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [isSystemPromptOpen, setIsSystemPromptOpen] = useState(false);
   const [isUserPromptOpen, setIsUserPromptOpen] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState(
-    "You are a helpful assistant"
+    props.initialSystemPrompt || "You are a helpful assistant"
   );
-  const [userPrompt, setUserPrompt] = useState("");
+  const [userPrompt, setUserPrompt] = useState(props.initialUserPrompt || "");
   // const [showOutput, setShowOutput] = useState(false);
   const [showOutput] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -46,11 +55,27 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [selectedVariableId, setSelectedVariableId] = useState<string>("");
   const [selectedSource, setSelectedSource] = useState<string>("");
   const sources = useSourceStore((state) => state.sources) || {};
-  const [saveAsCsv, setSaveAsCsv] = useState(false);
-  const [saveAsJson, setSaveAsJson] = useState(false);
+  const [saveAsCsv, setSaveAsCsv] = useState(props.initialSaveAsCsv || false);
 
   // Add null check for variables prop
   const variables = props.variables || [];
+
+  // Add useEffect to update prompts when they change
+  useEffect(() => {
+    if (props.initialSystemPrompt !== undefined) {
+      setSystemPrompt(props.initialSystemPrompt);
+    }
+    if (props.initialUserPrompt !== undefined) {
+      setUserPrompt(props.initialUserPrompt);
+    }
+  }, [props.initialSystemPrompt, props.initialUserPrompt]);
+
+  // Add useEffect to update saveAsCsv when it changes
+  useEffect(() => {
+    if (props.initialSaveAsCsv !== undefined) {
+      setSaveAsCsv(props.initialSaveAsCsv);
+    }
+  }, [props.initialSaveAsCsv]);
 
   const handleVariableSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (e.target.value === "add_new" && props.onOpenTools) {
@@ -124,14 +149,12 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           user_prompt: processedUserPrompt,
           processed_data: sourceData.processedData,
           save_as_csv: saveAsCsv,
-          save_as_json: saveAsJson,
         });
       } else {
         response = await api.post("/api/call-model", {
           system_prompt: processedSystemPrompt,
           user_prompt: processedUserPrompt,
           save_as_csv: saveAsCsv,
-          save_as_json: saveAsJson,
         });
       }
 
@@ -194,6 +217,11 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     processBlock: handleProcessBlock,
   }));
 
+  // Update the save functions to include saveAsCsv
+  const handleSavePrompts = () => {
+    props.onSavePrompts(props.blockNumber, systemPrompt, userPrompt, saveAsCsv);
+  };
+
   return (
     <>
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
@@ -255,11 +283,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                 <Button
                   onClick={() => {
                     setIsSystemPromptOpen(false);
-                    props.onSavePrompts(
-                      props.blockNumber,
-                      systemPrompt,
-                      userPrompt
-                    );
+                    handleSavePrompts();
                     console.log(
                       `Saved Block ${props.blockNumber} System Prompt:`,
                       systemPrompt
@@ -301,11 +325,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                 <Button
                   onClick={() => {
                     setIsUserPromptOpen(false);
-                    props.onSavePrompts(
-                      props.blockNumber,
-                      systemPrompt,
-                      userPrompt
-                    );
+                    handleSavePrompts();
                     console.log(
                       `Saved Block ${props.blockNumber} User Prompt:`,
                       userPrompt
@@ -382,19 +402,19 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
               <input
                 type="checkbox"
                 checked={saveAsCsv}
-                onChange={(e) => setSaveAsCsv(e.target.checked)}
+                onChange={(e) => {
+                  setSaveAsCsv(e.target.checked);
+                  // Save the preference immediately when changed
+                  props.onSavePrompts(
+                    props.blockNumber,
+                    systemPrompt,
+                    userPrompt,
+                    e.target.checked
+                  );
+                }}
                 className="form-checkbox bg-gray-700 border-gray-600"
               />
               CSV
-            </label>
-            <label className="flex items-center gap-2 text-gray-300">
-              <input
-                type="checkbox"
-                checked={saveAsJson}
-                onChange={(e) => setSaveAsJson(e.target.checked)}
-                className="form-checkbox bg-gray-700 border-gray-600"
-              />
-              JSON
             </label>
           </div>
         </div>

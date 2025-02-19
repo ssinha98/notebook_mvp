@@ -5,6 +5,7 @@ import {
   ToolOutlined,
   CodeOutlined,
   VideoCameraOutlined,
+  RobotOutlined,
 } from "@ant-design/icons";
 import { Button } from "@/components/ui/button";
 // import {
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 // } from "@/components/ui/sheet";
 import VideoGuide from "./VideoGuide";
 import CodeAlert from "./CodeAlert";
+import { useRouter } from "next/router";
 
 // import { Button } from "antd";
 
@@ -71,7 +73,12 @@ const navStyle: CSSProperties = {
 //   cursor: "pointer",
 // };
 
-const Header: React.FC<HeaderProps> = ({ onApiKeyClick, onToolsClick, onLogout }) => {
+const Header: React.FC<HeaderProps> = ({
+  onApiKeyClick,
+  onToolsClick,
+  onLogout,
+}) => {
+  const router = useRouter();
   const [isVideoGuideOpen, setIsVideoGuideOpen] = useState(false);
   const [isCodeAlertOpen, setIsCodeAlertOpen] = useState(false);
 
@@ -83,6 +90,16 @@ const Header: React.FC<HeaderProps> = ({ onApiKeyClick, onToolsClick, onLogout }
           <span>lab</span>
         </div>
         <nav style={navStyle}>
+          <Button
+            className="flex items-center bg-blue-600 hover:bg-blue-700"
+            onClick={() => router.push("/agents")}
+          >
+            <RobotOutlined />
+            Agents
+          </Button>
+
+          <div className="h-6 w-px bg-gray-600 mx-2" /> {/* Divider */}
+
           <Button
             className="flex items-center"
             onClick={() => setIsVideoGuideOpen(true)}
@@ -102,6 +119,9 @@ const Header: React.FC<HeaderProps> = ({ onApiKeyClick, onToolsClick, onLogout }
             <CodeOutlined />
             Code
           </Button>
+
+          <div className="h-6 w-px bg-gray-600 mx-2" /> {/* Divider */}
+
           <Button
             onClick={onLogout}
             variant="outline"

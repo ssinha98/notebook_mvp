@@ -1,12 +1,7 @@
 // store.ts
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import {
-  PromptStore,
-  PromptType,
-  Source,
-  Block,
-} from "../types/types";
+import { PromptStore, PromptType, Source, Block } from "../types/types";
 
 // Define the SourceStore interface here since it's specific to this file
 interface SourceStore {
@@ -19,6 +14,7 @@ interface SourceStore {
   updateBlock: (blockNumber: number, updates: Partial<Block>) => void;
   removeBlock: (blockNumber: number) => void;
   deleteBlock: (blockNumber: number) => void;
+  resetBlocks: () => void;
 }
 
 const usePromptStore = create<PromptStore>()(
@@ -102,7 +98,7 @@ export const useSourceStore = create<SourceStore>((set) => ({
 export const useSourceStore = create<SourceStore>()(
   persist(
     (set) => ({
-      sources: {}, // Initialize with empty object
+      sources: {},
       blocks: [],
       nextBlockNumber: 1,
       addSource: (name: string, source: Source) =>
@@ -114,11 +110,27 @@ export const useSourceStore = create<SourceStore>()(
           const { [name]: _, ...rest } = state.sources;
           return { sources: rest };
         }),
-      addBlockToNotebook: (block: Block) =>
-        set((state) => ({
-          blocks: [...state.blocks, block],
-          nextBlockNumber: state.nextBlockNumber + 1,
+      resetBlocks: () =>
+        set(() => ({
+          blocks: [],
+          nextBlockNumber: 1,
         })),
+      addBlockToNotebook: (block: Block) => {
+        console.log(
+          "Adding block to notebook with saveAsCsv:",
+          block.saveAsCsv
+        ); // Debug log
+        set((state) => ({
+          blocks: [
+            ...state.blocks,
+            {
+              ...block,
+              saveAsCsv: block.saveAsCsv || false, // Ensure saveAsCsv is preserved
+            },
+          ],
+          nextBlockNumber: state.nextBlockNumber + 1,
+        }));
+      },
       updateBlock: (blockNumber: number, updates: Partial<Block>) =>
         set((state) => ({
           blocks: state.blocks.map((block) =>
@@ -127,11 +139,15 @@ export const useSourceStore = create<SourceStore>()(
         })),
       removeBlock: (blockNumber: number) =>
         set((state) => ({
-          blocks: state.blocks.filter((block) => block.blockNumber !== blockNumber),
+          blocks: state.blocks.filter(
+            (block) => block.blockNumber !== blockNumber
+          ),
         })),
-      deleteBlock: (blockNumber: number) => 
+      deleteBlock: (blockNumber: number) =>
         set((state) => ({
-          blocks: state.blocks.filter(block => block.blockNumber !== blockNumber)
+          blocks: state.blocks.filter(
+            (block) => block.blockNumber !== blockNumber
+          ),
         })),
     }),
     {

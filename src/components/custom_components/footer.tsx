@@ -228,16 +228,16 @@ export default function Footer({
         setIsToolsSheetOpen(true);
       },
     },
-    {
-      id: "contact",
-      icon: <SiMinutemailer className="text-2xl" />,
-      label: "Contact",
-      tooltip: "Have your agent send...",
-      onClick: () => {
-        addBlock("contact");
-        console.log("contact");
-      },
-    },
+    // {
+    //   id: "contact",
+    //   icon: <SiMinutemailer className="text-2xl" />,
+    //   label: "Contact",
+    //   tooltip: "Have your agent send...",
+    //   onClick: () => {
+    //     addBlock("contact");
+    //     console.log("contact");
+    //   },
+    // },
     {
       id: "checkin",
       icon: <IoPlaySkipForwardCircle className="text-2xl" />,

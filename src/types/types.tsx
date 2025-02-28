@@ -43,6 +43,7 @@ export interface SourceStore {
   sources: Record<string, Source>;
   addSource: (name: string, source: Source) => void;
   removeSource: (name: string) => void;
+  updateBlockData: (blockNumber: number, updates: Partial<Block>) => void;
 }
 
 export interface FilterCriteria {
@@ -52,27 +53,28 @@ export interface FilterCriteria {
   value: string;
 }
 
+export interface TransformationData {
+  filterCriteria: FilterCriteria[];
+  columns?: string[];
+  previewData?: any[];
+  processedData?: any[];
+}
+
 export interface Block {
-  type: "transform" | "agent"; // Add more block types as needed
+  type: "transform" | "agent" | "checkin" | "contact";
   blockNumber: number;
+  error?: string;
   originalFilePath?: string;
   sourceName?: string;
   fileType?: "image" | "csv" | "pdf" | "website";
-  transformations?: {
-    filterCriteria: Array<{
-      id: string;
-      column: string;
-      operator: string;
-      value: string;
-    }>;
-    columns?: string[];
-    previewData?: any[];
-  };
-  // Add these new properties
+  transformations?: TransformationData;
   systemPrompt?: string;
   userPrompt?: string;
   saveAsCsv?: boolean;
-  // Add other block-specific properties as needed
+  channel?: string;
+  recipient?: string;
+  subject?: string;
+  body?: string;
 }
 
 export interface Agent {

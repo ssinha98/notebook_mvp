@@ -7,12 +7,11 @@ import CollapsibleBox from "../components/custom_components/CollapsibleBox";
 import React from "react";
 import ApiKeySheet from "../components/custom_components/ApiKeySheet";
 import ToolsSheet from "../components/custom_components/ToolsSheet";
-import { Variable } from "@/types/types";
+import { Block, Variable } from "@/types/types";
 import usePromptStore from "../lib/store";
 import { api } from "@/tools/api";
 import { AgentBlockRef } from "../components/custom_components/AgentBlock";
 import posthog from "posthog-js";
-// import { SourcesList } from "@/pages/components/SourcesList"; // commented out
 import {
   Table,
   TableHeader,
@@ -30,6 +29,13 @@ import AgentHeader from "@/components/custom_components/AgentHeader";
 import { SaveOutlined } from "@ant-design/icons";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import CheckInBlock from "../components/custom_components/CheckInBlock";
+import ContactBlock from "@/components/custom_components/ContactBlock";
+import TransformBlock from "../components/custom_components/TransformBlock";
+// import { useBlockManager } from "@/hooks/useBlockManager";
+import AgentBlock from "../components/custom_components/AgentBlock";
+import { useBlockManager } from "@/hooks/useBlockManager";
+import { getBlockList } from "../lib/store";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -79,8 +85,9 @@ export default function Home() {
     usePromptStore();
 
   // Keep only one instance of blocks from the store
-  const blocks = useSourceStore((state) => state.blocks);
-  const updateBlock = useSourceStore((state) => state.updateBlock);
+  const { blocks, deleteBlock, updateBlockData } = useSourceStore(
+    (state) => state
+  );
 
   const handleSavePrompts = (
     blockNumber: number,
@@ -91,7 +98,7 @@ export default function Home() {
     addPrompt(blockNumber, "user", userPrompt);
 
     // Update the block in the store instead of local state
-    updateBlock(blockNumber, {
+    updateBlockData(blockNumber, {
       systemPrompt,
       userPrompt,
     });
@@ -162,33 +169,110 @@ export default function Home() {
     }
   };
 
-  const runAllBlocks = async () => {
-    setIsProcessing(true);
-    try {
-      // Get all block numbers and sort them
-      const blockNumbers = Object.keys(blockRefs.current)
-        .map(Number)
-        .sort((a, b) => a - b);
+  // Add this near your other state declarations
+  const [checkInRefs, setCheckInRefs] = useState<{ [key: number]: boolean }>(
+    {}
+  );
 
-      // Run blocks sequentially
-      for (const blockNumber of blockNumbers) {
-        const blockRef = blockRefs.current[blockNumber];
-        if (blockRef) {
-          const success = await blockRef.processBlock();
-          if (!success) {
-            console.error(`Failed to process block ${blockNumber}`);
-            break;
-          }
-          // Update count after each successful block processing
-          const response = await api.get("/api/check-api-key");
-          setApiCallCount(response.count);
-        }
-      }
-    } catch (error) {
-      console.error("Error running blocks:", error);
-    } finally {
-      setIsProcessing(false);
+  // Add this state
+  const [pausedAtBlock, setPausedAtBlock] = useState<number | null>(null);
+
+  const [currentBlockIndex, setCurrentBlockIndex] = useState<number | null>(
+    null
+  );
+  const [isRunPaused, setIsRunPaused] = useState(false);
+
+  const renderBlock = (block: Block) => {
+    // console.log("Attempting to render block of type:", block.type);
+
+    if (block.type === "agent") {
+      return (
+        <AgentBlock
+          ref={(ref) => {
+            if (ref) blockRefs.current[block.blockNumber] = ref;
+          }}
+          key={block.blockNumber}
+          blockNumber={block.blockNumber}
+          onDeleteBlock={deleteBlock}
+          variables={variables}
+          onAddVariable={handleAddVariable}
+          onOpenTools={() => setIsToolsSheetOpen(true)}
+          onSavePrompts={handleSavePrompts}
+          isProcessing={isProcessing}
+          onProcessingChange={setIsProcessing}
+          initialSystemPrompt={block.systemPrompt}
+          initialUserPrompt={block.userPrompt}
+        />
+      );
     }
+
+    if (block.type === "transform") {
+      return (
+        <TransformBlock
+          key={block.blockNumber}
+          blockNumber={block.blockNumber}
+          onDeleteBlock={deleteBlock}
+          originalFilePath={block.originalFilePath || ""}
+          sourceName={block.sourceName || ""}
+          fileType={block.fileType || "csv"}
+          transformations={{
+            filterCriteria: block.transformations?.filterCriteria || [],
+            columns: block.transformations?.columns || [],
+            previewData: block.transformations?.previewData || [],
+          }}
+          onTransformationsUpdate={(updates) =>
+            updateBlockData(block.blockNumber, updates)
+          }
+        />
+      );
+    }
+
+    if (block.type === "contact") {
+      console.log("Rendering contact block");
+      return (
+        <ContactBlock
+          key={block.blockNumber}
+          blockNumber={block.blockNumber}
+          onDeleteBlock={deleteBlock}
+          onSave={(values) => console.log("Saving contact values:", values)}
+          onClose={() => console.log("Closing contact block")}
+        />
+      );
+    }
+
+    if (block.type === "checkin") {
+      return (
+        <CheckInBlock
+          ref={(ref) => {
+            if (ref) blockRefs.current[block.blockNumber] = ref;
+          }}
+          key={block.blockNumber}
+          blockNumber={block.blockNumber}
+          onDeleteBlock={deleteBlock}
+          isProcessing={isProcessing && pausedAtBlock === block.blockNumber}
+          onResume={resumeRun}
+          variables={variables}
+          editedVariableNames={[]}
+          onSaveVariables={(updatedVariables, editedNames) => {
+            setVariables(updatedVariables);
+          }}
+        />
+      );
+    }
+
+    console.error("Unknown block type:", block.type);
+    return null;
+  };
+
+  // Add this near your other useEffects
+  useEffect(() => {
+    console.log("Current blockRefs contents:", blockRefs.current);
+  }, [blockRefs.current]);
+
+  // And modify runAllBlocks to wait for refs
+  const runAllBlocks = () => {
+    console.log("Starting new run");
+    runBlocks(0); // Use our new implementation
   };
 
   React.useEffect(() => {
@@ -306,6 +390,80 @@ export default function Home() {
     }
   };
 
+  const [checkInBlocks, setCheckInBlocks] = useState<number[]>([]);
+  const [nextCheckInNumber, setNextCheckInNumber] = useState(1);
+
+  const handleAddCheckIn = () => {
+    console.log("Add Check-In button clicked!");
+    const { addBlockToNotebook, blocks } = useSourceStore.getState();
+
+    // Calculate the next block number based on existing blocks
+    const nextBlockNumber =
+      blocks.length > 0 ? Math.max(...blocks.map((b) => b.blockNumber)) + 1 : 1;
+
+    const newBlock: Block = {
+      type: "checkin",
+      blockNumber: nextBlockNumber,
+    };
+
+    addBlockToNotebook(newBlock);
+  };
+
+  const [editedVariableNames, setEditedVariableNames] = useState<string[]>([]);
+
+  const {
+    blocks: blockManagerBlocks,
+    addBlock,
+    deleteBlock: blockManagerDeleteBlock,
+  } = useBlockManager();
+
+  const runBlocks = async (startIndex: number = 0) => {
+    const blockList = getBlockList();
+    console.log("Starting run from index:", startIndex);
+    if (startIndex === 0) {
+      // Only clear variables when starting a fresh run
+      useSourceStore.getState().clearVariables(); // We'll add this function
+    }
+    setIsProcessing(true);
+
+    try {
+      for (let i = startIndex; i < blockList.length; i++) {
+        const block = blockList[i];
+        setCurrentBlockIndex(i);
+        console.log(`Processing block ${block.blockNumber} (${block.type})`);
+
+        try {
+          if (block.type === "checkin") {
+            console.log(`Pausing at CheckInBlock ${block.blockNumber}`);
+            setPausedAtBlock(block.blockNumber);
+            setIsRunPaused(true);
+            return; // This return is crucial - it stops execution
+          }
+
+          if (block.type === "agent") {
+            const ref = blockRefs.current[block.blockNumber];
+            await ref?.processBlock();
+          }
+        } catch (error) {
+          // ... error handling ...
+        }
+      }
+    } finally {
+      if (!isRunPaused) {
+        setIsProcessing(false);
+        setCurrentBlockIndex(null);
+      }
+    }
+  };
+
+  const resumeRun = async () => {
+    console.log("Resuming run...");
+    if (pausedAtBlock) {
+      const nextIndex = blocks.findIndex((b) => b.blockNumber > pausedAtBlock);
+      runBlocks(nextIndex);
+    }
+  };
+
   return (
     <div style={pageStyle}>
       <Header
@@ -352,44 +510,18 @@ export default function Home() {
           onOpenTools={() => setIsToolsSheetOpen(true)}
           onSavePrompts={handleSavePrompts}
           blockRefs={blockRefs}
-        />
-        <CollapsibleBox
-          title="Output"
-          isExpandedByDefault={false}
-          style={{ minHeight: "200px" }}
-          onSavePrompts={handleSavePrompts}
         >
-          <div className="p-4">
-            <h4 className="text-sm font-medium mb-4 text-gray-300">
-              Variables Overview
-            </h4>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Variable Name</TableHead>
-                  <TableHead>Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {variables.map((variable) => (
-                  <TableRow key={variable.id}>
-                    <td className="px-4 py-2 text-gray-300">{variable.name}</td>
-                    <td className="px-4 py-2 text-gray-300">
-                      {variable.value || "no value saved yet"}
-                    </td>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {/* Then render other blocks */}
+          {blocks.map((block) => renderBlock(block))}
         </CollapsibleBox>
-
         <div className="flex justify-end mt-4"></div>
+        <div className="flex justify-center mb-4"></div>
       </main>
       <Footer
         onRun={runAllBlocks}
-        // onClearPrompts={handleClearPrompts}
         isProcessing={isProcessing}
+        variables={variables}
+        onAddVariable={handleAddVariable}
       />
       <ApiKeySheet
         open={isApiKeySheetOpen}

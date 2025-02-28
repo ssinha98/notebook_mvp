@@ -82,37 +82,79 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       const { currentAgent } = get();
       if (!currentAgent) throw new Error("No agent selected");
 
-      // Clean and prepare blocks with prompts
-      const blocksWithPrompts = blocks.map((block) => ({
-        ...block,
-        systemPrompt:
-          usePromptStore.getState().getPrompt(block.blockNumber, "system") ||
-          "",
-        userPrompt:
-          usePromptStore.getState().getPrompt(block.blockNumber, "user") || "",
-        saveAsCsv: block.saveAsCsv || false,
-      }));
+      console.log("Current Agent:", currentAgent);
+      console.log("Saving blocks:", blocks);
 
-      const updatedAgent = {
-        id: currentAgent.id,
-        name: currentAgent.name,
-        userId,
-        createdAt: currentAgent.createdAt,
-        blocks: blocksWithPrompts,
+      const preparedBlocks = blocks.map((block) => {
+        const baseBlock = {
+          type: block.type,
+          blockNumber: block.blockNumber,
+        };
+
+        switch (block.type) {
+          case "agent":
+            return {
+              ...baseBlock,
+              systemPrompt:
+                usePromptStore
+                  .getState()
+                  .getPrompt(block.blockNumber, "system") || "",
+              userPrompt:
+                usePromptStore
+                  .getState()
+                  .getPrompt(block.blockNumber, "user") || "",
+              saveAsCsv: Boolean(block.saveAsCsv),
+              sourceName: block.sourceName || "",
+            };
+
+          case "checkin":
+            return baseBlock;
+
+          case "transform":
+            return {
+              ...baseBlock,
+              transformations: block.transformations || { filterCriteria: [] },
+              sourceName: block.sourceName || "",
+            };
+
+          case "contact":
+            return {
+              ...baseBlock,
+              channel: block.channel || "",
+              recipient: block.recipient || "",
+              subject: block.subject || "",
+              body: block.body || "",
+            };
+
+          default:
+            return baseBlock;
+        }
+      });
+
+      const cleanAgent = {
+        id: currentAgent.id || "",
+        name: currentAgent.name || "Untitled Agent",
+        userId: userId,
+        createdAt: currentAgent.createdAt || new Date().toISOString(),
+        blocks: preparedBlocks,
       };
+
+      console.log("Final agent data to save:", cleanAgent);
 
       await setDoc(
         doc(db, `users/${userId}/agents`, currentAgent.id),
-        updatedAgent
+        cleanAgent
       );
+
       set((state) => ({
         agents: state.agents.map((agent) =>
-          agent.id === currentAgent.id ? updatedAgent : agent
+          agent.id === currentAgent.id ? cleanAgent : agent
         ),
-        currentAgent: updatedAgent,
+        currentAgent: cleanAgent,
       }));
     } catch (error) {
       console.error("Error saving agent:", error);
+      throw error;
     }
   },
 

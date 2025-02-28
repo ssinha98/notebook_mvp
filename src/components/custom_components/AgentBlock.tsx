@@ -64,6 +64,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const sources = useSourceStore((state) => state.sources) || {};
   const [saveAsCsv, setSaveAsCsv] = useState(props.initialSaveAsCsv || false);
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const { variables: storeVariables } = useSourceStore();
 
   // Add null check for variables prop
   const variables = props.variables || [];
@@ -133,12 +134,14 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     return parts.length ? parts : text;
   };
 
-  // Add function to process variables in text
+  // Update the processVariablesInText function to use store values
   const processVariablesInText = (text: string): string => {
     const regex = /{{(.*?)}}/g;
     return text.replace(regex, (match, varName) => {
-      const variable = variables.find((v) => v.name === varName.trim());
-      return variable?.value || `no value saved to ${varName.trim()}`;
+      // Get the latest value from the store
+      const storeVars = useSourceStore.getState().variables;
+      const value = storeVars[varName.trim()];
+      return value || `no value saved to ${varName.trim()}`;
     });
   };
 
@@ -150,7 +153,11 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       const processedUserPrompt = processVariablesInText(userPrompt);
 
       let response;
-      if (selectedSource && selectedSource !== "none" && sources[selectedSource]) {
+      if (
+        selectedSource &&
+        selectedSource !== "none" &&
+        sources[selectedSource]
+      ) {
         const sourceData = sources[selectedSource];
         response = await api.post("/api/call-model-with-source", {
           system_prompt: processedSystemPrompt,
@@ -188,6 +195,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           );
           if (selectedVariable) {
             selectedVariable.value = response.response;
+            useSourceStore.getState().updateVariable(selectedVariable.name, response.response);
             props.onAddVariable(selectedVariable);
           }
         }

@@ -24,8 +24,9 @@ import { FaDatabase } from "react-icons/fa";
 import { SiMinutemailer } from "react-icons/si";
 import { IoPlaySkipForwardCircle } from "react-icons/io5";
 import ToolsSheet from "./ToolsSheet";
-import { Variable } from "@/types/types";
-
+import { useBlockManager } from "@/hooks/useBlockManager";
+import { useToolsSheet } from "@/hooks/useToolsSheet";
+import { Block, Variable } from "@/types/types";
 const footerStyle: CSSProperties = {
   position: "sticky",
   bottom: 0,
@@ -83,8 +84,11 @@ interface FooterProps {
   onRun: () => void;
   // onClearPrompts?: () => void;
   isProcessing?: boolean;
+  isPaused?: boolean;
   variables?: Variable[];
   onAddVariable?: (variable: Variable) => void;
+  onAddCheckIn?: () => void;
+  onResume?: () => void;
 }
 
 // Add this interface for tool buttons
@@ -158,8 +162,10 @@ export default function Footer({
   onRun,
   // onClearPrompts,
   isProcessing = false,
+  isPaused,
   variables = [],
   onAddVariable = () => {},
+  onResume,
 }: FooterProps) {
   const [isToolsPanelExpanded, setIsToolsPanelExpanded] = useState(false);
   const [isShareAlertOpen, setIsShareAlertOpen] = useState(false);
@@ -172,6 +178,9 @@ export default function Footer({
   );
   const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
 
+  // Add debugging to see current state
+  const blocks = useSourceStore((state) => state.blocks);
+
   // Create the addNewBlock function
   const addNewBlock = () => {
     addBlockToNotebook({
@@ -182,40 +191,66 @@ export default function Footer({
     });
   };
 
-  // Define toolButtons inside the component
+  // Add new function to handle check-in blocks with debugging
+  const addNewCheckInBlock = () => {
+    console.log("Adding check-in block...", nextBlockNumber);
+    const newBlock = {
+      type: "checkin" as const,
+      blockNumber: nextBlockNumber,
+    };
+
+    addBlockToNotebook(newBlock);
+  };
+
+  const { addBlock } = useBlockManager();
+  // const { setIsToolsSheetOpen } = useToolsSheet();
+
   const toolButtons: ToolButton[] = [
     {
       id: "agent",
       icon: <LuBrainCircuit className="text-2xl" />,
       label: "Agent Block",
-      tooltip:
-        "Add a new agent block to generate content, summarize information or answer questions",
-      onClick: addNewBlock,
+      tooltip: "Add a new agent block...",
+      onClick: () => {
+        console.log("agent");
+        addBlock("agent", {
+          systemPrompt: "You are a helpful assistant",
+          userPrompt: "",
+        });
+      },
     },
     {
       id: "data",
       icon: <FaDatabase className="text-2xl" />,
       label: "Data and Transformations",
-      tooltip:
-        "Load in some data and apply any transformations that help out your agent",
-      onClick: () => setIsToolsSheetOpen(true),
+      tooltip: "Load in some data...",
+      onClick: () => {
+        setIsToolsSheetOpen(true);
+      },
     },
     {
       id: "contact",
       icon: <SiMinutemailer className="text-2xl" />,
       label: "Contact",
-      tooltip: "Have your agent send its work to yourself or a team member",
-      onClick: () => console.log("Added Contact Block to notebook"),
+      tooltip: "Have your agent send...",
+      onClick: () => {
+        addBlock("contact");
+        console.log("contact");
+      },
     },
     {
       id: "checkin",
       icon: <IoPlaySkipForwardCircle className="text-2xl" />,
       label: "Check In",
-      tooltip:
-        "Tell your agent to pause it's run, and check in with you before proceeding",
-      onClick: () => console.log("Added Check In Block to notebook"),
+      tooltip: "Tell your agent to pause...",
+      onClick: () => {
+        addBlock("checkin");
+        console.log("checkin");
+      },
     },
   ];
+
+  const { getBlockList } = useSourceStore();
 
   return (
     <>
@@ -231,14 +266,22 @@ export default function Footer({
               style={{ backgroundColor: "#09CE6B", color: "white" }}
               disabled={isProcessing}
               onClick={() => {
-                console.log("run started");
-                onRun();
+                if (isPaused) {
+                  onResume?.();
+                } else {
+                  onRun();
+                }
               }}
             >
               {isProcessing ? (
                 <>
                   <span className="animate-spin mr-2">⟳</span>
                   Running...
+                </>
+              ) : isPaused ? (
+                <>
+                  <PlayCircleOutlined />
+                  Continue
                 </>
               ) : (
                 <>
@@ -250,6 +293,12 @@ export default function Footer({
                 ⌘↵
               </span>
             </Button>
+
+            {/* Add the test button */}
+            <Button variant="outline" onClick={getBlockList}>
+              Test
+            </Button>
+
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <input
                 type="number"

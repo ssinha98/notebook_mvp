@@ -53,6 +53,9 @@ export default function AgentHeader() {
       // Compare current blocks with saved agent blocks
       const hasUnsavedChanges = !isEqual(blocks, currentAgent.blocks);
       setHasChanges(hasUnsavedChanges);
+
+      // Update name when agent changes
+      setNewName(currentAgent.name);
     }
   }, [blocks, currentAgent]);
 
@@ -113,7 +116,7 @@ export default function AgentHeader() {
             <AlertDialogTrigger asChild>
               <div className="flex items-center gap-2 px-3 py-1.5 border border-gray-600 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
                 <h1 className="text-xl font-semibold text-white">
-                  {currentAgent.name}
+                  {currentAgent?.name || "Untitled Agent"}
                 </h1>
                 <EditOutlined className="text-gray-400 hover:text-gray-300" />
               </div>

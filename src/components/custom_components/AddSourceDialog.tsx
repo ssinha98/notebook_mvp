@@ -233,9 +233,6 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
     }
   };
 
-  // Add console log in render to see what's being passed to TransformCSV
-  console.log("Current columnData:", columnData);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="z-[2000] bg-gray-800 min-w-[800px] max-w-[1000px]">

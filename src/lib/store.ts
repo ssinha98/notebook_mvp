@@ -8,6 +8,7 @@ interface SourceStore {
   sources: Record<string, Source>;
   blocks: Block[];
   nextBlockNumber: number;
+  variables: Record<string, string>;
   addSource: (name: string, source: Source) => void;
   removeSource: (name: string) => void;
   addBlockToNotebook: (block: Block) => void;
@@ -15,6 +16,22 @@ interface SourceStore {
   removeBlock: (blockNumber: number) => void;
   deleteBlock: (blockNumber: number) => void;
   resetBlocks: () => void;
+  updateVariable: (key: string, value: string) => void;
+  updateBlockData: (blockNumber: number, updates: Partial<Block>) => void;
+  currentBlockIndex: number | null;
+  isPaused: boolean;
+  setCurrentBlockIndex: (index: number | null) => void;
+  setIsPaused: (paused: boolean) => void;
+  getBlockList: () => Array<{
+    index: number;
+    blockNumber: number;
+    type: Block["type"];
+    systemPrompt?: string;
+    userPrompt?: string;
+    saveAsCsv?: boolean;
+    sourceName?: string;
+  }>;
+  clearVariables: () => void;
 }
 
 const usePromptStore = create<PromptStore>()(
@@ -97,10 +114,13 @@ export const useSourceStore = create<SourceStore>((set) => ({
 // New implementation with persist middleware and initial state
 export const useSourceStore = create<SourceStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       sources: {},
       blocks: [],
       nextBlockNumber: 1,
+      variables: {},
+      currentBlockIndex: null,
+      isPaused: false,
       addSource: (name: string, source: Source) =>
         set((state) => ({
           sources: { ...state.sources, [name]: source },
@@ -117,19 +137,17 @@ export const useSourceStore = create<SourceStore>()(
         })),
       addBlockToNotebook: (block: Block) => {
         console.log(
-          "Adding block to notebook with saveAsCsv:",
-          block.saveAsCsv
-        ); // Debug log
-        set((state) => ({
-          blocks: [
-            ...state.blocks,
-            {
-              ...block,
-              saveAsCsv: block.saveAsCsv || false, // Ensure saveAsCsv is preserved
-            },
-          ],
-          nextBlockNumber: state.nextBlockNumber + 1,
-        }));
+          "Store: Before adding block, current blocks:",
+          get().blocks
+        );
+        set((state) => {
+          console.log("Store: Adding block:", block);
+          return {
+            blocks: [...state.blocks, block],
+            nextBlockNumber: state.nextBlockNumber + 1,
+          };
+        });
+        console.log("Store: After adding block, current blocks:", get().blocks);
       },
       updateBlock: (blockNumber: number, updates: Partial<Block>) =>
         set((state) => ({
@@ -149,6 +167,41 @@ export const useSourceStore = create<SourceStore>()(
             (block) => block.blockNumber !== blockNumber
           ),
         })),
+      updateVariable: (key: string, value: string) =>
+        set((state) => ({
+          variables: {
+            ...state.variables,
+            [key]: value,
+          },
+        })),
+      updateBlockData: (blockNumber: number, updates: Partial<Block>) =>
+        set((state) => ({
+          blocks: state.blocks.map((block) =>
+            block.blockNumber === blockNumber ? { ...block, ...updates } : block
+          ),
+        })),
+      setCurrentBlockIndex: (index: number | null) =>
+        set({ currentBlockIndex: index }),
+      setIsPaused: (paused: boolean) => set({ isPaused: paused }),
+      getBlockList: () => {
+        const blocks = get().blocks;
+        const sortedBlocks = [...blocks].sort(
+          (a, b) => a.blockNumber - b.blockNumber
+        );
+
+        return sortedBlocks.map((block, index) => ({
+          index,
+          blockNumber: block.blockNumber,
+          type: block.type,
+          ...(block.type === "agent" && {
+            systemPrompt: block.systemPrompt,
+            userPrompt: block.userPrompt,
+            saveAsCsv: block.saveAsCsv,
+            sourceName: block.sourceName,
+          }),
+        }));
+      },
+      clearVariables: () => set({ variables: {} }),
     }),
     {
       name: "source-storage",
@@ -156,5 +209,7 @@ export const useSourceStore = create<SourceStore>()(
     }
   )
 );
+
+export const getBlockList = () => useSourceStore.getState().getBlockList();
 
 export default usePromptStore;

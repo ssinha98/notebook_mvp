@@ -5,6 +5,8 @@ import { Variable } from "@/types/types";
 import { AgentBlockRef } from "./AgentBlock";
 import TransformBlock from "./TransformBlock";
 import { useSourceStore } from "@/lib/store";
+import ContactBlock from "./ContactBlock";
+import CheckInBlock from "./CheckInBlock";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -21,6 +23,9 @@ interface CollapsibleBoxProps {
   ) => void;
   blockRefs?: React.MutableRefObject<{ [key: number]: AgentBlockRef }>;
   onDeleteBlock?: (blockNumber: number) => void;
+  onContinue?: () => void;
+  onStop?: () => void;
+  isProcessing?: boolean;
 }
 
 const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
@@ -39,9 +44,9 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
       [key: number]: boolean;
     }>({});
 
-    const addNewBlock = () => {
+    const addNewBlock = (blockType: "agent" | "checkin" | "contact") => {
       addBlockToNotebook({
-        type: "agent",
+        type: blockType,
         blockNumber: nextBlockNumber,
         systemPrompt: "",
         userPrompt: "",
@@ -116,63 +121,125 @@ const CollapsibleBox = forwardRef<AgentBlockRef, CollapsibleBoxProps>(
           {props.title === "Agent Flow" ? (
             <>
               <div style={blockContainerStyle}>
-                {blocks
-                  .filter((block) => block.type === "transform")
-                  .map((block) => (
-                    <TransformBlock
-                      key={block.blockNumber}
-                      blockNumber={block.blockNumber}
-                      originalFilePath={block.originalFilePath || ""}
-                      sourceName={block.sourceName || ""}
-                      fileType={block.fileType || "csv"}
-                      transformations={{
-                        filterCriteria:
-                          block.transformations?.filterCriteria || [],
-                        columns: block.transformations?.columns || [],
-                        previewData: block.transformations?.previewData || [],
-                      }}
-                      onTransformationsUpdate={(updates) =>
-                        updateBlock(block.blockNumber, updates)
-                      }
-                    />
-                  ))}
-
-                {blocks
-                  .filter((block) => block.type === "agent")
-                  .map((block) => (
-                    <AgentBlock
-                      key={block.blockNumber}
-                      blockNumber={block.blockNumber}
-                      variables={props.variables || []}
-                      onAddVariable={props.onAddVariable || (() => {})}
-                      onOpenTools={props.onOpenTools}
-                      onSavePrompts={props.onSavePrompts}
-                      ref={(el) => {
-                        if (el && props.blockRefs) {
-                          props.blockRefs.current[block.blockNumber] = el;
-                        }
-                      }}
-                      isProcessing={
-                        processingBlocks[block.blockNumber] || false
-                      }
-                      onProcessingChange={(isProcessing) =>
-                        handleProcessingChange(block.blockNumber, isProcessing)
-                      }
-                      onProcessedPrompts={(system, user) => {
-                        console.log(`Block ${block.blockNumber} processed:`, {
-                          system,
-                          user,
-                        });
-                      }}
-                      onDeleteBlock={(blockNumber) => {
-                        deleteBlock(blockNumber);
-                        props.onDeleteBlock?.(blockNumber);
-                      }}
-                      initialSystemPrompt={block.systemPrompt || ""}
-                      initialUserPrompt={block.userPrompt || ""}
-                      initialSaveAsCsv={block.saveAsCsv || false}
-                    />
-                  ))}
+                {blocks.map((block) => {
+                  switch (block.type) {
+                    case "transform":
+                      return (
+                        <TransformBlock
+                          key={block.blockNumber}
+                          blockNumber={block.blockNumber}
+                          originalFilePath={block.originalFilePath || ""}
+                          sourceName={block.sourceName || ""}
+                          fileType={block.fileType || "csv"}
+                          transformations={{
+                            filterCriteria:
+                              block.transformations?.filterCriteria || [],
+                            columns: block.transformations?.columns || [],
+                            previewData:
+                              block.transformations?.previewData || [],
+                          }}
+                          onTransformationsUpdate={(updates) =>
+                            updateBlock(block.blockNumber, updates)
+                          }
+                          onDeleteBlock={(blockNumber) => {
+                            deleteBlock(blockNumber);
+                            props.onDeleteBlock?.(blockNumber);
+                          }}
+                        />
+                      );
+                    case "contact":
+                      return (
+                        <ContactBlock
+                          key={block.blockNumber}
+                          blockNumber={block.blockNumber}
+                          onDeleteBlock={(blockNumber) => {
+                            deleteBlock(blockNumber);
+                            props.onDeleteBlock?.(blockNumber);
+                          }}
+                          onSave={(values) => {
+                            updateBlock(block.blockNumber, {
+                              type: "contact",
+                              blockNumber: block.blockNumber,
+                              channel: values.channel,
+                              recipient: values.recipient,
+                              subject: values.subject,
+                              body: values.body,
+                            });
+                          }}
+                        />
+                      );
+                    case "checkin":
+                      return (
+                        <CheckInBlock
+                          key={block.blockNumber}
+                          blockNumber={block.blockNumber}
+                          onDeleteBlock={(blockNumber) => {
+                            deleteBlock(blockNumber);
+                            props.onDeleteBlock?.(blockNumber);
+                          }}
+                          variables={props.variables || []}
+                          editedVariableNames={[]}
+                          onContinue={() => {
+                            console.log(
+                              "Continuing run from block",
+                              block.blockNumber
+                            );
+                            props.onContinue?.();
+                          }}
+                          onStop={() => {
+                            console.log(
+                              "Stopping run at block",
+                              block.blockNumber
+                            );
+                            props.onStop?.();
+                          }}
+                          isProcessing={props.isProcessing}
+                        />
+                      );
+                    case "agent":
+                    default:
+                      return (
+                        <AgentBlock
+                          key={block.blockNumber}
+                          blockNumber={block.blockNumber}
+                          variables={props.variables || []}
+                          onAddVariable={props.onAddVariable || (() => {})}
+                          onOpenTools={props.onOpenTools}
+                          onSavePrompts={props.onSavePrompts}
+                          ref={(el) => {
+                            if (el && props.blockRefs) {
+                              props.blockRefs.current[block.blockNumber] = el;
+                            }
+                          }}
+                          isProcessing={
+                            processingBlocks[block.blockNumber] || false
+                          }
+                          onProcessingChange={(isProcessing) =>
+                            handleProcessingChange(
+                              block.blockNumber,
+                              isProcessing
+                            )
+                          }
+                          onProcessedPrompts={(system, user) => {
+                            console.log(
+                              `Block ${block.blockNumber} processed:`,
+                              {
+                                system,
+                                user,
+                              }
+                            );
+                          }}
+                          onDeleteBlock={(blockNumber) => {
+                            deleteBlock(blockNumber);
+                            props.onDeleteBlock?.(blockNumber);
+                          }}
+                          initialSystemPrompt={block.systemPrompt || ""}
+                          initialUserPrompt={block.userPrompt || ""}
+                          initialSaveAsCsv={block.saveAsCsv || false}
+                        />
+                      );
+                  }
+                })}
               </div>
             </>
           ) : (

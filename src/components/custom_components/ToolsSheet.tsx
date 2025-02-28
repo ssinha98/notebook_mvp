@@ -7,14 +7,21 @@ import {
   TableBody,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Wrench, FileText, Settings, Check, X } from "lucide-react";
+import {
+  Wrench,
+  FileText,
+  Settings,
+  Check,
+  X,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 // import {
 //   Dialog,
@@ -34,6 +41,8 @@ import AddVariableDialog from "@/components/custom_components/AddVariableDialog"
 import AddSourceDialog from "./AddSourceDialog";
 import { useSourceStore } from "@/lib/store";
 import SourcesList from "./SourcesList";
+import CheckInBlock from "./CheckInBlock";
+import { useBlockManager } from "@/hooks/useBlockManager";
 
 interface ToolsSheetProps {
   open: boolean;
@@ -54,6 +63,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
   const removeSource = useSourceStore((state) => state.removeSource);
   const blocks = useSourceStore((state) => state.blocks);
   const removeBlock = useSourceStore((state) => state.removeBlock);
+  const { addBlock } = useBlockManager();
 
   const handleAddVariable = () => {
     setIsVariableDialogOpen(true);
@@ -149,6 +159,30 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
                           </TableRow>
                         </ContextMenuTrigger>
                         <ContextMenuContent>
+                          <ContextMenuItem
+                            className="flex items-center gap-2"
+                            onClick={() => {
+                              addBlock("transform", {
+                                sourceName: name,
+                                originalFilePath: source.originalName,
+                                fileType: source.type as
+                                  | "image"
+                                  | "csv"
+                                  | "pdf"
+                                  | "website",
+                                transformations: {
+                                  filterCriteria: [],
+                                  columns: source.metadata?.columns || [],
+                                  previewData:
+                                    source.rawData?.slice(0, 5) || [],
+                                },
+                              });
+                              onOpenChange(false);
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add to notebook
+                          </ContextMenuItem>
                           <ContextMenuItem
                             className="text-destructive focus:text-destructive flex items-center gap-2"
                             onClick={() => handleSourceDelete(name)}

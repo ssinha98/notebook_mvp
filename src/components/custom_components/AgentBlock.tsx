@@ -195,7 +195,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           );
           if (selectedVariable) {
             selectedVariable.value = response.response;
-            useSourceStore.getState().updateVariable(selectedVariable.name, response.response);
+            useSourceStore
+              .getState()
+              .updateVariable(selectedVariable.name, response.response);
             props.onAddVariable(selectedVariable);
           }
         }

@@ -27,6 +27,10 @@ import ToolsSheet from "./ToolsSheet";
 import { useBlockManager } from "@/hooks/useBlockManager";
 import { useToolsSheet } from "@/hooks/useToolsSheet";
 import { Block, Variable } from "@/types/types";
+import { auth } from "@/tools/firebase";
+import { MdOutlineEmail } from "react-icons/md";
+import { api } from "@/tools/api";
+
 const footerStyle: CSSProperties = {
   position: "sticky",
   bottom: 0,
@@ -252,6 +256,35 @@ export default function Footer({
 
   const { getBlockList } = useSourceStore();
 
+  const sendCheckInEmail = async () => {
+    try {
+      const currentUser = auth.currentUser;
+      console.log("Current user data:", {
+        email: currentUser?.email,
+        uid: currentUser?.uid,
+        displayName: currentUser?.displayName,
+      });
+
+      if (!currentUser || !currentUser.email) {
+        console.error("No user is logged in or no email available");
+        return;
+      }
+
+      // Using the api utility instead of direct fetch
+      const response = await api.get(
+        `/api/send-checkin-email?email=${encodeURIComponent(currentUser.email)}`
+      );
+
+      if (response.success) {
+        console.log("Email sent successfully to:", response.sent_to);
+      } else {
+        console.error("Failed to send email:", response.error);
+      }
+    } catch (error) {
+      console.error("Error sending check-in email:", error);
+    }
+  };
+
   return (
     <>
       <ToolsPanel
@@ -310,6 +343,17 @@ export default function Footer({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            {/* Commenting out email button for now
+            <Button
+              variant="outline"
+              onClick={sendCheckInEmail}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1f2937"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+            >
+              <MdOutlineEmail className="mr-2" />
+              Email
+            </Button>
+            */}
             <Button
               variant="outline"
               onClick={() => setIsShareAlertOpen(true)}

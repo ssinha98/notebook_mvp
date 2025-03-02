@@ -421,8 +421,7 @@ export default function Home() {
     const blockList = getBlockList();
     console.log("Starting run from index:", startIndex);
     if (startIndex === 0) {
-      // Only clear variables when starting a fresh run
-      useSourceStore.getState().clearVariables(); // We'll add this function
+      useSourceStore.getState().clearVariables();
     }
     setIsProcessing(true);
 
@@ -435,9 +434,36 @@ export default function Home() {
         try {
           if (block.type === "checkin") {
             console.log(`Pausing at CheckInBlock ${block.blockNumber}`);
+
+            // Send email notification before pausing
+            try {
+              const currentUser = auth.currentUser;
+              console.log("Current user data:", {
+                email: currentUser?.email,
+                uid: currentUser?.uid,
+                displayName: currentUser?.displayName,
+              });
+
+              if (currentUser?.email) {
+                const response = await api.get(
+                  `/api/send-checkin-email?email=${encodeURIComponent(currentUser.email)}`
+                );
+                if (response.success) {
+                  console.log(
+                    "Check-in email sent successfully to:",
+                    response.sent_to
+                  );
+                } else {
+                  console.error("Failed to send email:", response.error);
+                }
+              }
+            } catch (error) {
+              console.error("Error sending check-in email:", error);
+            }
+
             setPausedAtBlock(block.blockNumber);
             setIsRunPaused(true);
-            return; // This return is crucial - it stops execution
+            return; // Stop execution after sending email
           }
 
           if (block.type === "agent") {

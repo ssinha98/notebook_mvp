@@ -31,6 +31,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Variable } from "@/types/types";
+import { auth } from "@/tools/firebase";
+import { api } from "@/tools/api";
 
 interface CheckInBlockProps {
   blockNumber: number;
@@ -65,25 +67,36 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
       () => ({
         processBlock: async () => {
           console.log(`CheckInBlock ${props.blockNumber} processBlock called`);
+          
+          try {
+            // Send email notification
+            const currentUser = auth.currentUser;
+            console.log("Current user data:", {
+              email: currentUser?.email,
+              uid: currentUser?.uid,
+              displayName: currentUser?.displayName
+            });
+
+            if (currentUser?.email) {
+              console.log("Sending check-in email to:", currentUser.email);
+              const response = await api.get(`/api/send-checkin-email?email=${encodeURIComponent(currentUser.email)}`);
+              if (response.success) {
+                console.log("Check-in email sent successfully to:", response.sent_to);
+              } else {
+                console.log("Email send failed:", response);
+              }
+            } else {
+              console.log("No user email available for check-in notification");
+            }
+          } catch (error) {
+            console.error("Error sending check-in email:", error);
+            // Continue with block processing even if email fails
+          }
+
+          // Return a Promise that resolves when the user continues or stops
           return new Promise<boolean>((resolve) => {
-            // Create modal or use existing UI to get user input
-            const handleContinue = () => {
-              console.log("Continue clicked");
-              props.onProcessingChange?.(false);
-              resolve(true);
-            };
-
-            const handleStop = () => {
-              console.log("Stop clicked");
-              props.onProcessingChange?.(false);
-              resolve(false);
-            };
-
-            // Store these handlers for the buttons to use
-            // window[`checkInBlock${props.blockNumber}Handlers`] = {
-            //   handleContinue,
-            //   handleStop,
-            // };
+            props.onProcessingChange?.(false);
+            resolve(true);
           });
         },
       }),

@@ -36,6 +36,7 @@ import TransformBlock from "../components/custom_components/TransformBlock";
 import AgentBlock from "../components/custom_components/AgentBlock";
 import { useBlockManager } from "@/hooks/useBlockManager";
 import { getBlockList } from "../lib/store";
+import SearchAgent from "@/components/custom_components/SearchAgent";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -227,18 +228,18 @@ export default function Home() {
       );
     }
 
-    if (block.type === "contact") {
-      console.log("Rendering contact block");
-      return (
-        <ContactBlock
-          key={block.blockNumber}
-          blockNumber={block.blockNumber}
-          onDeleteBlock={deleteBlock}
-          onSave={(values) => console.log("Saving contact values:", values)}
-          onClose={() => console.log("Closing contact block")}
-        />
-      );
-    }
+    // if (block.type === "contact") {
+    //   console.log("Rendering contact block");
+    //   return (
+    //     <ContactBlock
+    //       key={block.blockNumber}
+    //       blockNumber={block.blockNumber}
+    //       onDeleteBlock={deleteBlock}
+    //       onSave={(values) => console.log("Saving contact values:", values)}
+    //       onClose={() => console.log("Closing contact block")}
+    //     />
+    //   );
+    // }
 
     if (block.type === "checkin") {
       return (
@@ -256,6 +257,34 @@ export default function Home() {
           onSaveVariables={(updatedVariables, editedNames) => {
             setVariables(updatedVariables);
           }}
+        />
+      );
+    }
+
+    if (block.type === "searchagent") {
+      // console.log("Rendering searchagent with data:", block);
+      return (
+        <SearchAgent
+          ref={(ref) => {
+            if (ref) blockRefs.current[block.blockNumber] = ref;
+          }}
+          key={block.blockNumber}
+          blockNumber={block.blockNumber}
+          onDeleteBlock={deleteBlock}
+          onUpdateBlock={(blockNumber, updates) => {
+            // console.log("SearchAgent update received:", updates);
+            updateBlockData(blockNumber, updates);
+          }}
+          variables={variables}
+          onAddVariable={handleAddVariable}
+          initialEngine={block.engine}
+          initialQuery={block.query}
+          initialLimit={block.limit}
+          initialTopic={block.topic}
+          initialSection={block.section}
+          initialTimeWindow={block.timeWindow}
+          initialTrend={block.trend}
+          initialRegion={block.region}
         />
       );
     }
@@ -404,6 +433,8 @@ export default function Home() {
     const newBlock: Block = {
       type: "checkin",
       blockNumber: nextBlockNumber,
+      id: crypto.randomUUID(),
+      name: `Check-in ${nextBlockNumber}`,
     };
 
     addBlockToNotebook(newBlock);
@@ -467,6 +498,10 @@ export default function Home() {
           }
 
           if (block.type === "agent") {
+            const ref = blockRefs.current[block.blockNumber];
+            await ref?.processBlock();
+          }
+          if (block.type === "searchagent") {
             const ref = blockRefs.current[block.blockNumber];
             await ref?.processBlock();
           }
@@ -540,6 +575,13 @@ export default function Home() {
           {/* Then render other blocks */}
           {blocks.map((block) => renderBlock(block))}
         </CollapsibleBox>
+        {/* <SearchAgent
+          blockNumber={1}
+          onDeleteBlock={() => {}}
+          onUpdateBlock={() => {}}
+          variables={variables}
+          onAddVariable={handleAddVariable}
+        /> */}
         <div className="flex justify-end mt-4"></div>
         <div className="flex justify-center mb-4"></div>
       </main>

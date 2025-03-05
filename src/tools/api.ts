@@ -14,6 +14,16 @@ interface ApiData {
   [key: string]: string | number | boolean | object;
 }
 
+export interface GoogleSearchParams {
+  query?: string;
+  engine: "search" | "news" | "finance" | "markets";
+  topic_token?: string;
+  section_token?: string;
+  window?: string;
+  trend?: string;
+  index_market?: string;
+}
+
 export const api = {
   async get(endpoint: string) {
     const response = await fetch(`${API_URL}${endpoint}`);
@@ -84,5 +94,26 @@ export const api = {
     }
 
     return result;
+  },
+
+  async search(params: GoogleSearchParams) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        // Map 'query' to 'q' and handle 'engine' specially
+        const paramKey = key === "query" ? "q" : key;
+        searchParams.append(paramKey, value);
+      }
+    });
+
+    const response = await fetch(
+      `${API_URL}/api/search?${searchParams.toString()}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+
+    return response.json();
   },
 };

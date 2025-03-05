@@ -1,5 +1,5 @@
 import { useSourceStore } from "@/lib/store";
-import { Block } from "@/types/types";
+import { Block, SearchAgentBlock } from "@/types/types";
 
 export const useBlockManager = () => {
   const { blocks, addBlockToNotebook, removeBlock, updateBlock } =
@@ -12,23 +12,27 @@ export const useBlockManager = () => {
       : 1;
   };
 
-  const addBlock = (
-    type: "agent" | "transform" | "checkin" | "contact",
-    data?: Partial<Block>
-  ) => {
-    console.log("BlockManager: Creating new block:", {
-      type,
-      blockNumber: nextBlockNumber,
-      ...data,
-    });
-    const newBlock: Block = {
-      type,
-      blockNumber: nextBlockNumber,
-      ...data,
+  const addBlock = (type: Block["type"], additionalProps = {}) => {
+    const blockNumber = getNextBlockNumber();
+    const newBlock: Partial<SearchAgentBlock> = {
+      id: crypto.randomUUID(),
+      blockNumber,
+      ...additionalProps,
     };
 
-    console.log("BlockManager: Calling addBlockToNotebook with:", newBlock);
-    addBlockToNotebook(newBlock);
+    if (type === "searchagent") {
+      // Add default search properties
+      // newBlock.query = "";
+      // newBlock.searchEngine = "google";
+      // newBlock.maxResults = 5;
+      // newBlock.filters = {
+      //   dateRange: "any",
+      //   language: "en",
+      //   region: "global",
+      // };
+    }
+
+    addBlockToNotebook(newBlock as Block);
   };
 
   const deleteBlock = (blockNumber: number) => {

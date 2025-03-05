@@ -16,6 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Block } from "@/types/types";
 
 interface Agent {
   id: string;
@@ -79,30 +80,48 @@ export default function AgentHeader() {
   };
 
   const handleSaveAgent = async () => {
-    if (!blocks.length) {
-      alert("Add some blocks before saving the agent!");
-      return;
-    }
+    if (!blocks.length) return;
 
     setIsSaving(true);
     try {
-      if (!currentAgent) {
-        // Create new agent flow
+      console.log("Original blocks before save:", blocks);
+
+      const blocksToSave = blocks.map((block) => {
+        if (block.type === "searchagent") {
+          // Preserve ALL search block data
+          return {
+            ...block, // Keep all existing properties
+            type: "searchagent",
+            blockNumber: block.blockNumber,
+            // Explicitly include these to ensure they're saved
+            query: block.query,
+            engine: block.engine,
+            limit: block.limit,
+            topic: block.topic,
+            section: block.section,
+            timeWindow: block.timeWindow,
+            trend: block.trend,
+            region: block.region,
+            id: block.id,
+            name: block.name,
+          };
+        }
+        return block;
+      });
+
+      console.log("Blocks being saved to Firebase:", blocksToSave);
+
+      if (currentAgent) {
+        await saveAgent(blocksToSave as Block[]);
+      } else {
         const name = prompt("Enter a name for your new agent:");
         if (name) {
           await createAgent(name);
-          await saveAgent(blocks);
-          alert("Agent created successfully!");
+          await saveAgent(blocksToSave as Block[]);
         }
-      } else {
-        // Update existing agent flow
-        await saveAgent(blocks);
-        alert("Changes saved successfully!");
-        setHasChanges(false);
       }
     } catch (error) {
       console.error("Error saving agent:", error);
-      alert("Failed to save agent. Please try again.");
     } finally {
       setIsSaving(false);
     }

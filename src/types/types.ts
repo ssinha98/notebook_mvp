@@ -61,7 +61,15 @@ export interface TransformationData {
 }
 
 export interface Block {
-  type: "transform" | "agent" | "checkin" | "contact";
+  id: string;
+  name: string;
+  type:
+    | "input"
+    | "intermediate"
+    | "transform"
+    | "agent"
+    | "checkin"
+    | "searchagent";
   blockNumber: number;
   error?: string;
   originalFilePath?: string;
@@ -75,6 +83,37 @@ export interface Block {
   recipient?: string;
   subject?: string;
   body?: string;
+  engine?: "search" | "news" | "finance" | "markets";
+  query?: string;
+  limit?: number;
+  timeWindow?: string;
+  trend?: string;
+  region?: string;
+  topic?: string;
+  section?: string;
+}
+
+export interface SearchAgentBlock extends Block {
+  type: "searchagent";
+  query?: string;
+  searchEngine?: "search" | "news" | "finance" | "markets";
+  marketsTrend?:
+    | "indexes"
+    | "most-active"
+    | "gainers"
+    | "losers"
+    | "climate-leaders"
+    | "cryptocurrencies"
+    | "currencies";
+  newsSearchType?: "query" | "topic" | "publication";
+  newsTopic?: string;
+  newsPublication?: string;
+  newsSection?: string;
+  financeWindow?: "1D" | "5D" | "1M" | "6M" | "YTD" | "1Y" | "5Y" | "MAX";
+  marketsIndexMarket?:
+    | "americas"
+    | "europe-middle-east-africa"
+    | "asia-pacific";
 }
 
 export interface Agent {

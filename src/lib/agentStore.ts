@@ -87,6 +87,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
       const preparedBlocks = blocks.map((block) => {
         const baseBlock = {
+          id: block.id || crypto.randomUUID(),
+          name: block.name || `Block ${block.blockNumber}`,
           type: block.type,
           blockNumber: block.blockNumber,
         };
@@ -107,6 +109,19 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               sourceName: block.sourceName || "",
             };
 
+          case "searchagent":
+            return {
+              ...baseBlock,
+              query: block.query || "",
+              engine: block.engine || "search",
+              limit: block.limit || 5,
+              topic: block.topic || "",
+              section: block.section || "",
+              timeWindow: block.timeWindow || "",
+              trend: block.trend || "",
+              region: block.region || "",
+            };
+
           case "checkin":
             return baseBlock;
 
@@ -117,14 +132,14 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               sourceName: block.sourceName || "",
             };
 
-          case "contact":
-            return {
-              ...baseBlock,
-              channel: block.channel || "",
-              recipient: block.recipient || "",
-              subject: block.subject || "",
-              body: block.body || "",
-            };
+          // case "contact":
+          //   return {
+          //     ...baseBlock,
+          //     channel: block.channel || "",
+          //     recipient: block.recipient || "",
+          //     subject: block.subject || "",
+          //     body: block.body || "",
+          //   };
 
           default:
             return baseBlock;

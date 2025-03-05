@@ -22,7 +22,7 @@ import { useSourceStore } from "@/lib/store";
 import { LuBrainCircuit } from "react-icons/lu";
 import { FaDatabase } from "react-icons/fa";
 import { SiMinutemailer } from "react-icons/si";
-import { IoPlaySkipForwardCircle } from "react-icons/io5";
+import { IoPlaySkipForwardCircle, IoSearchCircle } from "react-icons/io5";
 import ToolsSheet from "./ToolsSheet";
 import { useBlockManager } from "@/hooks/useBlockManager";
 import { useToolsSheet } from "@/hooks/useToolsSheet";
@@ -192,6 +192,8 @@ export default function Footer({
       blockNumber: nextBlockNumber,
       systemPrompt: "",
       userPrompt: "",
+      id: crypto.randomUUID(),
+      name: `Agent ${nextBlockNumber}`,
     });
   };
 
@@ -201,6 +203,8 @@ export default function Footer({
     const newBlock = {
       type: "checkin" as const,
       blockNumber: nextBlockNumber,
+      id: crypto.randomUUID(),
+      name: `Check-in ${nextBlockNumber}`,
     };
 
     addBlockToNotebook(newBlock);
@@ -216,10 +220,13 @@ export default function Footer({
       label: "Agent Block",
       tooltip: "Add a new agent block...",
       onClick: () => {
-        console.log("agent");
-        addBlock("agent", {
+        addBlockToNotebook({
+          type: "agent",
+          blockNumber: nextBlockNumber,
           systemPrompt: "You are a helpful assistant",
           userPrompt: "",
+          id: crypto.randomUUID(),
+          name: `Agent ${nextBlockNumber}`,
         });
       },
     },
@@ -248,8 +255,29 @@ export default function Footer({
       label: "Check In",
       tooltip: "Tell your agent to pause...",
       onClick: () => {
-        addBlock("checkin");
-        console.log("checkin");
+        addBlockToNotebook({
+          type: "checkin",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Check-in ${nextBlockNumber}`,
+        });
+      },
+    },
+    {
+      id: "search",
+      icon: <IoSearchCircle className="text-2xl" />,
+      label: "Search Agent",
+      tooltip: "Add a search agent block...",
+      onClick: () => {
+        addBlockToNotebook({
+          type: "searchagent",
+          blockNumber: nextBlockNumber,
+          engine: "search",
+          query: "",
+          limit: 5,
+          id: crypto.randomUUID(),
+          name: `Search ${nextBlockNumber}`,
+        });
       },
     },
   ];
@@ -328,18 +356,18 @@ export default function Footer({
             </Button>
 
             {/* Add the test button */}
-            <Button variant="outline" onClick={getBlockList}>
+            {/* <Button variant="outline" onClick={getBlockList}>
               Test
-            </Button>
+            </Button> */}
 
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <input
+              {/* <input
                 type="number"
                 style={inputStyle}
                 defaultValue={1}
                 min={1}
-              />
-              <span style={{ color: "#d1d5db" }}>runs</span>
+              /> */}
+              {/* <span style={{ color: "#d1d5db" }}>runs</span> */}
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>

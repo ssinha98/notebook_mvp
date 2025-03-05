@@ -16,6 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { KeyRound, X } from "lucide-react";
 import { api } from "@/tools/api";
+import { auth } from "@/tools/firebase";
+import { doc, getDoc, setDoc, getFirestore } from "firebase/firestore";
 
 interface ApiKeySheetProps {
   open: boolean;
@@ -33,25 +35,52 @@ const ApiKeySheet: React.FC<ApiKeySheetProps> = ({
   const [savedKey, setSavedKey] = useState<string>("");
 
   useEffect(() => {
-    const checkCustomKey = async () => {
+    const fetchApiKeyFromFirebase = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+
       try {
-        const response = await api.get("/api/check-api-key");
-        setHasCustomKey(response.hasCustomKey);
-        setSavedKey(response.apiKey || "");
+        const docSnap = await getDoc(userDoc);
+        if (docSnap.exists() && docSnap.data().OAI_API_Key) {
+          const firebaseKey = docSnap.data().OAI_API_Key;
+          setHasCustomKey(true);
+          setSavedKey(firebaseKey);
+
+          // Also update the backend with the Firebase key
+          await api.post("/api/set-api-key", {
+            api_key: firebaseKey,
+          });
+        }
       } catch (error) {
-        console.error("Error checking API key:", error);
+        console.error("Error fetching API key from Firebase:", error);
       }
     };
-    checkCustomKey();
+
+    fetchApiKeyFromFirebase();
   }, []);
 
   const handleSubmit = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("Please log in to save your API key");
+      return;
+    }
+
     try {
+      // First save to backend
       const response = await api.post("/api/set-api-key", {
         api_key: apiKey,
       });
 
       if (response.success) {
+        // Then save to Firebase
+        const db = getFirestore();
+        const userDoc = doc(db, "users", currentUser.uid);
+        await setDoc(userDoc, { OAI_API_Key: apiKey }, { merge: true });
+
         setHasCustomKey(true);
         setSavedKey(apiKey);
         setApiKey("");
@@ -64,9 +93,19 @@ const ApiKeySheet: React.FC<ApiKeySheetProps> = ({
   };
 
   const handleRemoveKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
     try {
+      // Remove from backend
       const response = await api.post("/api/remove-api-key", {});
+
       if (response.success) {
+        // Remove from Firebase
+        const db = getFirestore();
+        const userDoc = doc(db, "users", currentUser.uid);
+        await setDoc(userDoc, { OAI_API_Key: null }, { merge: true });
+
         setHasCustomKey(false);
         setSavedKey("");
         await handleReset();
@@ -122,7 +161,7 @@ const ApiKeySheet: React.FC<ApiKeySheetProps> = ({
                 onChange={(e) => setApiKey(e.target.value)}
               />
               <Button onClick={handleSubmit}>Save API Key</Button>
-              <a 
+              <a
                 href="https://platform.openai.com/api-keys"
                 target="_blank"
                 rel="noopener noreferrer"

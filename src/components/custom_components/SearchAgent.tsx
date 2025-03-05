@@ -757,12 +757,63 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       }
     };
 
+    // Add formatTextWithVariables function
+    const formatTextWithVariables = (text: string) => {
+      const regex = /{{(.*?)}}/g;
+      const parts = [];
+      let lastIndex = 0;
+
+      for (const match of text.matchAll(regex)) {
+        const [fullMatch, varName] = match;
+        const startIndex = match.index!;
+
+        // Add text before the variable
+        if (startIndex > lastIndex) {
+          parts.push(text.slice(lastIndex, startIndex));
+        }
+
+        // Check if variable exists
+        const varExists = variables.some((v) => v.name === varName.trim());
+
+        // Add the variable part with appropriate styling
+        parts.push(
+          <span
+            key={startIndex}
+            className={varExists ? "font-bold text-blue-400" : "text-red-400"}
+          >
+            {fullMatch}
+          </span>
+        );
+
+        lastIndex = startIndex + fullMatch.length;
+      }
+
+      // Add remaining text
+      if (lastIndex < text.length) {
+        parts.push(text.slice(lastIndex));
+      }
+
+      return parts.length ? parts : text;
+    };
+
+    // Add processVariablesInText function
+    const processVariablesInText = (text: string): string => {
+      const regex = /{{(.*?)}}/g;
+      return text.replace(regex, (match, varName) => {
+        const storeVars = useSourceStore.getState().variables;
+        const value = storeVars[varName.trim()];
+        return value || `no value saved to ${varName.trim()}`;
+      });
+    };
+
     const handleSearch = async () => {
       try {
         setIsProcessing(true);
+        const processedQuery = processVariablesInText(query);
+
         const response = await api.post("/api/search", {
           engine: searchEngine,
-          query: query,
+          query: processedQuery,
           limit: limit || 5,
           ...(searchEngine === "markets" && { trend: marketsTrend }),
           ...(searchEngine === "finance" && {
@@ -888,6 +939,27 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       }
     };
 
+    // Update the query input to show formatted variables
+    const renderQueryInput = () => (
+      <div className="space-y-2">
+        <label htmlFor="query" className="block text-sm text-gray-400">
+          Query
+        </label>
+        <Input
+          id="query"
+          value={query}
+          onChange={handleQueryChange}
+          placeholder="Enter your search query"
+          className="w-full"
+        />
+        {query && (
+          <div className="preview mt-2 text-gray-300">
+            {formatTextWithVariables(query)}
+          </div>
+        )}
+      </div>
+    );
+
     return (
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between">
@@ -952,18 +1024,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           <>
             {/* Conditional content based on searchEngine value */}
             {searchEngine === "search" && (
-              <div className="mt-4 space-y-2">
-                <label htmlFor="query" className="block text-sm text-gray-400">
-                  Query
-                </label>
-                <Input
-                  id="query"
-                  value={query}
-                  onChange={handleQueryChange}
-                  placeholder="Enter your search query"
-                  className="w-full"
-                />
-              </div>
+              <div className="mt-4">{renderQueryInput()}</div>
             )}
             {searchEngine === "news" && (
               <div className="mt-4 space-y-4">
@@ -993,21 +1054,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                   </TabsList>
 
                   <TabsContent value="query" className="mt-4">
-                    <div className="space-y-2">
-                      <label
-                        htmlFor="newsQuery"
-                        className="block text-sm text-gray-400"
-                      >
-                        Query
-                      </label>
-                      <Input
-                        id="newsQuery"
-                        value={query}
-                        onChange={handleQueryChange}
-                        placeholder="Enter your search query"
-                        className="w-full"
-                      />
-                    </div>
+                    {renderQueryInput()}
                   </TabsContent>
 
                   <TabsContent value="topic" className="mt-4">
@@ -1078,22 +1125,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
             )}
             {searchEngine === "finance" && (
               <div className="mt-4 space-y-4">
-                <div className="space-y-2">
-                  <label
-                    htmlFor="financeQuery"
-                    className="block text-sm text-gray-400"
-                  >
-                    Query
-                  </label>
-                  <Input
-                    id="financeQuery"
-                    value={query}
-                    onChange={handleQueryChange}
-                    placeholder="Enter your search query"
-                    className="w-full"
-                  />
-                </div>
-
+                {renderQueryInput()}
                 <div className="space-y-2">
                   <label className="block text-sm text-gray-400">
                     Time Window (Optional)

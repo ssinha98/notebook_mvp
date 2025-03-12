@@ -82,9 +82,6 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       const { currentAgent } = get();
       if (!currentAgent) throw new Error("No agent selected");
 
-      console.log("Current Agent:", currentAgent);
-      console.log("Saving blocks:", blocks);
-
       const preparedBlocks = blocks.map((block) => {
         const baseBlock = {
           id: block.id || crypto.randomUUID(),
@@ -94,8 +91,21 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         };
 
         switch (block.type) {
-          case "agent":
-            return {
+          case "agent": {
+            // Create the block object with defined type including sourceInfo
+            const agentBlock: {
+              id: string;
+              name: string;
+              type: Block["type"];
+              blockNumber: number;
+              systemPrompt: string;
+              userPrompt: string;
+              saveAsCsv: boolean;
+              sourceInfo?: {
+                nickname: string;
+                downloadUrl: string;
+              };
+            } = {
               ...baseBlock,
               systemPrompt:
                 usePromptStore
@@ -106,8 +116,17 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
                   .getState()
                   .getPrompt(block.blockNumber, "user") || "",
               saveAsCsv: Boolean(block.saveAsCsv),
-              sourceName: block.sourceName || "",
             };
+
+            if (block.sourceInfo?.nickname && block.sourceInfo?.downloadUrl) {
+              agentBlock.sourceInfo = {
+                nickname: block.sourceInfo.nickname,
+                downloadUrl: block.sourceInfo.downloadUrl,
+              };
+            }
+
+            return agentBlock;
+          }
 
           case "searchagent":
             return {

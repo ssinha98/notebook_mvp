@@ -91,14 +91,6 @@ const Header: React.FC<HeaderProps> = ({
         </div>
         <nav style={navStyle}>
           <Button
-            className="flex items-center bg-blue-600 hover:bg-blue-700"
-            onClick={() => router.push("/agents")}
-          >
-            <RobotOutlined />
-            Agents
-          </Button>
-          <div className="h-6 w-px bg-gray-600 mx-2" /> {/* Divider */}
-          <Button
             className="flex items-center"
             onClick={() => setIsVideoGuideOpen(true)}
           >
@@ -118,13 +110,13 @@ const Header: React.FC<HeaderProps> = ({
             Code
           </Button>
           <div className="h-6 w-px bg-gray-600 mx-2" /> {/* Divider */}
-          <Button
+          {/* <Button
             onClick={onLogout}
             variant="outline"
             className="text-red-500 border-red-500 hover:bg-red-950 hover:text-red-400"
           >
             Logout
-          </Button>
+          </Button> */}
         </nav>
       </div>
       <VideoGuide open={isVideoGuideOpen} onOpenChange={setIsVideoGuideOpen} />

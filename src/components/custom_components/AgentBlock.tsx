@@ -21,6 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { getAuth } from "firebase/auth";
+import { processDynamicVariables } from "@/tools/dynamicVariables";
 
 interface AgentBlockProps {
   blockNumber: number;
@@ -31,7 +35,11 @@ interface AgentBlockProps {
     blockNumber: number,
     systemPrompt: string,
     userPrompt: string,
-    saveAsCsv: boolean
+    saveAsCsv: boolean,
+    sourceInfo?: {
+      nickname: string;
+      downloadUrl: string;
+    }
   ) => void;
   onProcessedPrompts?: (processedSystem: string, processedUser: string) => void;
   isProcessing: boolean;
@@ -40,6 +48,10 @@ interface AgentBlockProps {
   initialSystemPrompt?: string;
   initialUserPrompt?: string;
   initialSaveAsCsv?: boolean;
+  initialSource?: {
+    nickname: string;
+    downloadUrl: string;
+  };
 }
 
 // Add this interface to define the ref methods
@@ -60,11 +72,16 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [modelResponse, setModelResponse] = useState<string | null>(null);
   const [selectedVariableId, setSelectedVariableId] = useState<string>("");
-  const [selectedSource, setSelectedSource] = useState<string>("none");
-  const sources = useSourceStore((state) => state.sources) || {};
+  const [selectedSource, setSelectedSource] = useState<string>(
+    props.initialSource?.nickname || "none"
+  );
+  const [user] = useAuthState(getAuth());
+  const fileNicknames = useSourceStore((state) => state.fileNicknames);
+  const addFileNickname = useSourceStore((state) => state.addFileNickname);
   const [saveAsCsv, setSaveAsCsv] = useState(props.initialSaveAsCsv || false);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const { variables: storeVariables } = useSourceStore();
+  const syncWithFirestore = useSourceStore((state) => state.syncWithFirestore);
 
   // Add null check for variables prop
   const variables = props.variables || [];
@@ -86,6 +103,33 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     }
   }, [props.initialSaveAsCsv]);
 
+  // Update useEffect to re-run when fileNicknames changes
+  useEffect(() => {
+    const fetchFiles = async () => {
+      const db = getFirestore();
+      const filesSnapshot = await getDocs(collection(db, "files"));
+      filesSnapshot.forEach((doc) => {
+        const data = doc.data();
+        addFileNickname(data.nickname, data.full_name, data.download_link);
+      });
+    };
+
+    fetchFiles();
+  }, [addFileNickname, fileNicknames]); // Add fileNicknames as dependency
+
+  useEffect(() => {
+    if (user) {
+      syncWithFirestore(user.uid);
+    }
+  }, [user, syncWithFirestore]);
+
+  // Update useEffect to handle initial source
+  useEffect(() => {
+    if (props.initialSource?.nickname) {
+      setSelectedSource(props.initialSource.nickname);
+    }
+  }, [props.initialSource]);
+
   // Update handler to work with shadcn Select
   const handleVariableSelect = (value: string) => {
     if (value === "add_new" && props.onOpenTools) {
@@ -95,14 +139,14 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     }
   };
 
-  // Helper function to format text with variables
-  const formatTextWithVariables = (text: string) => {
-    const regex = /{{(.*?)}}/g;
+  // Add this helper function to format dynamic variables
+  const formatDynamicVariables = (text: string) => {
+    const regex = /@{(.*?)}/g;
     const parts = [];
     let lastIndex = 0;
 
     for (const match of text.matchAll(regex)) {
-      const [fullMatch, varName] = match;
+      const [fullMatch, varContent] = match;
       const startIndex = match.index!;
 
       // Add text before the variable
@@ -110,16 +154,13 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         parts.push(text.slice(lastIndex, startIndex));
       }
 
-      // Check if variable exists
-      const varExists = variables.some((v) => v.name === varName.trim());
-
-      // Add the variable part with appropriate styling
+      // Add the variable part with styling
       parts.push(
         <span
           key={startIndex}
-          className={varExists ? "font-bold text-blue-400" : "text-red-400"}
+          className="inline-flex items-center rounded-md bg-blue-400/10 px-2 py-1 text-sm font-medium text-blue-400 ring-1 ring-inset ring-blue-400/30"
         >
-          {fullMatch}
+          @{varContent}
         </span>
       );
 
@@ -134,6 +175,72 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     return parts.length ? parts : text;
   };
 
+  // Update the existing formatTextWithVariables function
+  const formatTextWithVariables = (text: string) => {
+    // First format regular variables
+    const parts: React.ReactNode[] = [];
+    let formattedText = text;
+
+    // Handle {{variables}}
+    const varRegex = /{{(.*?)}}/g;
+    formattedText = formattedText.replace(varRegex, (match, varName) => {
+      const varExists = variables.some((v) => v.name === varName.trim());
+      return `<var class="${varExists ? "valid" : "invalid"}">${match}</var>`;
+    });
+
+    // Handle @sources
+    const sourceRegex = /@([a-zA-Z_]+(?:\.[a-zA-Z]+)?)/g;
+    formattedText = formattedText.replace(sourceRegex, (match, sourceName) => {
+      // Trim the sourceName and check if it exists in fileNicknames
+      const trimmedSourceName = sourceName.trim();
+      const sourceExists = fileNicknames[trimmedSourceName];
+      // console.log("Source check:", {
+      //   trimmedSourceName,
+      //   exists: !!sourceExists,
+      //   fileNicknames,
+      // });
+      return `<source class="${sourceExists ? "valid" : "invalid"}">${match}</source>`;
+    });
+
+    // Split by variable and source markers and create elements
+    const segments = formattedText.split(
+      /(<(?:var|source).*?<\/(?:var|source)>)/
+    );
+    segments.forEach((segment, index) => {
+      if (segment.startsWith("<var")) {
+        const className = segment.includes("valid")
+          ? "font-bold text-blue-400"
+          : "text-red-400";
+        const content = segment.match(/>(.+?)<\/var>/)?.[1] || "";
+        parts.push(
+          <span key={index} className={className}>
+            {content}
+          </span>
+        );
+      } else if (segment.startsWith("<source")) {
+        const isValid = segment.includes('class="valid"');
+        const content = segment.match(/>(.+?)<\/source>/)?.[1] || "";
+        // console.log("Rendering source:", { content, isValid, segment });
+        parts.push(
+          <span
+            key={index}
+            className={`inline-flex items-center rounded-md px-2 py-1 text-sm font-medium ${
+              isValid
+                ? "bg-gray-800 text-blue-400 ring-1 ring-inset ring-black border border-black"
+                : "bg-red-950 text-red-400 ring-1 ring-inset ring-red-900 border border-red-900"
+            }`}
+          >
+            {content}
+          </span>
+        );
+      } else {
+        parts.push(segment);
+      }
+    });
+
+    return parts;
+  };
+
   // Update the processVariablesInText function to use store values
   const processVariablesInText = (text: string): string => {
     const regex = /{{(.*?)}}/g;
@@ -145,6 +252,27 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     });
   };
 
+  // Add effect to handle dynamic variables
+  useEffect(() => {
+    const { variables } = processDynamicVariables(userPrompt);
+    variables.forEach((variable) => {
+      if (variable.type === "source" && variable.action) {
+        variable.action(setSelectedSource);
+      }
+    });
+  }, [userPrompt]);
+
+  // Update useEffect to reset selected source when @ is removed
+  useEffect(() => {
+    const sourceMatch = userPrompt.match(/@([a-zA-Z_]+(?:\.[a-zA-Z]+)?)/);
+    if (sourceMatch && fileNicknames[sourceMatch[1]]) {
+      setSelectedSource(sourceMatch[1]);
+    } else {
+      // Reset to 'none' if no valid source is found in the text
+      setSelectedSource("none");
+    }
+  }, [userPrompt, fileNicknames]);
+
   // Update handleProcessBlock to handle single source
   const handleProcessBlock = async () => {
     try {
@@ -152,17 +280,30 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       const processedSystemPrompt = processVariablesInText(systemPrompt);
       const processedUserPrompt = processVariablesInText(userPrompt);
 
+      // Check for source with improved regex pattern
+      const sourceMatch = userPrompt.match(/@([a-zA-Z_]+(?:\.[a-zA-Z]+)?)/);
+      const sourceNickname = sourceMatch
+        ? sourceMatch[1].trim()
+        : selectedSource;
+
+      // Add debugging logs
+      console.log("Source Nickname:", sourceNickname);
+      console.log("File Nicknames:", fileNicknames);
+      console.log("Selected Source:", selectedSource);
+
       let response;
       if (
-        selectedSource &&
-        selectedSource !== "none" &&
-        sources[selectedSource]
+        sourceNickname &&
+        sourceNickname !== "none" &&
+        fileNicknames[sourceNickname]
       ) {
-        const sourceData = sources[selectedSource];
+        const sourceData = fileNicknames[sourceNickname];
+        console.log("Source Data being sent:", sourceData); // Additional debug log
+
         response = await api.post("/api/call-model-with-source", {
           system_prompt: processedSystemPrompt,
           user_prompt: processedUserPrompt,
-          processed_data: sourceData.processedData,
+          download_url: sourceData.downloadLink,
           save_as_csv: saveAsCsv,
         });
       } else {
@@ -235,9 +376,23 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     processBlock: handleProcessBlock,
   }));
 
-  // Update the save functions to include saveAsCsv
+  // Update the save function to include source information
   const handleSavePrompts = () => {
-    props.onSavePrompts(props.blockNumber, systemPrompt, userPrompt, saveAsCsv);
+    const sourceInfo =
+      selectedSource !== "none" && fileNicknames[selectedSource]
+        ? {
+            nickname: selectedSource,
+            downloadUrl: fileNicknames[selectedSource].downloadLink,
+          }
+        : undefined;
+
+    props.onSavePrompts(
+      props.blockNumber,
+      systemPrompt,
+      userPrompt,
+      saveAsCsv,
+      sourceInfo // Add source info to the save function
+    );
   };
 
   return (
@@ -369,9 +524,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">None</SelectItem>
-              {Object.entries(sources || {}).map(([name, source]) => (
-                <SelectItem key={name} value={name}>
-                  {name}
+              {Object.entries(fileNicknames).map(([nickname, details]) => (
+                <SelectItem key={nickname} value={nickname}>
+                  {nickname} ({details.originalName})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -418,7 +573,14 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                     props.blockNumber,
                     systemPrompt,
                     userPrompt,
-                    e.target.checked
+                    e.target.checked,
+                    selectedSource !== "none" && fileNicknames[selectedSource]
+                      ? {
+                          nickname: selectedSource,
+                          downloadUrl:
+                            fileNicknames[selectedSource].downloadLink,
+                        }
+                      : undefined
                   );
                 }}
                 className="form-checkbox bg-gray-700 border-gray-600"

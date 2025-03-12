@@ -91,6 +91,10 @@ export interface Block {
   region?: string;
   topic?: string;
   section?: string;
+  sourceInfo?: {
+    nickname: string;
+    downloadUrl: string;
+  };
 }
 
 export interface SearchAgentBlock extends Block {
@@ -122,6 +126,10 @@ export interface Agent {
   userId: string;
   createdAt: string;
   blocks: Block[];
+  sourceInfo?: {
+    nickname: string;
+    downloadUrl: string;
+  };
 }
 
 export interface AgentStore {
@@ -133,4 +141,20 @@ export interface AgentStore {
   loadAgent: (agentId: string) => Promise<void>;
   deleteAgent: (agentId: string) => Promise<void>;
   updateAgentName: (agentId: string, newName: string) => Promise<void>;
+}
+
+export interface FileDocument {
+  name: string;
+  download_link: string;
+  userId: string;
+  nickname: string;
+  type: string;
+  createdAt: string;
+  url: string;
+}
+
+export interface FileManagerResponse {
+  success: boolean;
+  data?: FileDocument;
+  error?: unknown;
 }

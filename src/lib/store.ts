@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { PromptStore, PromptType, Source, Block } from "../types/types";
+import { fileManager } from "../tools/fileManager";
 
 // Define the SourceStore interface here since it's specific to this file
 interface SourceStore {
@@ -32,6 +33,14 @@ interface SourceStore {
     sourceName?: string;
   }>;
   clearVariables: () => void;
+  fileNicknames: Record<string, { originalName: string; downloadLink: string }>;
+  addFileNickname: (
+    nickname: string,
+    originalName: string,
+    downloadLink: string
+  ) => void;
+  removeFileNickname: (nickname: string) => void;
+  syncWithFirestore: (userId: string) => Promise<void>;
 }
 
 const usePromptStore = create<PromptStore>()(
@@ -121,6 +130,7 @@ export const useSourceStore = create<SourceStore>()(
       variables: {},
       currentBlockIndex: null,
       isPaused: false,
+      fileNicknames: {},
       addSource: (name: string, source: Source) =>
         set((state) => ({
           sources: { ...state.sources, [name]: source },
@@ -202,6 +212,36 @@ export const useSourceStore = create<SourceStore>()(
         }));
       },
       clearVariables: () => set({ variables: {} }),
+      addFileNickname: (
+        nickname: string,
+        originalName: string,
+        downloadLink: string
+      ) =>
+        set((state) => ({
+          fileNicknames: {
+            ...state.fileNicknames,
+            [nickname]: { originalName, downloadLink },
+          },
+        })),
+      removeFileNickname: (nickname: string) =>
+        set((state) => {
+          const { [nickname]: _, ...rest } = state.fileNicknames;
+          return { fileNicknames: rest };
+        }),
+      syncWithFirestore: async (userId: string) => {
+        const files = await fileManager.getUserFiles(userId);
+        const nicknames = files.reduce(
+          (acc, file) => ({
+            ...acc,
+            [file.nickname]: {
+              originalName: file.full_name,
+              downloadLink: file.download_link,
+            },
+          }),
+          {}
+        );
+        set({ fileNicknames: nicknames });
+      },
     }),
     {
       name: "source-storage",

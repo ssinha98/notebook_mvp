@@ -4,6 +4,7 @@ import { useAgentStore } from "@/lib/agentStore";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { SessionHandler } from "@/components/custom_components/SessionHandler";
+import Layout from "@/components/Layout";
 
 export default function AgentsPage() {
   const router = useRouter();
@@ -15,19 +16,19 @@ export default function AgentsPage() {
   };
 
   return (
-    <>
+    <Layout>
       <SessionHandler />
       <div className="container mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Button
+            {/* <Button
               onClick={() => router.push("/")}
               variant="outline"
               className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-gray-700"
             >
               <ArrowLeftOutlined />
               Back to Notebook
-            </Button>
+            </Button> */}
             <h1 className="text-2xl font-bold text-white">Agents</h1>
           </div>
         </div>
@@ -91,6 +92,6 @@ export default function AgentsPage() {
           </div>
         </div> */}
       </div>
-    </>
+    </Layout>
   );
 }

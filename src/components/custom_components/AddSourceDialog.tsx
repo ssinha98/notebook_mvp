@@ -14,6 +14,9 @@ import ImportCSV from "./ImportCSV";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { useSourceStore } from "@/lib/store";
+import { fileManager } from "@/tools/fileManager";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { getAuth } from "firebase/auth";
 
 interface Source {
   id: string;
@@ -40,7 +43,9 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   open,
   onOpenChange,
 }) => {
-  const addSource = useSourceStore((state) => state.addSource); // Add this line
+  const addFileNickname = useSourceStore((state) => state.addFileNickname);
+  // Comment out old source store usage
+  // const addSource = useSourceStore((state) => state.addSource);
   const [step, setStep] = useState<
     "select" | "details" | "csv-configure" | "csv-preview"
   >("select");
@@ -57,76 +62,17 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
     fileName: "",
   });
   const [processedData, setProcessedData] = useState<any>(null);
+  const [user] = useAuthState(getAuth());
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("File change event triggered");
-
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       console.log("File selected:", file.name);
 
-      // Create FormData and upload file first
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "csv");
-
-      try {
-        // Upload the file first
-        const response = await fetch(
-          "https://test-render-q8l2.onrender.com/api/upload",
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-
-        const uploadData = await response.json();
-        console.log("File upload response:", uploadData);
-
-        if (uploadData.success) {
-          // Store the full filepath from the backend
-          setNewSource({
-            ...newSource,
-            file,
-            // Add a new property to store the server filepath
-            serverFilePath: uploadData.filepath,
-          });
-
-          // Read CSV file for preview
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            console.log("File read successfully");
-            const data = event.target?.result;
-            try {
-              const workbook = XLSX.read(data, { type: "binary" });
-              const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-              const headers = XLSX.utils.sheet_to_json(worksheet, {
-                header: 1,
-              })[0] as string[];
-              const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-              setColumnData({
-                headers,
-                data: jsonData,
-                fileName: file.name,
-              });
-            } catch (error) {
-              console.error("Error processing file:", error);
-            }
-          };
-
-          reader.readAsBinaryString(file);
-
-          if (selectedType === "csv") {
-            setStep("csv-configure");
-          }
-        } else {
-          toast.error("Failed to upload file");
-        }
-      } catch (error) {
-        console.error("Error uploading file:", error);
-        toast.error("Failed to upload file");
-      }
+      setNewSource({
+        ...newSource,
+        file,
+      });
     }
   };
 
@@ -147,9 +93,10 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   };
 
   const handleImport = () => {
-    // Add the source to the store before closing
+    // Comment out old source store usage
+    /*
     if (processedData) {
-      const sourceName = columnData.fileName; // or however you want to name it
+      const sourceName = columnData.fileName;
       addSource(sourceName, {
         originalName: columnData.fileName,
         type: "csv",
@@ -159,18 +106,13 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
       });
       toast.success(`Added source: ${sourceName}`);
     }
+    */
     onOpenChange(false);
   };
 
   const handleTypeSelect = (type: Source["type"]) => {
     setSelectedType(type);
-    if (type === "pdf") {
-      setStep("details");
-    } else if (type === "csv") {
-      setStep("details");
-    } else {
-      alert("Coming soon!");
-    }
+    setStep("details"); // Always go to details, no special CSV handling
   };
 
   const handleNext = () => {
@@ -192,40 +134,30 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   };
 
   const handleSaveSource = async () => {
-    if (!newSource.name || !newSource.file) {
-      toast.error("Please provide both name and file");
+    if (!newSource.name || (!newSource.file && !newSource.url)) {
+      toast.error("Please provide required fields");
       return;
     }
 
     try {
-      // Create form data for upload
-      const formData = new FormData();
-      formData.append("file", newSource.file);
-      formData.append("type", newSource.type);
+      const result = await fileManager.handleFile({
+        file: newSource.file || undefined,
+        userId: user?.uid || "",
+        nickname: newSource.name,
+        type: selectedType,
+        url: newSource.url,
+      });
 
-      // Upload to backend
-      const response = await fetch(
-        "https://test-render-q8l2.onrender.com/api/upload",
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Add to source store
-        addSource(newSource.name, {
-          type: newSource.type,
-          processedData: data.processed_data, // Text content from PDF
-          originalName: newSource.file.name,
-        });
-
+      if (result.success) {
+        addFileNickname(
+          newSource.name,
+          newSource.file?.name || newSource.url || "",
+          result.data?.data?.download_link || ""
+        );
         toast.success("Source added successfully");
         onOpenChange(false);
       } else {
-        throw new Error(data.error || "Failed to upload file");
+        throw new Error("Failed to add source");
       }
     } catch (error) {
       console.error("Error saving source:", error);
@@ -241,8 +173,6 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
             {step === "select" && "Add New Source"}
             {step === "details" &&
               `Add New ${selectedType.toUpperCase()} Source`}
-            {step === "csv-configure" && "Configure CSV Import"}
-            {step === "csv-preview" && "Preview CSV Data"}
           </DialogTitle>
         </DialogHeader>
 
@@ -258,89 +188,47 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
               </Button>
             ))}
           </div>
-        ) : step === "csv-configure" ? (
-          <TransformCSV
-            onNext={handleConfigureNext}
-            onBack={handleBack}
-            columns={columnData.headers}
-            fileName={columnData.fileName}
-            previewData={columnData.data.slice(0, 5)}
-            filePath={newSource.serverFilePath || ""}
-          />
-        ) : step === "csv-preview" ? (
-          <ImportCSV
-            onBack={handleBack}
-            onImport={handleImport}
-            processedData={processedData}
-          />
         ) : (
           <div className="grid gap-4 py-4">
-            <Button variant="ghost" className="w-fit" onClick={handleBack}>
+            <Button
+              variant="ghost"
+              className="w-fit"
+              onClick={() => setStep("select")}
+            >
               ← Back
             </Button>
 
-            {selectedType === "website" ? (
-              <div className="grid gap-2">
-                <label htmlFor="name">Website Name</label>
-                <Input
-                  id="name"
-                  value={newSource.name}
-                  onChange={(e) =>
-                    setNewSource({ ...newSource, name: e.target.value })
-                  }
-                  placeholder="Enter website name"
-                />
-                <label htmlFor="url">Website URL</label>
-                <Input
-                  id="url"
-                  value={newSource.url || ""}
-                  onChange={(e) =>
-                    setNewSource({ ...newSource, url: e.target.value })
-                  }
-                  placeholder="Enter website URL"
-                />
-              </div>
-            ) : (
-              <>
-                {selectedType !== "csv" && (
-                  <div className="grid gap-2">
-                    <label htmlFor="name">Source Name</label>
-                    <Input
-                      id="name"
-                      value={newSource.name}
-                      onChange={(e) =>
-                        setNewSource({ ...newSource, name: e.target.value })
-                      }
-                      placeholder="Enter source name"
-                    />
-                  </div>
-                )}
+            <div className="grid gap-2">
+              <label htmlFor="name">Source Name</label>
+              <Input
+                id="name"
+                value={newSource.name}
+                onChange={(e) =>
+                  setNewSource({ ...newSource, name: e.target.value })
+                }
+                placeholder="Enter source name"
+              />
+            </div>
 
-                <div className="grid gap-2">
-                  <label htmlFor="file">Upload File</label>
-                  <Input
-                    id="file"
-                    type="file"
-                    onChange={handleFileChange}
-                    accept={
-                      selectedType === "pdf"
-                        ? ".pdf"
-                        : selectedType === "csv"
-                          ? ".csv"
-                          : ".jpg,.jpeg,.png"
-                    }
-                  />
-                </div>
+            <div className="grid gap-2">
+              <label htmlFor="file">Upload File</label>
+              <Input
+                id="file"
+                type="file"
+                onChange={handleFileChange}
+                accept={
+                  selectedType === "pdf"
+                    ? ".pdf"
+                    : selectedType === "csv"
+                      ? ".csv"
+                      : ".jpg,.jpeg,.png"
+                }
+              />
+            </div>
 
-                <div className="flex justify-end gap-2">
-                  {selectedType === "csv" ? (
-                    <Button onClick={handleNext}>Next</Button>
-                  ) : (
-                    <Button onClick={handleSaveSource}>Add Source</Button>
-                  )}
-                </div>
-              </>
-            )}
+            <div className="flex justify-end gap-2">
+              <Button onClick={handleSaveSource}>Add Source</Button>
+            </div>
           </div>
         )}
       </DialogContent>

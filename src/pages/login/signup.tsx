@@ -21,11 +21,8 @@ const SignUp = () => {
   const { redirect } = router.query; // Get redirect path from query params
 
   const handleSuccessfulAuth = () => {
-    if (redirect && typeof redirect === "string") {
-      router.push(redirect);
-    } else {
-      router.push("/");
-    }
+    // Always redirect to home after successful login
+    router.push("/");
   };
 
   const createUserDocument = async (uid: string, email: string) => {
@@ -53,8 +50,7 @@ const SignUp = () => {
           passwordOne
         );
         await createUserDocument(userCredential.user.uid, email);
-        console.log("Success. The user is created in Firebase");
-        handleSuccessfulAuth(); // Use the new handler instead of direct push
+        handleSuccessfulAuth();
       } catch (error: any) {
         setError(error.message);
       }
@@ -67,7 +63,7 @@ const SignUp = () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       await createUserDocument(result.user.uid, result.user.email!);
-      handleSuccessfulAuth(); // Use the new handler instead of direct push
+      handleSuccessfulAuth();
     } catch (error: any) {
       setError(error.message);
     }

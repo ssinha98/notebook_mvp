@@ -8,12 +8,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Variable } from "@/types/types";
+import { useVariableStore } from "@/lib/variableStore";
+import {
+  doc,
+  setDoc,
+  getFirestore,
+  getDoc,
+  collection,
+} from "firebase/firestore";
+import { auth } from "@/tools/firebase";
 
 interface AddVariableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddVariable: (variable: Variable) => void;
   defaultType?: "input" | "intermediate";
+  currentAgentId: string;
 }
 
 const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
@@ -21,20 +31,69 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
   onOpenChange,
   onAddVariable,
   defaultType = "input",
+  currentAgentId,
 }) => {
   const [newVariable, setNewVariable] = useState<Variable>({
     id: crypto.randomUUID(),
     name: "",
     type: defaultType,
+    agentId: currentAgentId,
   });
 
-  const handleSaveVariable = () => {
+  const handleSaveVariable = async () => {
     if (!newVariable.name.trim()) return;
 
-    onAddVariable(newVariable);
+    console.log("Attempting to create variable with agentId:", currentAgentId);
+
+    if (!currentAgentId) {
+      console.error("No agent ID available");
+      return;
+    }
+
+    const createdVariable = await useVariableStore
+      .getState()
+      .createVariable(newVariable.name, newVariable.type, currentAgentId, "");
+
+    const variables = await useVariableStore
+      .getState()
+      .loadVariables(currentAgentId);
+    console.log("Loaded variables:", variables);
+
+    onAddVariable(createdVariable);
 
     onOpenChange(false);
-    setNewVariable({ id: crypto.randomUUID(), name: "", type: defaultType });
+    setNewVariable({
+      id: crypto.randomUUID(),
+      name: "kkkk",
+      type: "intermediate",
+      agentId: currentAgentId,
+    });
+  };
+
+  const testFirebase = async () => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const db = getFirestore();
+      const newId = doc(collection(db, `users/${userId}/variables`)).id;
+
+      const testDoc = {
+        id: newId,
+        name: "test variable",
+        type: "input",
+        value: "test value",
+        created_at: new Date().toISOString(),
+        userId,
+        agentId: currentAgentId,
+      };
+
+      await setDoc(doc(db, `users/${userId}/variables`, newId), testDoc);
+      console.log("Created with ID:", newId);
+    } catch (error) {
+      console.error("Test failed:", error);
+      throw error;
+    }
   };
 
   return (
@@ -71,6 +130,9 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
               <option value="intermediate">Intermediary Variable</option>
             </select>
           </div>
+          {/* <Button onClick={testFirebase} variant="secondary">
+            Test Firebase
+          </Button> */}
           <Button onClick={handleSaveVariable}>Done</Button>
         </div>
       </DialogContent>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Table,
   TableHeader,
@@ -43,18 +43,18 @@ import { useSourceStore } from "@/lib/store";
 import SourcesList from "./SourcesList";
 import CheckInBlock from "./CheckInBlock";
 import { useBlockManager } from "@/hooks/useBlockManager";
+import { useVariableStore } from "@/lib/variableStore";
+import { useAgentStore } from "@/lib/agentStore";
 
 interface ToolsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  variables: Variable[];
   onAddVariable: (variable: Variable) => void;
 }
 
 const ToolsSheet: React.FC<ToolsSheetProps> = ({
   open,
   onOpenChange,
-  variables,
   onAddVariable,
 }) => {
   const [isVariableDialogOpen, setIsVariableDialogOpen] = useState(false);
@@ -66,6 +66,13 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
   const blocks = useSourceStore((state) => state.blocks);
   const removeBlock = useSourceStore((state) => state.removeBlock);
   const { addBlock } = useBlockManager();
+  const variables = useVariableStore((state) => state.variables);
+  const currentAgent = useAgentStore((state) => state.currentAgent);
+
+  useEffect(() => {
+    const currentAgentId = useAgentStore.getState().currentAgent?.id;
+    useVariableStore.getState().loadVariables(currentAgentId!);
+  }, []);
 
   const handleAddVariable = () => {
     setIsVariableDialogOpen(true);
@@ -216,7 +223,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {variables
+                      {Object.values(variables)
                         .filter((v) => v.type === "input")
                         .map((variable, index) => (
                           <TableRow key={index}>
@@ -239,7 +246,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {variables
+                      {Object.values(variables)
                         .filter((v) => v.type === "intermediate")
                         .map((variable, index) => (
                           <TableRow key={index}>
@@ -267,6 +274,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
         onOpenChange={setIsVariableDialogOpen}
         onAddVariable={onAddVariable}
         defaultType="input"
+        currentAgentId={currentAgent?.id || ""}
       />
       <AddSourceDialog
         open={isSourceDialogOpen}

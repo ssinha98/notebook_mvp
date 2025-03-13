@@ -30,6 +30,8 @@ import { Block, Variable } from "@/types/types";
 import { auth } from "@/tools/firebase";
 import { MdOutlineEmail } from "react-icons/md";
 import { api } from "@/tools/api";
+import { doc, setDoc, collection } from "firebase/firestore";
+import { db } from "@/tools/firebase";
 
 const footerStyle: CSSProperties = {
   position: "sticky",
@@ -194,6 +196,7 @@ export default function Footer({
       userPrompt: "",
       id: crypto.randomUUID(),
       name: `Agent ${nextBlockNumber}`,
+      saveAsCsv: false,
     });
   };
 
@@ -227,6 +230,7 @@ export default function Footer({
           userPrompt: "",
           id: crypto.randomUUID(),
           name: `Agent ${nextBlockNumber}`,
+          saveAsCsv: false,
         });
       },
     },
@@ -312,6 +316,30 @@ export default function Footer({
       console.error("Error sending check-in email:", error);
     }
   };
+
+  // const testFirebase = async () => {
+  //   try {
+  //     const userId = auth.currentUser?.uid;
+  //     if (!userId) throw new Error("No user logged in");
+
+  //     const testDocument = {
+  //       full_name: "test variable",
+  //       created_at: new Date().toISOString(), // Add timestamp for tracking
+  //       userId, // Add userId for reference
+  //     };
+
+  //     await setDoc(
+  //       doc(db, "users", userId, "test", "test-doc-1"), // Clean document ID
+  //       testDocument
+  //     );
+
+  //     console.log("Document created at:", `users/${userId}/test/test-doc-1`);
+  //     return { success: true, data: testDocument };
+  //   } catch (error) {
+  //     console.error("Test failed:", error);
+  //     throw error; // Throw error to see full stack trace
+  //   }
+  // };
 
   return (
     <>
@@ -408,6 +436,18 @@ export default function Footer({
               <CloudUploadOutlined />
               Deploy
             </Button>
+            {/* <Button
+              variant="outline"
+              onClick={testFirebase}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "#1f2937")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
+            >
+              Test Firebase
+            </Button> */}
           </div>
         </div>
       </footer>

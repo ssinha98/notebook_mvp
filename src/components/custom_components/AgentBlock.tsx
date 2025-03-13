@@ -4,7 +4,7 @@ import React, {
   forwardRef,
   useEffect,
 } from "react";
-import { Variable } from "@/types/types";
+import { Variable, SourceInfo } from "@/types/types";
 import { Button } from "@/components/ui/button";
 import AddVariableDialog from "@/components/custom_components/AddVariableDialog";
 import { api } from "@/tools/api";
@@ -25,10 +25,11 @@ import { getFirestore, collection, getDocs } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { getAuth } from "firebase/auth";
 import { processDynamicVariables } from "@/tools/dynamicVariables";
+import { useVariableStore } from "@/lib/variableStore";
+import { useAgentStore } from "@/lib/agentStore";
 
 interface AgentBlockProps {
   blockNumber: number;
-  variables: Array<Variable>;
   onAddVariable: (variable: Variable) => void;
   onOpenTools?: () => void;
   onSavePrompts: (
@@ -36,10 +37,12 @@ interface AgentBlockProps {
     systemPrompt: string,
     userPrompt: string,
     saveAsCsv: boolean,
-    sourceInfo?: {
-      nickname: string;
-      downloadUrl: string;
-    }
+    sourceInfo?: SourceInfo,
+    outputVariable?: {
+      id: string;
+      name: string;
+      type: "input" | "intermediate";
+    } | null
   ) => void;
   onProcessedPrompts?: (processedSystem: string, processedUser: string) => void;
   isProcessing: boolean;
@@ -52,6 +55,11 @@ interface AgentBlockProps {
     nickname: string;
     downloadUrl: string;
   };
+  initialOutputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate";
+  } | null;
 }
 
 // Add this interface to define the ref methods
@@ -71,6 +79,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [showOutput] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [modelResponse, setModelResponse] = useState<string | null>(null);
+  const variables = useVariableStore((state) => state.variables) || {}; // Provide default empty object
   const [selectedVariableId, setSelectedVariableId] = useState<string>("");
   const [selectedSource, setSelectedSource] = useState<string>(
     props.initialSource?.nickname || "none"
@@ -80,11 +89,14 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const addFileNickname = useSourceStore((state) => state.addFileNickname);
   const [saveAsCsv, setSaveAsCsv] = useState(props.initialSaveAsCsv || false);
   const [selectedModel, setSelectedModel] = useState<string>("");
-  const { variables: storeVariables } = useSourceStore();
+  // const { variables: storeVariables } = useSourceStore();
   const syncWithFirestore = useSourceStore((state) => state.syncWithFirestore);
 
-  // Add null check for variables prop
-  const variables = props.variables || [];
+  useEffect(() => {
+    // Load variables when component mounts
+    const currentAgentId = useAgentStore.getState().currentAgent?.id;
+    useVariableStore.getState().loadVariables(currentAgentId!);
+  }, []);
 
   // Add useEffect to update prompts when they change
   useEffect(() => {
@@ -130,12 +142,46 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     }
   }, [props.initialSource]);
 
+  // Update selection when variables or initialOutputVariable changes
+  useEffect(() => {
+    if (props.initialOutputVariable?.id && Object.keys(variables).length > 0) {
+      const matchingVariable = Object.values(variables).find(
+        (v) => v.id === props.initialOutputVariable?.id
+      );
+      if (matchingVariable) {
+        setSelectedVariableId(matchingVariable.id);
+      }
+    }
+  }, [props.initialOutputVariable, variables]);
+
   // Update handler to work with shadcn Select
   const handleVariableSelect = (value: string) => {
     if (value === "add_new" && props.onOpenTools) {
       props.onOpenTools();
     } else {
       setSelectedVariableId(value);
+      const selectedVariable = Object.values(variables).find(
+        (v) => v.id === value
+      );
+      if (selectedVariable) {
+        props.onSavePrompts(
+          props.blockNumber,
+          systemPrompt,
+          userPrompt,
+          saveAsCsv,
+          selectedSource !== "none" && fileNicknames[selectedSource]
+            ? {
+                nickname: selectedSource,
+                downloadUrl: fileNicknames[selectedSource].downloadLink,
+              }
+            : undefined,
+          {
+            id: selectedVariable.id,
+            name: selectedVariable.name,
+            type: selectedVariable.type,
+          }
+        );
+      }
     }
   };
 
@@ -184,7 +230,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     // Handle {{variables}}
     const varRegex = /{{(.*?)}}/g;
     formattedText = formattedText.replace(varRegex, (match, varName) => {
-      const varExists = variables.some((v) => v.name === varName.trim());
+      const varExists = Object.values(variables).some(
+        (v) => v.name === varName.trim()
+      );
       return `<var class="${varExists ? "valid" : "invalid"}">${match}</var>`;
     });
 
@@ -245,10 +293,10 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const processVariablesInText = (text: string): string => {
     const regex = /{{(.*?)}}/g;
     return text.replace(regex, (match, varName) => {
-      // Get the latest value from the store
-      const storeVars = useSourceStore.getState().variables;
-      const value = storeVars[varName.trim()];
-      return value || `no value saved to ${varName.trim()}`;
+      const variable = useVariableStore
+        .getState()
+        .getVariableByName(varName.trim());
+      return variable?.value || `no value saved to ${varName.trim()}`;
     });
   };
 
@@ -331,15 +379,33 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         setModelResponse(response.response);
 
         if (selectedVariableId) {
-          const selectedVariable = variables.find(
+          const selectedVariable = Object.values(variables).find(
             (v) => v.id === selectedVariableId
           );
           if (selectedVariable) {
-            selectedVariable.value = response.response;
-            useSourceStore
+            // Update variable in cloud storage
+            await useVariableStore
               .getState()
-              .updateVariable(selectedVariable.name, response.response);
-            props.onAddVariable(selectedVariable);
+              .updateVariable(selectedVariableId, response.response);
+
+            // Update block's output variable reference
+            props.onSavePrompts(
+              props.blockNumber,
+              systemPrompt,
+              userPrompt,
+              saveAsCsv,
+              selectedSource !== "none" && fileNicknames[selectedSource]
+                ? {
+                    nickname: selectedSource,
+                    downloadUrl: fileNicknames[selectedSource].downloadLink,
+                  }
+                : undefined,
+              {
+                id: selectedVariable.id,
+                name: selectedVariable.name,
+                type: selectedVariable.type,
+              }
+            );
           }
         }
 
@@ -378,20 +444,34 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
 
   // Update the save function to include source information
   const handleSavePrompts = () => {
-    const sourceInfo =
-      selectedSource !== "none" && fileNicknames[selectedSource]
-        ? {
-            nickname: selectedSource,
-            downloadUrl: fileNicknames[selectedSource].downloadLink,
-          }
-        : undefined;
+    console.log("About to save with variable ID:", selectedVariableId);
+
+    const outputVariable = selectedVariableId
+      ? {
+          id: selectedVariableId,
+          name:
+            Object.values(variables).find((v) => v.id === selectedVariableId)
+              ?.name || "",
+          type:
+            Object.values(variables).find((v) => v.id === selectedVariableId)
+              ?.type || "input",
+        }
+      : null;
+
+    console.log("Constructed outputVariable:", outputVariable);
 
     props.onSavePrompts(
       props.blockNumber,
       systemPrompt,
       userPrompt,
       saveAsCsv,
-      sourceInfo // Add source info to the save function
+      selectedSource !== "none" && fileNicknames[selectedSource]
+        ? {
+            nickname: selectedSource,
+            downloadUrl: fileNicknames[selectedSource].downloadLink,
+          }
+        : undefined,
+      outputVariable || undefined // Pass the constructed outputVariable
     );
   };
 
@@ -543,7 +623,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
               <SelectValue placeholder="Variables" />
             </SelectTrigger>
             <SelectContent>
-              {variables
+              {Object.values(variables)
                 .filter((v) => v.type === "intermediate")
                 .map((v) => (
                   <SelectItem key={v.id} value={v.id}>
@@ -579,6 +659,19 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                           nickname: selectedSource,
                           downloadUrl:
                             fileNicknames[selectedSource].downloadLink,
+                        }
+                      : undefined,
+                    selectedVariableId
+                      ? {
+                          id: selectedVariableId,
+                          name:
+                            Object.values(variables).find(
+                              (v) => v.id === selectedVariableId
+                            )?.name || "",
+                          type:
+                            Object.values(variables).find(
+                              (v) => v.id === selectedVariableId
+                            )?.type || "input",
                         }
                       : undefined
                   );
@@ -627,21 +720,10 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     /> */}
       <AddVariableDialog
         open={isDialogOpen}
-        onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) {
-            // Reset the select value when dialog closes
-            const select = document.querySelector(
-              "select"
-            ) as HTMLSelectElement;
-            if (select) select.value = "";
-          }
-        }}
-        onAddVariable={(variable) => {
-          props.onAddVariable(variable);
-          setIsDialogOpen(false);
-        }}
+        onOpenChange={setIsDialogOpen}
+        onAddVariable={props.onAddVariable}
         defaultType="intermediate"
+        currentAgentId={useAgentStore.getState().currentAgent?.id || ""}
       />
 
       {modelResponse && !props.isProcessing && (
@@ -655,7 +737,11 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           {selectedVariableId && (
             <div className="mt-2 text-sm text-green-400">
               Saved as{" "}
-              {variables.find((v) => v.id === selectedVariableId)?.name}
+              {
+                Object.values(variables).find(
+                  (v) => v.id === selectedVariableId
+                )?.name
+              }
             </div>
           )}
         </div>

@@ -28,6 +28,7 @@ import { MdRawOn } from "react-icons/md";
 import { api } from "@/tools/api";
 import { GoogleSearchParams } from "@/tools/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useVariableStore } from "@/lib/variableStore";
 
 interface SearchAgentProps {
   blockNumber: number;
@@ -615,13 +616,75 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     const [limit, setLimit] = useState<number>(props.initialLimit || 5);
     const [activeTab, setActiveTab] = useState<string>("parsed");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const variables = props.variables || [];
+    const storeVariables = useVariableStore((state) => state.variables);
     const [timeWindow, setTimeWindow] = useState<string>(
       props.initialTimeWindow || ""
     );
     const [marketsRegion, setMarketsRegion] = useState<string>(
       props.initialRegion || ""
     );
+
+    // Add state for variables if needed
+    const [variables, setVariables] =
+      useState<Record<string, Variable>>(storeVariables);
+
+    // Update local variables when store changes
+    useEffect(() => {
+      setVariables(storeVariables);
+    }, [storeVariables]);
+
+    // Add debug log for store variables
+    console.log("Variables in store:", storeVariables);
+
+    // Helper function to find variable by name
+    const findVariableByName = (name: string) => {
+      return Object.values(storeVariables).find((v) => v.name === name);
+    };
+
+    // Update processVariablesInText to use store variables
+    const processVariablesInText = (text: string): string => {
+      const regex = /{{(.*?)}}/g;
+      return text.replace(regex, (match, varName) => {
+        const trimmedName = varName.trim();
+        const variable = findVariableByName(trimmedName);
+        return variable?.value || match;
+      });
+    };
+
+    // Update formatTextWithVariables to use store variables
+    const formatTextWithVariables = (text: string) => {
+      const regex = /{{(.*?)}}/g;
+      const parts = [];
+      let lastIndex = 0;
+
+      for (const match of text.matchAll(regex)) {
+        const [fullMatch, varName] = match;
+        const startIndex = match.index!;
+        const trimmedName = varName.trim();
+        const varExists = findVariableByName(trimmedName) !== undefined;
+
+        if (startIndex > lastIndex) {
+          parts.push(text.slice(lastIndex, startIndex));
+        }
+
+        parts.push(
+          <span
+            key={startIndex}
+            className={varExists ? "font-bold text-blue-400" : "text-red-400"}
+          >
+            {fullMatch}
+          </span>
+        );
+
+        lastIndex = startIndex + fullMatch.length;
+      }
+
+      if (lastIndex < text.length) {
+        parts.push(text.slice(lastIndex));
+      }
+
+      return parts.length ? parts : text;
+    };
 
     // Expose processBlock to parent components
     useImperativeHandle(ref, () => ({
@@ -757,55 +820,6 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       }
     };
 
-    // Add formatTextWithVariables function
-    const formatTextWithVariables = (text: string) => {
-      const regex = /{{(.*?)}}/g;
-      const parts = [];
-      let lastIndex = 0;
-
-      for (const match of text.matchAll(regex)) {
-        const [fullMatch, varName] = match;
-        const startIndex = match.index!;
-
-        // Add text before the variable
-        if (startIndex > lastIndex) {
-          parts.push(text.slice(lastIndex, startIndex));
-        }
-
-        // Check if variable exists
-        const varExists = variables.some((v) => v.name === varName.trim());
-
-        // Add the variable part with appropriate styling
-        parts.push(
-          <span
-            key={startIndex}
-            className={varExists ? "font-bold text-blue-400" : "text-red-400"}
-          >
-            {fullMatch}
-          </span>
-        );
-
-        lastIndex = startIndex + fullMatch.length;
-      }
-
-      // Add remaining text
-      if (lastIndex < text.length) {
-        parts.push(text.slice(lastIndex));
-      }
-
-      return parts.length ? parts : text;
-    };
-
-    // Add processVariablesInText function
-    const processVariablesInText = (text: string): string => {
-      const regex = /{{(.*?)}}/g;
-      return text.replace(regex, (match, varName) => {
-        const storeVars = useSourceStore.getState().variables;
-        const value = storeVars[varName.trim()];
-        return value || `no value saved to ${varName.trim()}`;
-      });
-    };
-
     const handleSearch = async () => {
       try {
         setIsProcessing(true);
@@ -845,8 +859,8 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           props.onAddVariable({
             id: selectedVariableId,
             name:
-              variables.find((v) => v.id === selectedVariableId)?.name ||
-              `search_results_${props.blockNumber}`,
+              Object.values(variables).find((v) => v.id === selectedVariableId)
+                ?.name || `search_results_${props.blockNumber}`,
             type: "intermediate",
             value: response,
           });
@@ -1253,7 +1267,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                   <SelectValue placeholder="Variables" />
                 </SelectTrigger>
                 <SelectContent>
-                  {variables
+                  {Object.values(variables)
                     .filter((v) => v.type === "intermediate")
                     .map((v) => (
                       <SelectItem key={v.id} value={v.id}>

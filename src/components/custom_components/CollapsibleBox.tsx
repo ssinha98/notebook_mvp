@@ -9,6 +9,7 @@ import ContactBlock from "./ContactBlock";
 import CheckInBlock from "./CheckInBlock";
 import SearchAgent from "./SearchAgent";
 import { SearchAgentRef } from "./SearchAgent";
+import { SourceInfo } from "@/types/types";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -21,7 +22,14 @@ interface CollapsibleBoxProps {
   onSavePrompts: (
     blockNumber: number,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    saveAsCsv: boolean,
+    sourceInfo?: SourceInfo,
+    outputVariable?: {
+      id: string;
+      name: string;
+      type: "input" | "intermediate";
+    } | null
   ) => void;
   blockRefs?: React.MutableRefObject<{
     [key: number]: AgentBlockRef | SearchAgentRef;
@@ -58,6 +66,7 @@ const CollapsibleBox = forwardRef<
       userPrompt: "",
       id: crypto.randomUUID(),
       name: `Block ${nextBlockNumber}`,
+      saveAsCsv: false,
     });
   };
 
@@ -247,7 +256,7 @@ const CollapsibleBox = forwardRef<
                       <AgentBlock
                         key={block.blockNumber}
                         blockNumber={block.blockNumber}
-                        variables={props.variables || []}
+                        initialOutputVariable={block.outputVariable}
                         onAddVariable={props.onAddVariable || (() => {})}
                         onOpenTools={props.onOpenTools}
                         onSavePrompts={props.onSavePrompts}

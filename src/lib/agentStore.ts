@@ -11,14 +11,21 @@ import {
   where,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "@/tools/firebase";
-import { auth } from "@/tools/firebase";
-import { Agent, AgentStore, Block } from "../types/types";
+import { db, auth } from "@/tools/firebase";
+import {
+  Agent,
+  AgentBlock,
+  AgentStore,
+  Block,
+  SearchAgentBlock,
+  TransformBlock,
+} from "../types/types";
 import { useSourceStore } from "./store";
 import usePromptStore from "./store";
 import { createRoot } from "react-dom/client";
 import { SessionExpiredAlert } from "@/components/custom_components/SessionExpiredAlert";
 import { onAuthStateChanged } from "firebase/auth";
+import { useVariableStore } from "./variableStore";
 
 export const useAgentStore = create<AgentStore>()((set, get) => ({
   agents: [],
@@ -82,31 +89,25 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       const { currentAgent } = get();
       if (!currentAgent) throw new Error("No agent selected");
 
+      // Debug function to identify undefined values
+      const logUndefinedFields = (obj: any, context: string) => {
+        Object.entries(obj).forEach(([key, value]) => {
+          if (value === undefined) {
+            console.warn(
+              `${context}: Found undefined value for field "${key}"`
+            );
+          }
+        });
+      };
+
       const preparedBlocks = blocks.map((block) => {
-        const baseBlock = {
-          id: block.id || crypto.randomUUID(),
-          name: block.name || `Block ${block.blockNumber}`,
-          type: block.type,
-          blockNumber: block.blockNumber,
-        };
+        // Log any undefined values in the original block
+        logUndefinedFields(block, `Block #${block.blockNumber}`);
 
         switch (block.type) {
           case "agent": {
-            // Create the block object with defined type including sourceInfo
-            const agentBlock: {
-              id: string;
-              name: string;
-              type: Block["type"];
-              blockNumber: number;
-              systemPrompt: string;
-              userPrompt: string;
-              saveAsCsv: boolean;
-              sourceInfo?: {
-                nickname: string;
-                downloadUrl: string;
-              };
-            } = {
-              ...baseBlock,
+            const preparedBlock = {
+              ...block,
               systemPrompt:
                 usePromptStore
                   .getState()
@@ -116,62 +117,107 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
                   .getState()
                   .getPrompt(block.blockNumber, "user") || "",
               saveAsCsv: Boolean(block.saveAsCsv),
-            };
+              // Only include outputVariable if it has all required fields
+              outputVariable:
+                block.outputVariable?.id &&
+                block.outputVariable.name &&
+                block.outputVariable.type
+                  ? block.outputVariable
+                  : null,
+              // Ensure required fields have default values
+              id: block.id || `block-${block.blockNumber}`,
+              name: block.name || `Block ${block.blockNumber}`,
+              blockNumber: block.blockNumber,
+              type: block.type,
+            } as AgentBlock;
 
-            if (block.sourceInfo?.nickname && block.sourceInfo?.downloadUrl) {
-              agentBlock.sourceInfo = {
-                nickname: block.sourceInfo.nickname,
-                downloadUrl: block.sourceInfo.downloadUrl,
-              };
-            }
-
-            return agentBlock;
+            // Log any remaining undefined values
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Agent Block #${block.blockNumber}`
+            );
+            return preparedBlock;
           }
 
-          case "searchagent":
-            return {
-              ...baseBlock,
+          case "searchagent": {
+            const preparedBlock = {
+              ...block,
               query: block.query || "",
               engine: block.engine || "search",
               limit: block.limit || 5,
-              topic: block.topic || "",
-              section: block.section || "",
-              timeWindow: block.timeWindow || "",
-              trend: block.trend || "",
-              region: block.region || "",
-            };
+              outputVariable:
+                block.outputVariable?.id &&
+                block.outputVariable.name &&
+                block.outputVariable.type
+                  ? block.outputVariable
+                  : null,
+              // Ensure required fields have default values
+              id: block.id || `block-${block.blockNumber}`,
+              name: block.name || `Block ${block.blockNumber}`,
+              blockNumber: block.blockNumber,
+              type: block.type,
+            } as SearchAgentBlock;
 
-          case "checkin":
-            return baseBlock;
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Search Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
 
-          case "transform":
-            return {
-              ...baseBlock,
+          case "transform": {
+            const preparedBlock = {
+              ...block,
               transformations: block.transformations || { filterCriteria: [] },
               sourceName: block.sourceName || "",
+              outputVariable:
+                block.outputVariable?.id &&
+                block.outputVariable.name &&
+                block.outputVariable.type
+                  ? block.outputVariable
+                  : null,
+              // Ensure required fields have default values
+              id: block.id || `block-${block.blockNumber}`,
+              name: block.name || `Block ${block.blockNumber}`,
+              blockNumber: block.blockNumber,
+              type: block.type,
+            } as TransformBlock;
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Transform Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
+          case "checkin": {
+            const preparedBlock = {
+              ...block,
+              id: block.id || `block-${block.blockNumber}`,
+              name: block.name || `Block ${block.blockNumber}`,
+              blockNumber: block.blockNumber,
+              type: block.type,
             };
+            return preparedBlock;
+          }
 
-          // case "contact":
-          //   return {
-          //     ...baseBlock,
-          //     channel: block.channel || "",
-          //     recipient: block.recipient || "",
-          //     subject: block.subject || "",
-          //     body: block.body || "",
-          //   };
-
-          default:
-            return baseBlock;
+          default: {
+            const exhaustiveCheck: never = block;
+            return exhaustiveCheck;
+          }
         }
       });
 
       const cleanAgent = {
-        id: currentAgent.id || "",
+        id: currentAgent.id,
         name: currentAgent.name || "Untitled Agent",
-        userId: userId,
+        userId,
         createdAt: currentAgent.createdAt || new Date().toISOString(),
         blocks: preparedBlocks,
       };
+
+      // Final check for any undefined values
+      logUndefinedFields(cleanAgent, "Final Agent Object");
 
       console.log("Final agent data to save:", cleanAgent);
 
@@ -210,6 +256,9 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         agent.blocks.forEach((block) => {
           addBlockToNotebook(block);
         });
+
+        // Load all variables for the user
+        await useVariableStore.getState().loadVariables(agentId);
       } else {
         console.error("Agent document doesn't exist");
       }
@@ -255,6 +304,55 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
     } catch (error) {
       console.error("Error updating agent name:", error);
       throw error;
+    }
+  },
+
+  updateAgent: async (agentId: string, data: Partial<Agent>) => {
+    try {
+      // Clean blocks based on their type
+      const cleanBlocks = data.blocks?.map((block) => {
+        if (block.type === "agent") {
+          return {
+            id: block.id,
+            type: block.type,
+            blockNumber: block.blockNumber,
+            name: block.name || `Block ${block.blockNumber}`,
+            systemPrompt: block.systemPrompt || "",
+            userPrompt: block.userPrompt || "",
+            outputVariable: block.outputVariable || null,
+            saveAsCsv: block.saveAsCsv || false,
+            sourceInfo: block.sourceInfo || null, // Convert undefined to null
+          };
+        } else if (block.type === "searchagent") {
+          return {
+            ...block,
+            query: block.query || "",
+            limit: block.limit || 5,
+            topic: block.topic || "",
+            section: block.section || "",
+            timeWindow: block.timeWindow || "",
+            trend: block.trend || "indexes",
+            region: block.region || "",
+            outputVariable: block.outputVariable || null,
+          };
+        }
+        return block;
+      });
+
+      const cleanData = {
+        ...data,
+        blocks: cleanBlocks,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const userDoc = doc(db, "users", auth.currentUser?.uid || "");
+      const agentDoc = doc(userDoc, "agents", agentId);
+      await setDoc(agentDoc, cleanData, { merge: true });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error saving agent:", error);
+      return { success: false, error: String(error) };
     }
   },
 }));

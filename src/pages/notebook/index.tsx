@@ -7,7 +7,7 @@ import CollapsibleBox from "@/components/custom_components/CollapsibleBox";
 import React from "react";
 import ApiKeySheet from "@/components/custom_components/ApiKeySheet";
 import ToolsSheet from "@/components/custom_components/ToolsSheet";
-import { Block, Variable } from "@/types/types";
+import { Block, SourceInfo, Variable } from "@/types/types";
 import usePromptStore from "@/lib/store";
 import { api } from "@/tools/api";
 import { AgentBlockRef } from "@/components/custom_components/AgentBlock";
@@ -38,6 +38,7 @@ import { useBlockManager } from "@/hooks/useBlockManager";
 import { getBlockList } from "@/lib/store";
 import SearchAgent from "@/components/custom_components/SearchAgent";
 import Layout from "@/components/Layout";
+import { useVariableStore } from "@/lib/variableStore";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -94,16 +95,27 @@ export default function Notebook() {
   const handleSavePrompts = (
     blockNumber: number,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    saveAsCsv: boolean,
+    sourceInfo?: SourceInfo,
+    outputVariable?: {
+      id: string;
+      name: string;
+      type: "input" | "intermediate";
+    } | null
   ) => {
-    addPrompt(blockNumber, "system", systemPrompt);
-    addPrompt(blockNumber, "user", userPrompt);
-
-    // Update the block in the store instead of local state
+    // Update the block in the store
     updateBlockData(blockNumber, {
       systemPrompt,
       userPrompt,
+      saveAsCsv,
+      sourceInfo,
+      outputVariable,
     });
+
+    // Also update prompts if needed
+    addPrompt(blockNumber, "system", systemPrompt);
+    addPrompt(blockNumber, "user", userPrompt);
   };
 
   // const displayBlockPrompts = () => {
@@ -185,113 +197,97 @@ export default function Notebook() {
   const [isRunPaused, setIsRunPaused] = useState(false);
 
   const renderBlock = (block: Block) => {
-    // console.log("Attempting to render block of type:", block.type);
-
-    if (block.type === "agent") {
-      return (
-        <AgentBlock
-          ref={(ref) => {
-            if (ref) blockRefs.current[block.blockNumber] = ref;
-          }}
-          key={block.blockNumber}
-          blockNumber={block.blockNumber}
-          onDeleteBlock={deleteBlock}
-          variables={variables}
-          onAddVariable={handleAddVariable}
-          onOpenTools={() => setIsToolsSheetOpen(true)}
-          onSavePrompts={handleSavePrompts}
-          isProcessing={isProcessing}
-          onProcessingChange={setIsProcessing}
-          initialSystemPrompt={block.systemPrompt}
-          initialUserPrompt={block.userPrompt}
-        />
-      );
+    switch (block.type) {
+      case "agent":
+        return (
+          <AgentBlock
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            // initialOutputVariable={block.outputVariable}
+            // variables={variables}
+            onAddVariable={handleAddVariable}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
+            onSavePrompts={handleSavePrompts}
+            isProcessing={isProcessing}
+            onProcessingChange={setIsProcessing}
+            initialSystemPrompt={block.systemPrompt}
+            initialUserPrompt={block.userPrompt}
+            initialSaveAsCsv={block.saveAsCsv}
+            initialSource={block.sourceInfo}
+            initialOutputVariable={block.outputVariable || null}
+          />
+        );
+      case "transform":
+        return (
+          <TransformBlock
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            originalFilePath={block.originalFilePath || ""}
+            sourceName={block.sourceName || ""}
+            fileType={block.fileType || "csv"}
+            transformations={{
+              filterCriteria: block.transformations?.filterCriteria || [],
+              columns: block.transformations?.columns || [],
+              previewData: block.transformations?.previewData || [],
+            }}
+            onTransformationsUpdate={(updates) =>
+              updateBlockData(block.blockNumber, updates)
+            }
+          />
+        );
+      case "checkin":
+        return (
+          <CheckInBlock
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            isProcessing={isProcessing && pausedAtBlock === block.blockNumber}
+            onResume={resumeRun}
+            variables={variables}
+            editedVariableNames={[]}
+            onSaveVariables={(updatedVariables, editedNames) => {
+              setVariables(updatedVariables);
+            }}
+          />
+        );
+      case "searchagent":
+        return (
+          <SearchAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              // console.log("SearchAgent update received:", updates);
+              updateBlockData(blockNumber, updates);
+            }}
+            variables={variables}
+            onAddVariable={handleAddVariable}
+            initialEngine={block.engine}
+            initialQuery={block.query}
+            initialLimit={block.limit}
+            initialTopic={block.topic}
+            initialSection={block.section}
+            initialTimeWindow={block.timeWindow}
+            initialTrend={block.trend}
+            initialRegion={block.region}
+          />
+        );
+      default:
+        const exhaustiveCheck: never = block;
+        console.error("Unknown block type:", block);
+        return null;
     }
-
-    if (block.type === "transform") {
-      return (
-        <TransformBlock
-          key={block.blockNumber}
-          blockNumber={block.blockNumber}
-          onDeleteBlock={deleteBlock}
-          originalFilePath={block.originalFilePath || ""}
-          sourceName={block.sourceName || ""}
-          fileType={block.fileType || "csv"}
-          transformations={{
-            filterCriteria: block.transformations?.filterCriteria || [],
-            columns: block.transformations?.columns || [],
-            previewData: block.transformations?.previewData || [],
-          }}
-          onTransformationsUpdate={(updates) =>
-            updateBlockData(block.blockNumber, updates)
-          }
-        />
-      );
-    }
-
-    // if (block.type === "contact") {
-    //   console.log("Rendering contact block");
-    //   return (
-    //     <ContactBlock
-    //       key={block.blockNumber}
-    //       blockNumber={block.blockNumber}
-    //       onDeleteBlock={deleteBlock}
-    //       onSave={(values) => console.log("Saving contact values:", values)}
-    //       onClose={() => console.log("Closing contact block")}
-    //     />
-    //   );
-    // }
-
-    if (block.type === "checkin") {
-      return (
-        <CheckInBlock
-          ref={(ref) => {
-            if (ref) blockRefs.current[block.blockNumber] = ref;
-          }}
-          key={block.blockNumber}
-          blockNumber={block.blockNumber}
-          onDeleteBlock={deleteBlock}
-          isProcessing={isProcessing && pausedAtBlock === block.blockNumber}
-          onResume={resumeRun}
-          variables={variables}
-          editedVariableNames={[]}
-          onSaveVariables={(updatedVariables, editedNames) => {
-            setVariables(updatedVariables);
-          }}
-        />
-      );
-    }
-
-    if (block.type === "searchagent") {
-      // console.log("Rendering searchagent with data:", block);
-      return (
-        <SearchAgent
-          ref={(ref) => {
-            if (ref) blockRefs.current[block.blockNumber] = ref;
-          }}
-          key={block.blockNumber}
-          blockNumber={block.blockNumber}
-          onDeleteBlock={deleteBlock}
-          onUpdateBlock={(blockNumber, updates) => {
-            // console.log("SearchAgent update received:", updates);
-            updateBlockData(blockNumber, updates);
-          }}
-          variables={variables}
-          onAddVariable={handleAddVariable}
-          initialEngine={block.engine}
-          initialQuery={block.query}
-          initialLimit={block.limit}
-          initialTopic={block.topic}
-          initialSection={block.section}
-          initialTimeWindow={block.timeWindow}
-          initialTrend={block.trend}
-          initialRegion={block.region}
-        />
-      );
-    }
-
-    console.error("Unknown block type:", block.type);
-    return null;
   };
 
   // Add this near your other useEffects
@@ -362,25 +358,30 @@ export default function Notebook() {
 
       // Load agent's blocks with their prompts
       currentAgent.blocks.forEach((block) => {
-        useSourceStore.getState().addBlockToNotebook({
-          ...block,
-          systemPrompt: block.systemPrompt || "",
-          userPrompt: block.userPrompt || "",
-        });
+        useSourceStore.getState().addBlockToNotebook(
+          block.type === "agent"
+            ? {
+                ...block,
+                systemPrompt: block.systemPrompt || "",
+                userPrompt: block.userPrompt || "",
+              }
+            : block
+        );
       });
     }
   }, []);
 
-  // Load agent when agentId is available
+  // Load agent and variables when agentId is available
   useEffect(() => {
     async function loadAgentData() {
       if (agentId && typeof agentId === "string") {
-        console.log("Loading agent with ID:", agentId);
         try {
+          // First load variables
+          await useVariableStore.getState().loadVariables(agentId);
+          // Then load agent
           await loadAgent(agentId);
-          console.log("Agent loaded successfully");
         } catch (error) {
-          console.error("Error loading agent:", error);
+          console.error("Error loading agent data:", error);
         } finally {
           setIsLoading(false);
         }
@@ -534,80 +535,80 @@ export default function Notebook() {
         onToolsClick={() => setIsToolsSheetOpen(true)}
         onLogout={() => router.push("/login/signout")}
       /> */}
-      {!isLoading && agentId ? (
-        <AgentHeader />
-      ) : (
-        <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-900">
-          <div className="flex items-center gap-4">
-            <Input
-              value={newAgentName}
-              onChange={(e) => setNewAgentName(e.target.value)}
-              placeholder="Add an agent name"
-              className="w-64 bg-gray-800 border-gray-700 text-white"
-            />
+        {!isLoading && agentId ? (
+          <AgentHeader />
+        ) : (
+          <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-900">
+            <div className="flex items-center gap-4">
+              <Input
+                value={newAgentName}
+                onChange={(e) => setNewAgentName(e.target.value)}
+                placeholder="Add an agent name"
+                className="w-64 bg-gray-800 border-gray-700 text-white"
+              />
+            </div>
+            <Button
+              onClick={handleSaveAsAgent}
+              disabled={isSaving}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isSaving ? (
+                <>
+                  <span className="animate-spin mr-2">⟳</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <SaveOutlined className="mr-2" />
+                  Save New Agent
+                </>
+              )}
+            </Button>
           </div>
-          <Button
-            onClick={handleSaveAsAgent}
-            disabled={isSaving}
-            className="bg-blue-600 hover:bg-blue-700"
+        )}
+        <main style={mainStyle}>
+          <CollapsibleBox
+            title="Agent Flow"
+            variables={variables}
+            onAddVariable={handleAddVariable}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
+            onSavePrompts={handleSavePrompts}
+            blockRefs={blockRefs}
           >
-            {isSaving ? (
-              <>
-                <span className="animate-spin mr-2">⟳</span>
-                Saving...
-              </>
-            ) : (
-              <>
-                <SaveOutlined className="mr-2" />
-                Save New Agent
-              </>
-            )}
-          </Button>
-        </div>
-      )}
-      <main style={mainStyle}>
-        <CollapsibleBox
-          title="Agent Flow"
-          variables={variables}
-          onAddVariable={handleAddVariable}
-          onOpenTools={() => setIsToolsSheetOpen(true)}
-          onSavePrompts={handleSavePrompts}
-          blockRefs={blockRefs}
-        >
-          {/* Then render other blocks */}
-          {blocks.map((block) => renderBlock(block))}
-        </CollapsibleBox>
-        {/* <SearchAgent
+            {/* Then render other blocks */}
+            {blocks.map((block) => renderBlock(block))}
+          </CollapsibleBox>
+          {/* <SearchAgent
           blockNumber={1}
           onDeleteBlock={() => {}}
           onUpdateBlock={() => {}}
           variables={variables}
           onAddVariable={handleAddVariable}
         /> */}
-        <div className="flex justify-end mt-4"></div>
-        <div className="flex justify-center mb-4"></div>
-      </main>
-      <Footer
-        onRun={runAllBlocks}
-        isProcessing={isProcessing}
-        variables={variables}
-        onAddVariable={handleAddVariable}
-      />
-      <ApiKeySheet
-        open={isApiKeySheetOpen}
-        onOpenChange={setIsApiKeySheetOpen}
-        apiCallCount={apiCallCount}
-      />
-      <ToolsSheet
-        open={isToolsSheetOpen}
-        onOpenChange={setIsToolsSheetOpen}
-        variables={variables}
-        onAddVariable={handleAddVariable}
-      />
-      <div className="w-full max-w-xl mx-auto mt-4">
-        {/* <SourcesList /> */}
+          <div className="flex justify-end mt-4"></div>
+          <div className="flex justify-center mb-4"></div>
+        </main>
+        <Footer
+          onRun={runAllBlocks}
+          isProcessing={isProcessing}
+          variables={variables}
+          onAddVariable={handleAddVariable}
+        />
+        <ApiKeySheet
+          open={isApiKeySheetOpen}
+          onOpenChange={setIsApiKeySheetOpen}
+          apiCallCount={apiCallCount}
+        />
+        <ToolsSheet
+          open={isToolsSheetOpen}
+          onOpenChange={setIsToolsSheetOpen}
+          // variables={variables}
+          onAddVariable={handleAddVariable}
+        />
+        <div className="w-full max-w-xl mx-auto mt-4">
+          {/* <SourcesList /> */}
+        </div>
       </div>
-    </div>
     </Layout>
   );
 }

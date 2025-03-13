@@ -9,7 +9,6 @@ interface SourceStore {
   sources: Record<string, Source>;
   blocks: Block[];
   nextBlockNumber: number;
-  variables: Record<string, string>;
   addSource: (name: string, source: Source) => void;
   removeSource: (name: string) => void;
   addBlockToNotebook: (block: Block) => void;
@@ -17,7 +16,6 @@ interface SourceStore {
   removeBlock: (blockNumber: number) => void;
   deleteBlock: (blockNumber: number) => void;
   resetBlocks: () => void;
-  updateVariable: (key: string, value: string) => void;
   updateBlockData: (blockNumber: number, updates: Partial<Block>) => void;
   currentBlockIndex: number | null;
   isPaused: boolean;
@@ -32,7 +30,6 @@ interface SourceStore {
     saveAsCsv?: boolean;
     sourceName?: string;
   }>;
-  clearVariables: () => void;
   fileNicknames: Record<string, { originalName: string; downloadLink: string }>;
   addFileNickname: (
     nickname: string,
@@ -41,6 +38,8 @@ interface SourceStore {
   ) => void;
   removeFileNickname: (nickname: string) => void;
   syncWithFirestore: (userId: string) => Promise<void>;
+  clearVariables: () => void;
+  clearSources: () => void;
 }
 
 const usePromptStore = create<PromptStore>()(
@@ -127,7 +126,6 @@ export const useSourceStore = create<SourceStore>()(
       sources: {},
       blocks: [],
       nextBlockNumber: 1,
-      variables: {},
       currentBlockIndex: null,
       isPaused: false,
       fileNicknames: {},
@@ -161,9 +159,12 @@ export const useSourceStore = create<SourceStore>()(
       },
       updateBlock: (blockNumber: number, updates: Partial<Block>) =>
         set((state) => ({
-          blocks: state.blocks.map((block) =>
-            block.blockNumber === blockNumber ? { ...block, ...updates } : block
-          ),
+          blocks: state.blocks.map((block): Block => {
+            if (block.blockNumber === blockNumber) {
+              return { ...block, ...updates } as Block;
+            }
+            return block;
+          }),
         })),
       removeBlock: (blockNumber: number) =>
         set((state) => ({
@@ -177,18 +178,14 @@ export const useSourceStore = create<SourceStore>()(
             (block) => block.blockNumber !== blockNumber
           ),
         })),
-      updateVariable: (key: string, value: string) =>
-        set((state) => ({
-          variables: {
-            ...state.variables,
-            [key]: value,
-          },
-        })),
       updateBlockData: (blockNumber: number, updates: Partial<Block>) =>
         set((state) => ({
-          blocks: state.blocks.map((block) =>
-            block.blockNumber === blockNumber ? { ...block, ...updates } : block
-          ),
+          blocks: state.blocks.map((block): Block => {
+            if (block.blockNumber === blockNumber) {
+              return { ...block, ...updates } as Block;
+            }
+            return block;
+          }),
         })),
       setCurrentBlockIndex: (index: number | null) =>
         set({ currentBlockIndex: index }),
@@ -207,11 +204,10 @@ export const useSourceStore = create<SourceStore>()(
             systemPrompt: block.systemPrompt,
             userPrompt: block.userPrompt,
             saveAsCsv: block.saveAsCsv,
-            sourceName: block.sourceName,
+            sourceName: block.sourceInfo?.nickname,
           }),
         }));
       },
-      clearVariables: () => set({ variables: {} }),
       addFileNickname: (
         nickname: string,
         originalName: string,
@@ -241,6 +237,18 @@ export const useSourceStore = create<SourceStore>()(
           {}
         );
         set({ fileNicknames: nicknames });
+      },
+      clearVariables: () => {
+        set((state) => ({
+          ...state,
+          variables: {},
+        }));
+      },
+      clearSources: () => {
+        set((state) => ({
+          ...state,
+          sources: {},
+        }));
       },
     }),
     {

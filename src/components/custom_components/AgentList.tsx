@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useAgentStore } from "@/lib/agentStore";
 import { useSourceStore } from "@/lib/store";
-
+import { Button } from "@/components/ui/button";
+import { PlusIcon } from "@radix-ui/react-icons";
 interface AgentsListProps {
   onAgentSelect: (agentId: string) => void;
 }
@@ -27,12 +28,15 @@ export default function AgentsList({ onAgentSelect }: AgentsListProps) {
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-white">My Agents</h2>
-        <button
+        <Button
           onClick={handleCreateAgent}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors"
+          variant="default"
+          color="blue"
+          className="px-4 py-2 rounded transition-colors"
         >
+          <PlusIcon className="w-4 h-4 mr-2" />
           Create Agent
-        </button>
+        </Button>
       </div>
 
       <div className="space-y-2">

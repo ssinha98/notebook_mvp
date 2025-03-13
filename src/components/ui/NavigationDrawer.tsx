@@ -166,7 +166,7 @@ export function NavigationDrawer({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="ml-2">
+        <Button variant="ghost" size="icon" className="fixed left-4 top-2 z-50">
           <LuMenu className="h-6 w-6" />
         </Button>
       </SheetTrigger>

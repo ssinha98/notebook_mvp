@@ -20,7 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useSourceStore } from "@/lib/store";
+import { useVariableStore } from "@/lib/variableStore";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -62,26 +62,45 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
       console.log(`CheckInBlock ${props.blockNumber} mounted`);
     }, [props.blockNumber]);
 
+    const variables = useVariableStore((state) => state.variables);
+    const [editedVariables, setEditedVariables] = useState<Variable[]>([]);
+
+    // Update when store variables change
+    useEffect(() => {
+      const variableArray = Object.entries(variables).map(([name, value]) => ({
+        id: name,
+        name,
+        value,
+        type: "intermediate" as const,
+      }));
+      setEditedVariables(variableArray);
+    }, [variables]);
+
     useImperativeHandle(
       ref,
       () => ({
         processBlock: async () => {
           console.log(`CheckInBlock ${props.blockNumber} processBlock called`);
-          
+
           try {
             // Send email notification
             const currentUser = auth.currentUser;
             console.log("Current user data:", {
               email: currentUser?.email,
               uid: currentUser?.uid,
-              displayName: currentUser?.displayName
+              displayName: currentUser?.displayName,
             });
 
             if (currentUser?.email) {
               console.log("Sending check-in email to:", currentUser.email);
-              const response = await api.get(`/api/send-checkin-email?email=${encodeURIComponent(currentUser.email)}`);
+              const response = await api.get(
+                `/api/send-checkin-email?email=${encodeURIComponent(currentUser.email)}`
+              );
               if (response.success) {
-                console.log("Check-in email sent successfully to:", response.sent_to);
+                console.log(
+                  "Check-in email sent successfully to:",
+                  response.sent_to
+                );
               } else {
                 console.log("Email send failed:", response);
               }
@@ -105,12 +124,11 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
 
     const [isVariablesDialogOpen, setIsVariablesDialogOpen] = useState(false);
     const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false);
-    const [editedVariables, setEditedVariables] = useState<Variable[]>([]);
     const [localEditedNames, setLocalEditedNames] = useState<string[]>(
       props.editedVariableNames
     );
 
-    const { updateVariable, variables: storeVariables } = useSourceStore();
+    const { updateVariable, variables: storeVariables } = useVariableStore();
 
     const handleDeleteBlock = () => {
       if (typeof props.onDeleteBlock === "function") {
@@ -147,7 +165,7 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
       });
 
       // Verify store update
-      const storeVariables = useSourceStore.getState().variables;
+      const storeVariables = useVariableStore.getState().variables;
       console.log("Store variables after update:", storeVariables);
 
       if (props.onSaveVariables) {
@@ -157,21 +175,8 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
       setIsVariablesDialogOpen(false);
     };
 
-    const handleVariableChange = (
-      variable: Variable,
-      newValue: string,
-      index: number
-    ) => {
-      const newVariables = [...editedVariables];
-      newVariables[index] = {
-        ...newVariables[index],
-        value: newValue,
-      };
-      setEditedVariables(newVariables);
-
-      if (!localEditedNames.includes(variable.name)) {
-        setLocalEditedNames([...localEditedNames, variable.name]);
-      }
+    const handleVariableChange = (variable: Variable, newValue: string) => {
+      useVariableStore.getState().updateVariable(variable.name, newValue);
     };
 
     const onContinueClick = () => {
@@ -289,11 +294,7 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
                           className="bg-gray-700 text-gray-200 border-gray-600"
                           value={variable.value || ""}
                           onChange={(e) =>
-                            handleVariableChange(
-                              variable,
-                              e.target.value,
-                              index
-                            )
+                            handleVariableChange(variable, e.target.value)
                           }
                         />
                       </TableCell>

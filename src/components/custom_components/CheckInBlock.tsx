@@ -36,6 +36,7 @@ import { api } from "@/tools/api";
 
 interface CheckInBlockProps {
   blockNumber: number;
+  agentId: string;
   onDeleteBlock?: (blockNumber: number) => void;
   variables: Variable[];
   editedVariableNames: string[];
@@ -57,24 +58,59 @@ export interface CheckInBlockRef {
 
 const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
   (props, ref) => {
-    // Log when the component mounts
-    useEffect(() => {
-      console.log(`CheckInBlock ${props.blockNumber} mounted`);
-    }, [props.blockNumber]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isVariablesDialogOpen, setIsVariablesDialogOpen] = useState(false);
+    const [editedVariables, setEditedVariables] = useState<
+      Record<string, string>
+    >({});
+    const { variables, loadVariables, updateVariable } = useVariableStore();
 
-    const variables = useVariableStore((state) => state.variables);
-    const [editedVariables, setEditedVariables] = useState<Variable[]>([]);
-
-    // Update when store variables change
+    // Add debug logs
     useEffect(() => {
-      const variableArray = Object.entries(variables).map(([name, value]) => ({
-        id: name,
-        name,
-        value,
-        type: "intermediate" as const,
-      }));
-      setEditedVariables(variableArray);
-    }, [variables]);
+      console.log("CheckInBlock mounted with agentId:", props.agentId);
+      const loadData = async () => {
+        try {
+          setIsLoading(true);
+          setError(null);
+          await loadVariables(props.agentId);
+          console.log("Variables loaded:", variables);
+          console.log("Current agentId:", props.agentId);
+        } catch (err) {
+          setError("Failed to load variables");
+          console.error("Error loading variables:", err);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      loadData();
+    }, [props.agentId]);
+
+    // Filter variables for this agent
+    const agentVariables = Object.values(variables).filter((variable) => {
+      console.log(
+        "Checking variable:",
+        variable,
+        "against agentId:",
+        props.agentId
+      );
+      return variable.agentId === props.agentId;
+    });
+
+    console.log("Filtered agent variables:", agentVariables);
+
+    // Initialize edited variables only when dialog opens
+    useEffect(() => {
+      if (isVariablesDialogOpen) {
+        const currentValues: Record<string, string> = {};
+        Object.values(variables)
+          .filter((variable) => variable.agentId === props.agentId)
+          .forEach((variable) => {
+            currentValues[variable.id] = variable.value || "";
+          });
+        setEditedVariables(currentValues);
+      }
+    }, [isVariablesDialogOpen, props.agentId, variables]);
 
     useImperativeHandle(
       ref,
@@ -122,13 +158,10 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
       [props.blockNumber, props.onProcessingChange]
     );
 
-    const [isVariablesDialogOpen, setIsVariablesDialogOpen] = useState(false);
     const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false);
     const [localEditedNames, setLocalEditedNames] = useState<string[]>(
       props.editedVariableNames
     );
-
-    const { updateVariable, variables: storeVariables } = useVariableStore();
 
     const handleDeleteBlock = () => {
       if (typeof props.onDeleteBlock === "function") {
@@ -138,45 +171,27 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
       }
     };
 
-    const handleOpenDialog = () => {
-      const initialVariables = props.variables.map((variable) => ({
-        ...variable,
-        value: storeVariables[variable.name] || "",
-      }));
-      setEditedVariables(initialVariables);
-      setIsVariablesDialogOpen(true);
-    };
-
-    const handleSaveAndClose = () => {
-      console.log("Saving variables:", editedVariables);
-
-      // Save to store
-      editedVariables.forEach((variable) => {
-        console.log(
-          "Updating variable:",
-          variable.name,
-          "to value:",
-          variable.value
+    const handleSaveAndClose = async () => {
+      try {
+        setError(null);
+        // Save all edited variables
+        await Promise.all(
+          Object.entries(editedVariables).map(([id, value]) =>
+            updateVariable(id, value)
+          )
         );
-        if (variable.value !== undefined) {
-          // Changed condition
-          updateVariable(variable.name, variable.value);
-        }
-      });
-
-      // Verify store update
-      const storeVariables = useVariableStore.getState().variables;
-      console.log("Store variables after update:", storeVariables);
-
-      if (props.onSaveVariables) {
-        props.onSaveVariables(editedVariables, localEditedNames);
+        setIsVariablesDialogOpen(false);
+      } catch (err) {
+        setError("Failed to save variables");
+        console.error("Error saving variables:", err);
       }
-
-      setIsVariablesDialogOpen(false);
     };
 
-    const handleVariableChange = (variable: Variable, newValue: string) => {
-      useVariableStore.getState().updateVariable(variable.name, newValue);
+    const handleVariableChange = (variableId: string, newValue: string) => {
+      setEditedVariables((prev) => ({
+        ...prev,
+        [variableId]: newValue,
+      }));
     };
 
     const onContinueClick = () => {
@@ -211,13 +226,18 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
           </Popover>
         </div>
 
+        {error && (
+          <div className="mb-4 p-2 bg-red-900/50 border border-red-700 rounded text-red-200">
+            {error}
+          </div>
+        )}
+
         <div className="space-y-4">
           {/* Clickable text sections */}
           <div
-            onClick={handleOpenDialog}
+            onClick={() => setIsVariablesDialogOpen(true)}
             className="flex items-center gap-2 text-blue-400 hover:text-blue-300 cursor-pointer"
           >
-            {/* <ChevronRight className="h-4 w-4" /> */}
             <span className="underline">{">"} View and Edit Variables </span>
             <IoExpandSharp className="h-4 w-4" />
           </div>
@@ -242,7 +262,8 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
           {/* Buttons */}
           <div className="mt-4" />
           <div className="text-sm text-gray-400">
-            After checking all your variables are right, run the next blocks!
+            After checking all your variables are right and making any necessary
+            changes, run the next blocks!
           </div>
           {/* <div className="flex gap-3 mt-6">
             <Button
@@ -274,34 +295,38 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
               <DialogTitle>View and Edit Variables</DialogTitle>
             </DialogHeader>
             <div className="text-gray-300">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-gray-300">
-                      Variable Name
-                    </TableHead>
-                    <TableHead className="text-gray-300">Value</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {editedVariables.map((variable, index) => (
-                    <TableRow key={variable.id}>
-                      <TableCell className="font-medium text-gray-300">
-                        {variable.name}
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          className="bg-gray-700 text-gray-200 border-gray-600"
-                          value={variable.value || ""}
-                          onChange={(e) =>
-                            handleVariableChange(variable, e.target.value)
-                          }
-                        />
-                      </TableCell>
+              {isLoading ? (
+                <div className="text-center py-4">Loading variables...</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-gray-300">
+                        Variable Name
+                      </TableHead>
+                      <TableHead className="text-gray-300">Value</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {agentVariables.map((variable) => (
+                      <TableRow key={variable.id}>
+                        <TableCell className="font-medium text-gray-300">
+                          {variable.name}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            className="bg-gray-700 text-gray-200 border-gray-600"
+                            value={editedVariables[variable.id] || ""}
+                            onChange={(e) =>
+                              handleVariableChange(variable.id, e.target.value)
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
               <div className="flex justify-end gap-2 mt-4">
                 <Button
                   variant="outline"
@@ -309,7 +334,9 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleSaveAndClose}>Save and Close</Button>
+                <Button onClick={handleSaveAndClose} disabled={isLoading}>
+                  Save and Close
+                </Button>
               </div>
             </div>
           </DialogContent>

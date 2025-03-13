@@ -27,6 +27,7 @@ import { getAuth } from "firebase/auth";
 import { processDynamicVariables } from "@/tools/dynamicVariables";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
+import { Card } from "../ui/card";
 
 interface AgentBlockProps {
   blockNumber: number;
@@ -483,7 +484,15 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             <h3 className="text-lg font-semibold text-white">
               Block #{props.blockNumber}
             </h3>
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
+            <div className="flex items-center gap-4">
+              {/* <Card className="w-[180px] h-[60px]"> */}
+              {/* <div className="text-center">Powered by GPT-4</div> */}
+              {/* <div className="flex flex-col items-center justify-center">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/OpenAI_Logo.svg" alt="OpenAI Logo" className="w-1/4 h-1/4" />
+                </div> */}
+              {/* </Card> */}
+            </div>
+            {/* <Select value={selectedModel} onValueChange={setSelectedModel}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select model" />
               </SelectTrigger>
@@ -491,7 +500,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                 <SelectItem value="gpt-4">GPT-4</SelectItem>
                 <SelectItem value="gpt-3.5">GPT-3.5</SelectItem>
               </SelectContent>
-            </Select>
+            </Select> */}
           </div>
           <Popover>
             <PopoverTrigger>

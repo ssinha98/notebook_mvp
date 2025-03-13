@@ -92,6 +92,12 @@ export default function Notebook() {
     (state) => state
   );
 
+  // Add this line near other store hooks
+  const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
+  const addBlockToNotebook = useSourceStore(
+    (state) => state.addBlockToNotebook
+  );
+
   const handleSavePrompts = (
     blockNumber: number,
     systemPrompt: string,
@@ -246,6 +252,7 @@ export default function Notebook() {
             ref={(ref) => {
               if (ref) blockRefs.current[block.blockNumber] = ref;
             }}
+            agentId={agentId as string}
             key={block.blockNumber}
             blockNumber={block.blockNumber}
             onDeleteBlock={deleteBlock}
@@ -283,10 +290,17 @@ export default function Notebook() {
             initialRegion={block.region}
           />
         );
+      case "contact":
+        return (
+          <ContactBlock
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+          />
+        );
       default:
-        const exhaustiveCheck: never = block;
-        console.error("Unknown block type:", block);
-        return null;
+        const _exhaustiveCheck: never = block;
+        throw new Error(`Unhandled block type: ${(block as any).type}`);
     }
   };
 
@@ -371,17 +385,16 @@ export default function Notebook() {
     }
   }, []);
 
-  // Load agent and variables when agentId is available
+  // Load agent when agentId is available
   useEffect(() => {
     async function loadAgentData() {
       if (agentId && typeof agentId === "string") {
+        console.log("Loading agent with ID:", agentId);
         try {
-          // First load variables
-          await useVariableStore.getState().loadVariables(agentId);
-          // Then load agent
           await loadAgent(agentId);
+          console.log("Agent loaded successfully");
         } catch (error) {
-          console.error("Error loading agent data:", error);
+          console.error("Error loading agent:", error);
         } finally {
           setIsLoading(false);
         }
@@ -433,10 +446,15 @@ export default function Notebook() {
       blocks.length > 0 ? Math.max(...blocks.map((b) => b.blockNumber)) + 1 : 1;
 
     const newBlock: Block = {
+      agentId: agentId as string,
       type: "checkin",
       blockNumber: nextBlockNumber,
       id: crypto.randomUUID(),
       name: `Check-in ${nextBlockNumber}`,
+      // Add missing required fields
+      systemPrompt: "",
+      userPrompt: "",
+      saveAsCsv: false,
     };
 
     addBlockToNotebook(newBlock);
@@ -465,50 +483,60 @@ export default function Notebook() {
         console.log(`Processing block ${block.blockNumber} (${block.type})`);
 
         try {
-          if (block.type === "checkin") {
-            console.log(`Pausing at CheckInBlock ${block.blockNumber}`);
+          switch (block.type) {
+            case "checkin":
+              console.log(`Pausing at CheckInBlock ${block.blockNumber}`);
 
-            // Send email notification before pausing
-            try {
-              const currentUser = auth.currentUser;
-              console.log("Current user data:", {
-                email: currentUser?.email,
-                uid: currentUser?.uid,
-                displayName: currentUser?.displayName,
-              });
+              // Send email notification before pausing
+              try {
+                const currentUser = auth.currentUser;
+                console.log("Current user data:", {
+                  email: currentUser?.email,
+                  uid: currentUser?.uid,
+                  displayName: currentUser?.displayName,
+                });
 
-              if (currentUser?.email) {
-                const response = await api.get(
-                  `/api/send-checkin-email?email=${encodeURIComponent(currentUser.email)}`
-                );
-                if (response.success) {
-                  console.log(
-                    "Check-in email sent successfully to:",
-                    response.sent_to
+                if (currentUser?.email) {
+                  const response = await api.get(
+                    `/api/send-checkin-email?email=${encodeURIComponent(currentUser.email)}`
                   );
-                } else {
-                  console.error("Failed to send email:", response.error);
+                  if (response.success) {
+                    console.log(
+                      "Check-in email sent successfully to:",
+                      response.sent_to
+                    );
+                  } else {
+                    console.error("Failed to send email:", response.error);
+                  }
                 }
+              } catch (error) {
+                console.error("Error sending check-in email:", error);
               }
-            } catch (error) {
-              console.error("Error sending check-in email:", error);
-            }
 
-            setPausedAtBlock(block.blockNumber);
-            setIsRunPaused(true);
-            return; // Stop execution after sending email
-          }
-
-          if (block.type === "agent") {
-            const ref = blockRefs.current[block.blockNumber];
-            await ref?.processBlock();
-          }
-          if (block.type === "searchagent") {
-            const ref = blockRefs.current[block.blockNumber];
-            await ref?.processBlock();
+              setPausedAtBlock(block.blockNumber);
+              setIsRunPaused(true);
+              return; // Stop execution after sending email
+            case "contact":
+              console.log("Processing contact block", block.blockNumber);
+              const contactRef = blockRefs.current[block.blockNumber];
+              const success = await contactRef?.processBlock();
+              if (!success) {
+                console.error("Contact block failed, stopping execution");
+                return;
+              }
+              break;
+            case "agent":
+              const agentRef = blockRefs.current[block.blockNumber];
+              await agentRef?.processBlock();
+              break;
+            case "searchagent":
+              const searchRef = blockRefs.current[block.blockNumber];
+              await searchRef?.processBlock();
+              break;
           }
         } catch (error) {
-          // ... error handling ...
+          console.error(`Error processing block ${block.blockNumber}:`, error);
+          return; // Stop execution on error
         }
       }
     } finally {
@@ -525,6 +553,22 @@ export default function Notebook() {
       const nextIndex = blocks.findIndex((b) => b.blockNumber > pausedAtBlock);
       runBlocks(nextIndex);
     }
+  };
+
+  const addNewCheckInBlock = () => {
+    const newBlock: Block = {
+      type: "checkin",
+      blockNumber: nextBlockNumber,
+      id: crypto.randomUUID(),
+      name: `Check-in ${nextBlockNumber}`,
+      agentId: agentId as string,
+      // Add required BaseBlock fields
+      systemPrompt: "",
+      userPrompt: "",
+      saveAsCsv: false,
+    };
+
+    addBlockToNotebook(newBlock);
   };
 
   return (
@@ -570,6 +614,7 @@ export default function Notebook() {
           <CollapsibleBox
             title="Agent Flow"
             variables={variables}
+            agentId={agentId as string}
             onAddVariable={handleAddVariable}
             onOpenTools={() => setIsToolsSheetOpen(true)}
             onSavePrompts={handleSavePrompts}

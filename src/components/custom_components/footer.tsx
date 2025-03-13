@@ -197,17 +197,21 @@ export default function Footer({
       id: crypto.randomUUID(),
       name: `Agent ${nextBlockNumber}`,
       saveAsCsv: false,
+      agentId: useAgentStore.getState().currentAgent?.id || "",
     });
   };
 
   // Add new function to handle check-in blocks with debugging
   const addNewCheckInBlock = () => {
-    console.log("Adding check-in block...", nextBlockNumber);
     const newBlock = {
       type: "checkin" as const,
       blockNumber: nextBlockNumber,
       id: crypto.randomUUID(),
       name: `Check-in ${nextBlockNumber}`,
+      agentId: useAgentStore.getState().currentAgent?.id || "",
+      systemPrompt: "",
+      userPrompt: "",
+      saveAsCsv: false,
     };
 
     addBlockToNotebook(newBlock);
@@ -226,11 +230,17 @@ export default function Footer({
         addBlockToNotebook({
           type: "agent",
           blockNumber: nextBlockNumber,
-          systemPrompt: "You are a helpful assistant",
-          userPrompt: "",
           id: crypto.randomUUID(),
           name: `Agent ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "You are a helpful assistant",
+          userPrompt: "",
           saveAsCsv: false,
+          outputVariable: null,
+          sourceInfo: {
+            nickname: "",
+            downloadUrl: "",
+          },
         });
       },
     },
@@ -243,16 +253,28 @@ export default function Footer({
         setIsToolsSheetOpen(true);
       },
     },
-    // {
-    //   id: "contact",
-    //   icon: <SiMinutemailer className="text-2xl" />,
-    //   label: "Contact",
-    //   tooltip: "Have your agent send...",
-    //   onClick: () => {
-    //     addBlock("contact");
-    //     console.log("contact");
-    //   },
-    // },
+    {
+      id: "contact",
+      icon: <SiMinutemailer className="text-2xl" />,
+      label: "Contact",
+      tooltip: "Have your agent send...",
+      onClick: () => {
+        addBlockToNotebook({
+          type: "contact",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Contact ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          channel: "email",
+          recipient: "",
+          subject: "",
+          body: "",
+        });
+      },
+    },
     {
       id: "checkin",
       icon: <IoPlaySkipForwardCircle className="text-2xl" />,
@@ -264,6 +286,10 @@ export default function Footer({
           blockNumber: nextBlockNumber,
           id: crypto.randomUUID(),
           name: `Check-in ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
         });
       },
     },
@@ -281,6 +307,10 @@ export default function Footer({
           limit: 5,
           id: crypto.randomUUID(),
           name: `Search ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
         });
       },
     },
@@ -459,7 +489,7 @@ export default function Footer({
       <ToolsSheet
         open={isToolsSheetOpen}
         onOpenChange={setIsToolsSheetOpen}
-        variables={variables}
+        // variables={variables}
         onAddVariable={onAddVariable}
       />
     </>

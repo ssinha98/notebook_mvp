@@ -578,11 +578,11 @@ function NewsCard({ result }: { result: any }) {
 
 const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
   (props, ref) => {
-    const [searchEngine, setSearchEngine] = useState<string>(
+    const [query, setQuery] = useState(props.initialQuery || "");
+    const [searchEngine, setSearchEngine] = useState(
       props.initialEngine || "search"
     );
-    const [isProcessing, setIsProcessing] = React.useState(false);
-    const [query, setQuery] = useState<string>(props.initialQuery || "");
+    const [limit, setLimit] = useState(props.initialLimit || 5);
     const [newsSearchType, setNewsSearchType] = React.useState<
       "query" | "topic" /* | "publication" */
     >("query");
@@ -613,7 +613,6 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     );
     const [selectedVariableId, setSelectedVariableId] = useState<string>("");
     const [modelResponse, setModelResponse] = useState<string | null>(null);
-    const [limit, setLimit] = useState<number>(props.initialLimit || 5);
     const [activeTab, setActiveTab] = useState<string>("parsed");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const storeVariables = useVariableStore((state) => state.variables);
@@ -633,8 +632,6 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       setVariables(storeVariables);
     }, [storeVariables]);
 
-    // Add debug log for store variables
-    console.log("Variables in store:", storeVariables);
 
     // Helper function to find variable by name
     const findVariableByName = (name: string) => {
@@ -689,51 +686,9 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     // Expose processBlock to parent components
     useImperativeHandle(ref, () => ({
       processBlock: async () => {
-        try {
-          props.onProcessingChange?.(true);
-          const success = await handleSearch();
-          return success;
-        } catch (error) {
-          console.error("Error in search block:", error);
-          return false;
-        } finally {
-          props.onProcessingChange?.(false);
-        }
+        return handleSearch();
       },
     }));
-
-    // Add useEffect to update block data whenever values change
-    useEffect(() => {
-      console.log("SearchAgent mounting with props:", props); // Debug initial props
-
-      const blockData = {
-        type: "searchagent",
-        blockNumber: props.blockNumber,
-        engine: searchEngine,
-        query,
-        limit,
-        topic: newsTopic,
-        section: newsSection,
-        timeWindow,
-        trend: marketsTrend,
-        region: marketsRegion,
-      };
-      console.log("SearchAgent updating block with:", blockData); // Debug log
-      props.onUpdateBlock(
-        props.blockNumber,
-        blockData as Partial<SearchAgentBlock>
-      );
-    }, [
-      props.blockNumber,
-      searchEngine,
-      query,
-      limit,
-      newsTopic,
-      newsSection,
-      timeWindow,
-      marketsTrend,
-      marketsRegion,
-    ]);
 
     const handleUpdateBlock = (updates: Partial<SearchAgentBlock>) => {
       try {
@@ -749,8 +704,8 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
     const handleEngineChange = (value: string) => {
       console.log("Engine changing to:", value);
-      setSearchEngine(value);
-      props.onUpdateBlock(props.blockNumber, {
+      setSearchEngine(value as "search" | "news" | "finance" | "markets");
+      handleUpdateBlock({
         type: "searchagent",
         blockNumber: props.blockNumber,
         engine: value as "search" | "news" | "finance" | "markets",
@@ -767,11 +722,11 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const newQuery = e.target.value;
       setQuery(newQuery);
-      props.onUpdateBlock(props.blockNumber, {
+      handleUpdateBlock({
         type: "searchagent",
         blockNumber: props.blockNumber,
         query: newQuery,
-        engine: searchEngine as "search" | "news" | "finance" | "markets",
+        engine: searchEngine,
         limit,
         topic: newsTopic,
         section: newsSection,
@@ -822,7 +777,6 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
     const handleSearch = async () => {
       try {
-        setIsProcessing(true);
         const processedQuery = processVariablesInText(query);
 
         const response = await api.post("/api/search", {
@@ -870,8 +824,6 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       } catch (error) {
         console.error("Error in search block:", error);
         return false;
-      } finally {
-        setIsProcessing(false);
       }
     };
 
@@ -1286,9 +1238,9 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
               <Button
                 className="flex items-center gap-2"
                 onClick={handleSearch}
-                disabled={isProcessing}
+                disabled={props.isProcessing}
               >
-                {isProcessing ? (
+                {props.isProcessing ? (
                   <>
                     <span className="animate-spin mr-2">⟳</span>
                     Searching...
@@ -1301,7 +1253,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           </>
         )}
 
-        {modelResponse && !isProcessing && renderResults()}
+        {modelResponse && !props.isProcessing && renderResults()}
       </div>
     );
   }

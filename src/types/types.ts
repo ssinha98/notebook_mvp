@@ -67,6 +67,10 @@ export interface BaseBlock {
   name: string;
   blockNumber: number;
   type: BlockType;
+  agentId: string; // Make agentId required for all blocks
+  systemPrompt: string;
+  userPrompt: string;
+  saveAsCsv: boolean;
   outputVariable?: {
     id: string;
     name: string;
@@ -75,7 +79,12 @@ export interface BaseBlock {
 }
 
 // Union type of all possible block types
-export type BlockType = "transform" | "agent" | "checkin" | "searchagent";
+export type BlockType =
+  | "transform"
+  | "agent"
+  | "checkin"
+  | "searchagent"
+  | "contact";
 
 /* OLD Block interface
 export interface Block {
@@ -114,19 +123,12 @@ export interface Block {
 // Specific block type interfaces
 export interface AgentBlock extends BaseBlock {
   type: "agent";
-  systemPrompt: string;
-  userPrompt: string;
-  saveAsCsv: boolean;
-  sourceInfo?: SourceInfo;
-  // Preserved old optional fields
-  error?: string;
-  originalFilePath?: string;
-  fileType?: "image" | "csv" | "pdf" | "website";
   outputVariable?: {
     id: string;
     name: string;
     type: "input" | "intermediate";
   } | null;
+  sourceInfo?: SourceInfo;
 }
 
 /* OLD SearchAgentBlock interface
@@ -193,15 +195,31 @@ export interface SourceInfo {
 
 export interface CheckInBlock extends BaseBlock {
   type: "checkin";
-  // No additional fields needed beyond BaseBlock
+  agentId: string;
 }
 
-// Union type of all block types
+// Update ContactBlock interface
+export interface ContactBlock extends BaseBlock {
+  type: "contact";
+  channel: string;
+  recipient: string;
+  subject: string;
+  body: string;
+}
+
+// Update CheckInBlock to include required agentId
+export interface CheckInBlock extends BaseBlock {
+  type: "checkin";
+  agentId: string;
+}
+
+// Update Block union type to include ContactBlock
 export type Block =
   | AgentBlock
   | SearchAgentBlock
   | TransformBlock
-  | CheckInBlock;
+  | CheckInBlock
+  | ContactBlock;
 
 export interface Agent {
   id: string;

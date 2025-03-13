@@ -83,6 +83,39 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
   saveAgent: async (blocks: Block[]) => {
     try {
+      const cleanBlocks = blocks.map((block) => {
+        if (block.type === "searchagent") {
+          // Ensure every field has a default value
+          return {
+            id: block.id || crypto.randomUUID(),
+            type: "searchagent",
+            blockNumber: block.blockNumber,
+            name: block.name || `Search ${block.blockNumber}`,
+            query: block.query || "",
+            engine: block.engine || "search",
+            limit: block.limit || 5,
+            topic: block.topic || "",
+            section: block.section || "",
+            timeWindow: block.timeWindow || "",
+            trend: block.trend || "indexes",
+            region: block.region || "",
+            outputVariable: block.outputVariable || null,
+            newsSearchType: block.newsSearchType || "query",
+            newsTopic: block.newsTopic || "",
+            newsSection: block.newsSection || "",
+            financeWindow: block.financeWindow || "1D",
+            marketsIndexMarket: block.marketsIndexMarket || "",
+          };
+        }
+        return block;
+      });
+
+      const cleanData = {
+        ...get().currentAgent,
+        blocks: cleanBlocks,
+        updatedAt: new Date().toISOString(),
+      };
+
       const userId = auth.currentUser?.uid;
       if (!userId) throw new Error("No user logged in");
 
@@ -100,35 +133,33 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         });
       };
 
-      const preparedBlocks = blocks.map((block) => {
+      const preparedBlocks = cleanBlocks.map((block) => {
         // Log any undefined values in the original block
         logUndefinedFields(block, `Block #${block.blockNumber}`);
 
         switch (block.type) {
           case "agent": {
+            const agentBlock = block as AgentBlock;
             const preparedBlock = {
-              ...block,
+              ...agentBlock,
               systemPrompt:
                 usePromptStore
                   .getState()
-                  .getPrompt(block.blockNumber, "system") || "",
+                  .getPrompt(agentBlock.blockNumber, "system") || "",
               userPrompt:
                 usePromptStore
                   .getState()
-                  .getPrompt(block.blockNumber, "user") || "",
-              saveAsCsv: Boolean(block.saveAsCsv),
-              // Only include outputVariable if it has all required fields
-              outputVariable:
-                block.outputVariable?.id &&
-                block.outputVariable.name &&
-                block.outputVariable.type
-                  ? block.outputVariable
-                  : null,
-              // Ensure required fields have default values
-              id: block.id || `block-${block.blockNumber}`,
-              name: block.name || `Block ${block.blockNumber}`,
-              blockNumber: block.blockNumber,
-              type: block.type,
+                  .getPrompt(agentBlock.blockNumber, "user") || "",
+              saveAsCsv: Boolean(agentBlock.saveAsCsv),
+              outputVariable: null,
+              sourceInfo: {
+                nickname: "",
+                downloadUrl: "",
+              },
+              id: agentBlock.id || `block-${agentBlock.blockNumber}`,
+              name: agentBlock.name || `Block ${agentBlock.blockNumber}`,
+              blockNumber: agentBlock.blockNumber,
+              type: agentBlock.type,
             } as AgentBlock;
 
             // Log any remaining undefined values
@@ -166,21 +197,24 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
           }
 
           case "transform": {
+            const transformBlock = block as TransformBlock;
             const preparedBlock = {
-              ...block,
-              transformations: block.transformations || { filterCriteria: [] },
-              sourceName: block.sourceName || "",
+              ...transformBlock,
+              transformations: transformBlock.transformations || {
+                filterCriteria: [],
+              },
+              sourceName: transformBlock.sourceName || "",
               outputVariable:
-                block.outputVariable?.id &&
-                block.outputVariable.name &&
-                block.outputVariable.type
-                  ? block.outputVariable
+                transformBlock.outputVariable?.id &&
+                transformBlock.outputVariable.name &&
+                transformBlock.outputVariable.type
+                  ? transformBlock.outputVariable
                   : null,
-              // Ensure required fields have default values
-              id: block.id || `block-${block.blockNumber}`,
-              name: block.name || `Block ${block.blockNumber}`,
-              blockNumber: block.blockNumber,
-              type: block.type,
+              id: transformBlock.id || `block-${transformBlock.blockNumber}`,
+              name:
+                transformBlock.name || `Block ${transformBlock.blockNumber}`,
+              blockNumber: transformBlock.blockNumber,
+              type: transformBlock.type,
             } as TransformBlock;
 
             logUndefinedFields(
@@ -202,18 +236,18 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
           }
 
           default: {
-            const exhaustiveCheck: never = block;
-            return exhaustiveCheck;
+            // Remove exhaustive check since we handle all known types
+            return block;
           }
         }
       });
 
-      const cleanAgent = {
+      const cleanAgent: Agent = {
         id: currentAgent.id,
         name: currentAgent.name || "Untitled Agent",
         userId,
         createdAt: currentAgent.createdAt || new Date().toISOString(),
-        blocks: preparedBlocks,
+        blocks: preparedBlocks as Block[], // Explicitly cast to Block[]
       };
 
       // Final check for any undefined values

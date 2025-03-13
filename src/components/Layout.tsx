@@ -1,7 +1,7 @@
 import { DynamicHeader } from "@/components/custom_components/DynamicHeader";
 import { SessionHandler } from "@/components/custom_components/SessionHandler";
 import { useState } from "react";
-
+import { Toaster } from "sonner";
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [isApiKeySheetOpen, setIsApiKeySheetOpen] = useState(false);
   const [isToolsSheetOpen, setIsToolsSheetOpen] = useState(false);
@@ -19,6 +19,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           onVideoGuideClick={() => setIsVideoGuideOpen(true)}
         />
         <main>{children}</main>
+        <Toaster />
       </div>
     </>
   );

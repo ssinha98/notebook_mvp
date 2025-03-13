@@ -10,6 +10,8 @@ import CheckInBlock from "./CheckInBlock";
 import SearchAgent from "./SearchAgent";
 import { SearchAgentRef } from "./SearchAgent";
 import { SourceInfo } from "@/types/types";
+import { Block } from "@/types/types";
+import { ContactBlockRef } from "./ContactBlock";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -17,6 +19,7 @@ interface CollapsibleBoxProps {
   isExpandedByDefault?: boolean;
   children?: React.ReactNode;
   variables?: Variable[];
+  agentId?: string;
   onAddVariable?: (variable: Variable) => void;
   onOpenTools?: () => void;
   onSavePrompts: (
@@ -32,7 +35,7 @@ interface CollapsibleBoxProps {
     } | null
   ) => void;
   blockRefs?: React.MutableRefObject<{
-    [key: number]: AgentBlockRef | SearchAgentRef;
+    [key: number]: AgentBlockRef | SearchAgentRef | ContactBlockRef;
   }>;
   onDeleteBlock?: (blockNumber: number) => void;
   onContinue?: () => void;
@@ -67,6 +70,7 @@ const CollapsibleBox = forwardRef<
       id: crypto.randomUUID(),
       name: `Block ${nextBlockNumber}`,
       saveAsCsv: false,
+      agentId: props.agentId as string,
     });
   };
 
@@ -125,6 +129,167 @@ const CollapsibleBox = forwardRef<
     gap: "16px", // This adds padding between blocks
   };
 
+  const renderBlock = (block: Block) => {
+    switch (block.type) {
+      case "transform":
+        return (
+          <TransformBlock
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            originalFilePath={block.originalFilePath || ""}
+            sourceName={block.sourceName || ""}
+            fileType={block.fileType || "csv"}
+            transformations={{
+              filterCriteria: block.transformations?.filterCriteria || [],
+              columns: block.transformations?.columns || [],
+              previewData: block.transformations?.previewData || [],
+            }}
+            onTransformationsUpdate={(updates) =>
+              updateBlock(block.blockNumber, updates)
+            }
+            onDeleteBlock={(blockNumber) => {
+              deleteBlock(blockNumber);
+              props.onDeleteBlock?.(blockNumber);
+            }}
+          />
+        );
+      case "checkin":
+        return (
+          <CheckInBlock
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            agentId={props.agentId || ""}
+            onDeleteBlock={(blockNumber) => {
+              deleteBlock(blockNumber);
+              props.onDeleteBlock?.(blockNumber);
+            }}
+            variables={props.variables || []}
+            editedVariableNames={[]}
+            onContinue={props.onContinue}
+            onStop={props.onStop}
+            isProcessing={props.isProcessing}
+          />
+        );
+      case "searchagent":
+        return (
+          <SearchAgent
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={(blockNumber) => {
+              deleteBlock(blockNumber);
+              props.onDeleteBlock?.(blockNumber);
+            }}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            variables={props.variables || []}
+            onAddVariable={props.onAddVariable || (() => {})}
+            ref={(el) => {
+              if (el && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = el;
+              }
+            }}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+            onProcessingChange={(isProcessing) =>
+              handleProcessingChange(block.blockNumber, isProcessing)
+            }
+            initialQuery={block.query}
+            initialEngine={block.engine}
+            initialLimit={block.limit}
+            initialTopic={block.topic}
+            initialSection={block.section}
+            initialTimeWindow={block.timeWindow}
+            initialTrend={block.trend}
+            initialRegion={block.region}
+          />
+        );
+      case "agent":
+        return (
+          <AgentBlock
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            initialOutputVariable={block.outputVariable}
+            onAddVariable={props.onAddVariable || (() => {})}
+            onOpenTools={props.onOpenTools}
+            onSavePrompts={(
+              blockNumber,
+              systemPrompt,
+              userPrompt,
+              saveAsCsv,
+              sourceInfo,
+              outputVariable
+            ) => {
+              updateBlock(block.blockNumber, {
+                ...block,
+                systemPrompt,
+                userPrompt,
+                saveAsCsv,
+                sourceInfo,
+                outputVariable,
+                type: "agent",
+                agentId: props.agentId || "",
+              });
+            }}
+            ref={(el) => {
+              if (el && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = el;
+              }
+            }}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+            onProcessingChange={(isProcessing) =>
+              handleProcessingChange(block.blockNumber, isProcessing)
+            }
+            onProcessedPrompts={(system, user) => {
+              console.log(`Block ${block.blockNumber} processed:`, {
+                system,
+                user,
+              });
+            }}
+            onDeleteBlock={(blockNumber) => {
+              deleteBlock(blockNumber);
+              props.onDeleteBlock?.(blockNumber);
+            }}
+            initialSystemPrompt={block.systemPrompt || ""}
+            initialUserPrompt={block.userPrompt || ""}
+            initialSaveAsCsv={block.saveAsCsv || false}
+          />
+        );
+      case "contact":
+        return (
+          <ContactBlock
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onSave={(values) => {
+              updateBlock(block.blockNumber, {
+                ...values,
+                type: "contact",
+                agentId: props.agentId || "",
+                systemPrompt: "",
+                userPrompt: "",
+                saveAsCsv: false,
+              });
+            }}
+            initialChannel={block.channel}
+            initialRecipient={block.recipient}
+            initialSubject={block.subject}
+            initialBody={block.body}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+            onProcessingChange={(isProcessing) =>
+              handleProcessingChange(block.blockNumber, isProcessing)
+            }
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div style={boxStyle}>
       <div className="font-bold text-lg mb-2">{props.title}</div>
@@ -138,159 +303,7 @@ const CollapsibleBox = forwardRef<
         {props.title === "Agent Flow" ? (
           <>
             <div style={blockContainerStyle}>
-              {blocks.map((block) => {
-                switch (block.type) {
-                  case "transform":
-                    return (
-                      <TransformBlock
-                        key={block.blockNumber}
-                        blockNumber={block.blockNumber}
-                        originalFilePath={block.originalFilePath || ""}
-                        sourceName={block.sourceName || ""}
-                        fileType={block.fileType || "csv"}
-                        transformations={{
-                          filterCriteria:
-                            block.transformations?.filterCriteria || [],
-                          columns: block.transformations?.columns || [],
-                          previewData: block.transformations?.previewData || [],
-                        }}
-                        onTransformationsUpdate={(updates) =>
-                          updateBlock(block.blockNumber, updates)
-                        }
-                        onDeleteBlock={(blockNumber) => {
-                          deleteBlock(blockNumber);
-                          props.onDeleteBlock?.(blockNumber);
-                        }}
-                      />
-                    );
-                  // case "contact":
-                  //   return (
-                  //     <ContactBlock
-                  //       key={block.blockNumber}
-                  //       blockNumber={block.blockNumber}
-                  //       onDeleteBlock={(blockNumber) => {
-                  //         deleteBlock(blockNumber);
-                  //         props.onDeleteBlock?.(blockNumber);
-                  //       }}
-                  //       onSave={(values) => {
-                  //         updateBlock(block.blockNumber, {
-                  //           type: "contact",
-                  //           blockNumber: block.blockNumber,
-                  //           channel: values.channel,
-                  //           recipient: values.recipient,
-                  //           subject: values.subject,
-                  //           body: values.body,
-                  //         });
-                  //       }}
-                  //     />
-                  //   );
-                  case "checkin":
-                    return (
-                      <CheckInBlock
-                        key={block.blockNumber}
-                        blockNumber={block.blockNumber}
-                        onDeleteBlock={(blockNumber) => {
-                          deleteBlock(blockNumber);
-                          props.onDeleteBlock?.(blockNumber);
-                        }}
-                        variables={props.variables || []}
-                        editedVariableNames={[]}
-                        onContinue={() => {
-                          console.log(
-                            "Continuing run from block",
-                            block.blockNumber
-                          );
-                          props.onContinue?.();
-                        }}
-                        onStop={() => {
-                          console.log(
-                            "Stopping run at block",
-                            block.blockNumber
-                          );
-                          props.onStop?.();
-                        }}
-                        isProcessing={props.isProcessing}
-                      />
-                    );
-                  case "searchagent":
-                    return (
-                      <SearchAgent
-                        key={block.blockNumber}
-                        blockNumber={block.blockNumber}
-                        onDeleteBlock={(blockNumber) => {
-                          deleteBlock(blockNumber);
-                          props.onDeleteBlock?.(blockNumber);
-                        }}
-                        onUpdateBlock={(blockNumber, updates) => {
-                          updateBlock(blockNumber, updates);
-                        }}
-                        variables={props.variables || []}
-                        onAddVariable={props.onAddVariable || (() => {})}
-                        ref={(el) => {
-                          if (el && props.blockRefs) {
-                            props.blockRefs.current[block.blockNumber] = el;
-                          }
-                        }}
-                        isProcessing={
-                          processingBlocks[block.blockNumber] || false
-                        }
-                        onProcessingChange={(isProcessing) =>
-                          handleProcessingChange(
-                            block.blockNumber,
-                            isProcessing
-                          )
-                        }
-                        initialQuery={block.query}
-                        initialEngine={block.engine}
-                        initialLimit={block.limit}
-                        initialTopic={block.topic}
-                        initialSection={block.section}
-                        initialTimeWindow={block.timeWindow}
-                        initialTrend={block.trend}
-                        initialRegion={block.region}
-                      />
-                    );
-                  case "agent":
-                  default:
-                    return (
-                      <AgentBlock
-                        key={block.blockNumber}
-                        blockNumber={block.blockNumber}
-                        initialOutputVariable={block.outputVariable}
-                        onAddVariable={props.onAddVariable || (() => {})}
-                        onOpenTools={props.onOpenTools}
-                        onSavePrompts={props.onSavePrompts}
-                        ref={(el) => {
-                          if (el && props.blockRefs) {
-                            props.blockRefs.current[block.blockNumber] = el;
-                          }
-                        }}
-                        isProcessing={
-                          processingBlocks[block.blockNumber] || false
-                        }
-                        onProcessingChange={(isProcessing) =>
-                          handleProcessingChange(
-                            block.blockNumber,
-                            isProcessing
-                          )
-                        }
-                        onProcessedPrompts={(system, user) => {
-                          console.log(`Block ${block.blockNumber} processed:`, {
-                            system,
-                            user,
-                          });
-                        }}
-                        onDeleteBlock={(blockNumber) => {
-                          deleteBlock(blockNumber);
-                          props.onDeleteBlock?.(blockNumber);
-                        }}
-                        initialSystemPrompt={block.systemPrompt || ""}
-                        initialUserPrompt={block.userPrompt || ""}
-                        initialSaveAsCsv={block.saveAsCsv || false}
-                      />
-                    );
-                }
-              })}
+              {blocks.map((block) => renderBlock(block))}
             </div>
           </>
         ) : (

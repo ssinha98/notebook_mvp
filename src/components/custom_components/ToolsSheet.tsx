@@ -22,7 +22,9 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+// import { Toaster } from "@/components/ui/sonner"
 import { toast } from "sonner";
+
 // import {
 //   Dialog,
 //   DialogContent,
@@ -92,7 +94,10 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
         removeBlock(block.blockNumber);
       });
 
-    toast.success(`Removed source "${nickname}" and its transformations`);
+    // toast({
+    //   title: "Source removed",
+    //   description: `Source "${nickname}" and its transformations have been removed`,
+    // });
   };
 
   return (
@@ -249,7 +254,24 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
                       {Object.values(variables)
                         .filter((v) => v.type === "intermediate")
                         .map((variable, index) => (
-                          <TableRow key={index}>
+                          <TableRow
+                            key={index}
+                            className="cursor-pointer hover:bg-secondary/80"
+                            onClick={() => {
+                              navigator.clipboard.writeText(
+                                `{{${variable.name}}}`
+                              );
+                              toast(
+                                `{{${variable.name}}} copied to clipboard`,
+                                {
+                                  action: {
+                                    label: "Close",
+                                    onClick: () => toast.dismiss(),
+                                  },
+                                }
+                              );
+                            }}
+                          >
                             <td className="px-4 py-2">{variable.name}</td>
                           </TableRow>
                         ))}

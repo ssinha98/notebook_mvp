@@ -15,6 +15,16 @@ interface ApiData {
   [key: string]: string | number | boolean | object;
 }
 
+interface FileManagerResponse {
+  success: boolean;
+  download_link?: string;
+  full_name?: string;
+  nickname?: string;
+  file_type?: string;
+  userId?: string;
+  created_at?: string;
+}
+
 export interface GoogleSearchParams {
   query?: string;
   engine: "search" | "news" | "finance" | "markets";

@@ -148,11 +148,11 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
         url: newSource.url,
       });
 
-      if (result.success) {
+      if (result.success && result.data) {
         addFileNickname(
           newSource.name,
           newSource.file?.name || newSource.url || "",
-          result.data?.data?.download_link || ""
+          result.data.download_link || ""
         );
         toast.success("Source added successfully");
         onOpenChange(false);

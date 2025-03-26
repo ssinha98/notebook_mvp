@@ -232,8 +232,8 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
         `/api/process_url?url=${encodeURIComponent(url.trim())}&user_id=${auth.currentUser.uid}&nickname=${encodeURIComponent(nickname.trim())}`
       );
 
-      if (response.success) {
-        setContent(response.content);
+      if (response.success && response.data) {
+        setContent(response.data.content);
         console.log("Retrieved processed URL content:", response);
       } else {
         setError(
@@ -284,17 +284,17 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
         user_id: auth.currentUser.uid,
       });
 
-      if (response.success) {
+      if (response.success && response.data) {
         setIsConfirmed(true);
-        setContent(response.content); // Set content directly from the response
+        setContent(response.data.content);
         console.log("URL processed successfully:", response);
 
         // Save the URL info for later use
         if (onUpdateBlock) {
           onUpdateBlock(blockNumber, {
             url: url.trim(),
-            sanitizedUrl: response.sanitized_url,
-            downloadLink: response.download_link,
+            sanitizedUrl: response.data.sanitized_url,
+            downloadLink: response.data.download_link,
           });
         }
       } else {

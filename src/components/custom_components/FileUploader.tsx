@@ -41,18 +41,20 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) => {
     setUploading(true);
 
     try {
-      const result = await fileManager.handleFile({
+      const response = await fileManager.handleFile({
         file,
         userId: user.uid,
         nickname: file.name,
         type: fileManager.getFileType(file.name),
       });
 
-      if (result.success && result.data?.success) {
-        addFileNickname(file.name, file.name, result.data.data.download_link);
+      if (response.success && response.data) {
+        addFileNickname(file.name, file.name, response.data.download_link);
         if (onUploadSuccess) {
           onUploadSuccess();
         }
+      } else {
+        throw new Error("Upload failed");
       }
     } catch (error) {
       console.error("Error uploading file:", error);

@@ -4,6 +4,12 @@ import { persist } from "zustand/middleware";
 import { PromptStore, PromptType, Source, Block } from "../types/types";
 import { fileManager } from "../tools/fileManager";
 
+interface FileNickname {
+  originalName: string;
+  downloadLink: string;
+  file_type: string;
+}
+
 // Define the SourceStore interface here since it's specific to this file
 interface SourceStore {
   sources: Record<string, Source>;
@@ -30,7 +36,7 @@ interface SourceStore {
     saveAsCsv?: boolean;
     sourceName?: string;
   }>;
-  fileNicknames: Record<string, { originalName: string; downloadLink: string }>;
+  fileNicknames: { [key: string]: FileNickname };
   addFileNickname: (
     nickname: string,
     originalName: string,
@@ -144,18 +150,24 @@ export const useSourceStore = create<SourceStore>()(
           nextBlockNumber: 1,
         })),
       addBlockToNotebook: (block: Block) => {
-        console.log(
-          "Store: Before adding block, current blocks:",
-          get().blocks
-        );
         set((state) => {
-          console.log("Store: Adding block:", block);
-          return {
-            blocks: [...state.blocks, block],
-            nextBlockNumber: state.nextBlockNumber + 1,
-          };
+          const blocks = [...state.blocks];
+          
+          // If it's a web agent, ensure it has all required fields
+          if (block.type === "webagent") {
+            block = {
+              ...block,
+              url: block.url || "",
+              searchVariable: block.searchVariable || "",
+              selectedVariableId: block.selectedVariableId || "",
+              outputVariable: block.outputVariable || null,
+              results: block.results || [],
+            };
+          }
+
+          blocks.push(block);
+          return { blocks, nextBlockNumber: state.nextBlockNumber + 1 };
         });
-        console.log("Store: After adding block, current blocks:", get().blocks);
       },
       updateBlock: (blockNumber: number, updates: Partial<Block>) =>
         set((state) => ({
@@ -216,7 +228,7 @@ export const useSourceStore = create<SourceStore>()(
         set((state) => ({
           fileNicknames: {
             ...state.fileNicknames,
-            [nickname]: { originalName, downloadLink },
+            [nickname]: { originalName, downloadLink, file_type: "" },
           },
         })),
       removeFileNickname: (nickname: string) =>
@@ -232,6 +244,7 @@ export const useSourceStore = create<SourceStore>()(
             [file.nickname]: {
               originalName: file.full_name,
               downloadLink: file.download_link,
+              file_type: file.file_type,
             },
           }),
           {}

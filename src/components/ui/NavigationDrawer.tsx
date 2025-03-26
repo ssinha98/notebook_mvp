@@ -191,29 +191,39 @@ export function NavigationDrawer({
           </nav>
         </div>
 
-        <Card className="mt-auto border-none shadow-none">
-          <CardHeader className="flex-row items-center space-x-4 space-y-0">
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={user?.photoURL || ""} />
-              <AvatarFallback>
-                {user?.displayName?.[0]?.toUpperCase() || "👤"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-grow">
-              <h3 className="font-bold">{user?.displayName || "User"}</h3>
-              <p className="text-sm text-muted-foreground">
-                {user?.email || ""}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => router.push("/settings")}
-            >
-              <LuSettings className="h-5 w-5" />
-            </Button>
-          </CardHeader>
-        </Card>
+        <div className="mt-auto">
+          <Button
+            variant="default"
+            className="w-full justify-start bg-blue-600/80 hover:bg-blue-700/90 mb-4"
+            onClick={() => router.push("/agentStore")}
+          >
+            Agent Store
+          </Button>
+
+          <Card className="border-none shadow-none">
+            <CardHeader className="flex-row items-center space-x-4 space-y-0">
+              <Avatar className="h-12 w-12">
+                <AvatarImage src={user?.photoURL || ""} />
+                <AvatarFallback>
+                  {user?.displayName?.[0]?.toUpperCase() || "👤"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-grow">
+                <h3 className="font-bold">{user?.displayName || "User"}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {user?.email || ""}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.push("/settings")}
+              >
+                <LuSettings className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+          </Card>
+        </div>
       </SheetContent>
     </Sheet>
   );

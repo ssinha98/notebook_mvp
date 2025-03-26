@@ -15,6 +15,10 @@ export default function Settings() {
   const [apiKey, setApiKey] = useState<string>("");
   const [hasCustomKey, setHasCustomKey] = useState<boolean>(false);
   const [savedKey, setSavedKey] = useState<string>("");
+  const [firecrawlApiKey, setFirecrawlApiKey] = useState<string>("");
+  const [hasCustomFirecrawlKey, setHasCustomFirecrawlKey] =
+    useState<boolean>(false);
+  const [savedFirecrawlKey, setSavedFirecrawlKey] = useState<string>("");
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -50,6 +54,30 @@ export default function Settings() {
     };
 
     fetchApiKeyFromFirebase();
+  }, []);
+
+  // Add new useEffect for FireCrawl API key
+  useEffect(() => {
+    const fetchFirecrawlKeyFromFirebase = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+
+      try {
+        const docSnap = await getDoc(userDoc);
+        if (docSnap.exists() && docSnap.data().FireCrawl_API_Key) {
+          const firebaseKey = docSnap.data().FireCrawl_API_Key;
+          setHasCustomFirecrawlKey(true);
+          setSavedFirecrawlKey(firebaseKey);
+        }
+      } catch (error) {
+        console.error("Error fetching FireCrawl API key from Firebase:", error);
+      }
+    };
+
+    fetchFirecrawlKeyFromFirebase();
   }, []);
 
   const handleSubmitApiKey = async () => {
@@ -103,6 +131,50 @@ export default function Settings() {
     } catch (error) {
       console.error("Error removing API key:", error);
       alert("Failed to remove API key");
+    }
+  };
+
+  const handleSubmitFirecrawlKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("Please log in to save your FireCrawl API key");
+      return;
+    }
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(
+        userDoc,
+        { FireCrawl_API_Key: firecrawlApiKey },
+        { merge: true }
+      );
+
+      setHasCustomFirecrawlKey(true);
+      setSavedFirecrawlKey(firecrawlApiKey);
+      setFirecrawlApiKey("");
+      alert("FireCrawl API key saved successfully!");
+    } catch (error) {
+      console.error("Error saving FireCrawl API key:", error);
+      alert("Failed to save FireCrawl API key");
+    }
+  };
+
+  const handleRemoveFirecrawlKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(userDoc, { FireCrawl_API_Key: null }, { merge: true });
+
+      setHasCustomFirecrawlKey(false);
+      setSavedFirecrawlKey("");
+      alert("FireCrawl API key removed successfully!");
+    } catch (error) {
+      console.error("Error removing FireCrawl API key:", error);
+      alert("Failed to remove FireCrawl API key");
     }
   };
 
@@ -175,6 +247,44 @@ export default function Settings() {
                 </a>
               </div>
             )}
+
+            <div className="border-t border-zinc-800 pt-4 mt-4">
+              <div className="text-white mb-2">FireCrawl API Key</div>
+              {hasCustomFirecrawlKey ? (
+                <div className="flex items-center justify-between bg-zinc-800 p-3 rounded">
+                  <span className="text-white">
+                    Custom API Key: {savedFirecrawlKey.slice(0, 8)}...
+                  </span>
+                  <Button
+                    variant="destructive"
+                    onClick={handleRemoveFirecrawlKey}
+                  >
+                    Remove Key
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Input
+                    type="password"
+                    placeholder="Enter your FireCrawl API key"
+                    className="w-full bg-zinc-800 border-zinc-700 text-white"
+                    value={firecrawlApiKey}
+                    onChange={(e) => setFirecrawlApiKey(e.target.value)}
+                  />
+                  <Button onClick={handleSubmitFirecrawlKey}>
+                    Save API Key
+                  </Button>
+                  <a
+                    href="https://www.firecrawl.dev/signin/signup"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block border border-zinc-700 rounded-lg p-3 text-gray-400 hover:text-gray-300 text-sm transition-colors"
+                  >
+                    How to grab a FireCrawl key →
+                  </a>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 

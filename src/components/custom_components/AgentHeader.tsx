@@ -87,13 +87,12 @@ export default function AgentHeader() {
       console.log("Original blocks before save:", blocks);
 
       const blocksToSave = blocks.map((block) => {
+        // Handle searchagent blocks
         if (block.type === "searchagent") {
-          // Preserve ALL search block data
           return {
-            ...block, // Keep all existing properties
+            ...block,
             type: "searchagent",
             blockNumber: block.blockNumber,
-            // Explicitly include these to ensure they're saved
             query: block.query,
             engine: block.engine,
             limit: block.limit,
@@ -102,6 +101,20 @@ export default function AgentHeader() {
             timeWindow: block.timeWindow,
             trend: block.trend,
             region: block.region,
+            id: block.id,
+            name: block.name,
+          };
+        }
+        // Handle webagent blocks
+        if (block.type === "webagent") {
+          return {
+            ...block,
+            type: "webagent",
+            blockNumber: block.blockNumber,
+            url: block.url || "",
+            nickname: block.nickname || "",
+            sanitizedUrl: block.sanitizedUrl || "",
+            downloadLink: block.downloadLink || "",
             id: block.id,
             name: block.name,
           };

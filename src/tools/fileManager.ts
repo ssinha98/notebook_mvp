@@ -6,6 +6,9 @@ import {
   doc,
   collection,
   getDocs,
+  query,
+  where,
+  updateDoc,
 } from "firebase/firestore";
 
 interface FileDocument {
@@ -56,7 +59,17 @@ export const fileManager = {
     return filesSnapshot.docs.map((doc) => doc.data() as FileDocument);
   },
 
-  // Combined function to handle both upload and document creation
+  // Add new method to find existing file by URL
+  findFileByUrl: async (userId: string, url: string) => {
+    const db = getFirestore();
+    const filesRef = collection(db, "users", userId, "files");
+    const querySnapshot = await getDocs(
+      query(filesRef, where("download_link", "==", url))
+    );
+    return querySnapshot.docs[0]?.ref; // Return the reference to the first matching document
+  },
+
+  // Update handleFile method
   handleFile: async ({
     file,
     userId,
@@ -78,17 +91,35 @@ export const fileManager = {
         downloadLink = await fileManager.uploadToStorage(file, userId);
       }
 
-      // Create and save file document
+      // Check for existing file with same URL
+      const existingFileRef = await fileManager.findFileByUrl(
+        userId,
+        downloadLink
+      );
+
+      const db = getFirestore()
+
       const fileDoc = {
         full_name: file?.name || url || "",
         download_link: downloadLink,
         nickname,
         file_type: type === "website" ? "website" : `.${type}`,
         userId,
+        created_at: new Date().toISOString(),
       };
 
-      const result = await fileManager.createFileDocument(fileDoc, userId);
-      return { success: true, data: result };
+      if (existingFileRef) {
+        // Update existing document
+        await updateDoc(existingFileRef, {
+          nickname,
+          updated_at: new Date().toISOString(),
+        });
+      } else {
+        // Create new document
+        await setDoc(doc(db, "users", userId, "files", nickname), fileDoc);
+      }
+
+      return { success: true, data: fileDoc };
     } catch (error) {
       console.error("Error handling file:", error);
       return { success: false, error };

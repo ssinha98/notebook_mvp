@@ -84,7 +84,8 @@ export type BlockType =
   | "agent"
   | "checkin"
   | "searchagent"
-  | "contact";
+  | "contact"
+  | "webagent";
 
 /* OLD Block interface
 export interface Block {
@@ -219,7 +220,8 @@ export type Block =
   | SearchAgentBlock
   | TransformBlock
   | CheckInBlock
-  | ContactBlock;
+  | ContactBlock
+  | WebAgentBlock;
 
 export interface Agent {
   id: string;
@@ -259,4 +261,18 @@ export interface FileManagerResponse {
   success: boolean;
   data?: FileDocument;
   error?: unknown;
+}
+
+export interface WebAgentBlock extends BaseBlock {
+  type: "webagent";
+  url?: string;
+  nickname?: string;
+  sanitizedUrl?: string;
+  downloadLink?: string;
+  activeTab: "url" | "variables";
+  searchVariable: string;
+  searchVariableId?: string;
+  selectedVariableId?: string;
+  selectedVariableName?: string;
+  results?: Array<{ url: string; content: string }>;
 }

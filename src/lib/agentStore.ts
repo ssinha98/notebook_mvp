@@ -19,11 +19,12 @@ import {
   Block,
   SearchAgentBlock,
   TransformBlock,
+  WebAgentBlock,
 } from "../types/types";
 import { useSourceStore } from "./store";
 import usePromptStore from "./store";
-import { createRoot } from "react-dom/client";
-import { SessionExpiredAlert } from "@/components/custom_components/SessionExpiredAlert";
+// import { createRoot } from "react-dom/client";
+// import { SessionExpiredAlert } from "@/components/custom_components/SessionExpiredAlert";
 import { onAuthStateChanged } from "firebase/auth";
 import { useVariableStore } from "./variableStore";
 
@@ -142,14 +143,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             const agentBlock = block as AgentBlock;
             const preparedBlock = {
               ...agentBlock,
-              systemPrompt:
-                usePromptStore
-                  .getState()
-                  .getPrompt(agentBlock.blockNumber, "system") || "",
-              userPrompt:
-                usePromptStore
-                  .getState()
-                  .getPrompt(agentBlock.blockNumber, "user") || "",
+              systemPrompt: agentBlock.systemPrompt || "",
+              userPrompt: agentBlock.userPrompt || "",
               saveAsCsv: Boolean(agentBlock.saveAsCsv),
               outputVariable: null,
               sourceInfo: {
@@ -232,6 +227,33 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               blockNumber: block.blockNumber,
               type: block.type,
             };
+            return preparedBlock;
+          }
+
+          case "webagent": {
+            const webBlock = block as unknown as WebAgentBlock;
+            const preparedBlock = {
+              ...webBlock,
+              id: webBlock.id || `block-${webBlock.blockNumber}`,
+              name: webBlock.name || `Block ${webBlock.blockNumber}`,
+              blockNumber: webBlock.blockNumber,
+              type: webBlock.type,
+              activeTab: webBlock.activeTab || "url",
+              searchVariable: webBlock.searchVariable || "",
+              agentId: get().currentAgent?.id || "",
+              systemPrompt: webBlock.systemPrompt || "",
+              userPrompt: webBlock.userPrompt || "",
+              saveAsCsv: webBlock.saveAsCsv || false,
+              url: webBlock.url || "",
+              selectedVariableId: webBlock.selectedVariableId || "",
+              selectedVariableName: webBlock.selectedVariableName || "",
+              results: webBlock.results || [],
+            };
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Web Block #${block.blockNumber}`
+            );
             return preparedBlock;
           }
 

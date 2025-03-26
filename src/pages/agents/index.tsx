@@ -2,7 +2,7 @@ import AgentsList from "@/components/custom_components/AgentList";
 import { useRouter } from "next/router";
 import { useAgentStore } from "@/lib/agentStore";
 import { Button } from "@/components/ui/button";
-import { ArrowLeftOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, ArrowRightOutlined } from "@ant-design/icons";
 import { SessionHandler } from "@/components/custom_components/SessionHandler";
 import Layout from "@/components/Layout";
 
@@ -31,6 +31,14 @@ export default function AgentsPage() {
             </Button> */}
             <h1 className="text-2xl font-bold text-white">Agents</h1>
           </div>
+        </div>
+
+        <div
+          className="w-full p-4 mb-6 bg-blue-600/80 hover:bg-blue-700/90 rounded-lg cursor-pointer transition-colors flex justify-between items-center"
+          onClick={() => router.push("/agentStore")}
+        >
+          💡 Need inspiration? Check out our Agent Store for a set of pre-built agents.
+          <ArrowRightOutlined />
         </div>
 
         <AgentsList onAgentSelect={handleAgentSelect} />

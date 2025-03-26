@@ -39,6 +39,7 @@ import { getBlockList } from "@/lib/store";
 import SearchAgent from "@/components/custom_components/SearchAgent";
 import Layout from "@/components/Layout";
 import { useVariableStore } from "@/lib/variableStore";
+import WebAgent from "@/components/custom_components/WebAgent";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -298,6 +299,19 @@ export default function Notebook() {
             onDeleteBlock={deleteBlock}
           />
         );
+      case "webagent":
+        return (
+          <WebAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onAddVariable={handleAddVariable}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
+          />
+        );
       default:
         const _exhaustiveCheck: never = block;
         throw new Error(`Unhandled block type: ${(block as any).type}`);
@@ -533,6 +547,10 @@ export default function Notebook() {
               const searchRef = blockRefs.current[block.blockNumber];
               await searchRef?.processBlock();
               break;
+            case "webagent":
+              const webRef = blockRefs.current[block.blockNumber];
+              await webRef?.processBlock();
+              break;
           }
         } catch (error) {
           console.error(`Error processing block ${block.blockNumber}:`, error);
@@ -623,6 +641,12 @@ export default function Notebook() {
             {/* Then render other blocks */}
             {blocks.map((block) => renderBlock(block))}
           </CollapsibleBox>
+          {/* <WebAgent
+            blockNumber={1}
+            onDeleteBlock={() => {}}
+            onAddVariable={handleAddVariable}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
+          /> */}
           {/* <SearchAgent
           blockNumber={1}
           onDeleteBlock={() => {}}

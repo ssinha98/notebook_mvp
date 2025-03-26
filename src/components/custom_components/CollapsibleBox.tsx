@@ -12,6 +12,7 @@ import { SearchAgentRef } from "./SearchAgent";
 import { SourceInfo } from "@/types/types";
 import { Block } from "@/types/types";
 import { ContactBlockRef } from "./ContactBlock";
+import WebAgent from "./WebAgent";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -283,6 +284,28 @@ const CollapsibleBox = forwardRef<
             onProcessingChange={(isProcessing) =>
               handleProcessingChange(block.blockNumber, isProcessing)
             }
+          />
+        );
+      case "webagent":
+        return (
+          <WebAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onAddVariable={props.onAddVariable || (() => {})}
+            onOpenTools={props.onOpenTools}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            initialActiveTab={block.activeTab}
+            initialUrl={block.url}
+            initialSearchVariable={block.searchVariable}
+            initialSelectedVariableId={block.selectedVariableId}
           />
         );
       default:

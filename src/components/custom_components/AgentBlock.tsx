@@ -21,13 +21,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { getAuth } from "firebase/auth";
 import { processDynamicVariables } from "@/tools/dynamicVariables";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
 import { Card } from "../ui/card";
+import { auth } from "@/tools/firebase";
 
 interface AgentBlockProps {
   blockNumber: number;
@@ -335,11 +342,6 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         ? sourceMatch[1].trim()
         : selectedSource;
 
-      // Add debugging logs
-      console.log("Source Nickname:", sourceNickname);
-      console.log("File Nicknames:", fileNicknames);
-      console.log("Selected Source:", selectedSource);
-
       let response;
       if (
         sourceNickname &&
@@ -347,14 +349,21 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         fileNicknames[sourceNickname]
       ) {
         const sourceData = fileNicknames[sourceNickname];
-        console.log("Source Data being sent:", sourceData); // Additional debug log
 
-        response = await api.post("/api/call-model-with-source", {
-          system_prompt: processedSystemPrompt,
-          user_prompt: processedUserPrompt,
-          download_url: sourceData.downloadLink,
-          save_as_csv: saveAsCsv,
-        });
+        if (sourceData.file_type === "website") {
+          response = await api.post("/api/answer_with_rag", {
+            user_id: auth.currentUser?.uid || "",
+            url: sourceData.downloadLink,
+            query: processedUserPrompt,
+          });
+        } else {
+          response = await api.post("/api/call-model-with-source", {
+            system_prompt: processedSystemPrompt,
+            user_prompt: processedUserPrompt,
+            download_url: sourceData.downloadLink,
+            save_as_csv: saveAsCsv,
+          });
+        }
       } else {
         response = await api.post("/api/call-model", {
           system_prompt: processedSystemPrompt,
@@ -445,7 +454,13 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
 
   // Update the save function to include source information
   const handleSavePrompts = () => {
-    console.log("About to save with variable ID:", selectedVariableId);
+    // Skip saving if both prompts are empty
+    if (!systemPrompt && !userPrompt) return;
+
+    console.log("Starting handleSavePrompts with:", {
+      systemPrompt,
+      userPrompt,
+    });
 
     const outputVariable = selectedVariableId
       ? {
@@ -459,20 +474,42 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         }
       : null;
 
-    console.log("Constructed outputVariable:", outputVariable);
+    const updatedBlockData = {
+      systemPrompt,
+      userPrompt,
+      saveAsCsv,
+      sourceInfo:
+        selectedSource !== "none" && fileNicknames[selectedSource]
+          ? {
+              nickname: selectedSource,
+              downloadUrl: fileNicknames[selectedSource].downloadLink,
+            }
+          : undefined,
+      outputVariable: outputVariable || undefined,
+    };
 
+    console.log("Updating block data in store:", updatedBlockData);
+
+    // Update the store
+    useSourceStore
+      .getState()
+      .updateBlockData(props.blockNumber, updatedBlockData);
+
+    // Verify the update
+    const currentBlocks = useSourceStore.getState().blocks;
+    const updatedBlock = currentBlocks.find(
+      (b) => b.blockNumber === props.blockNumber
+    );
+    console.log("Block in store after update:", updatedBlock);
+
+    // Call onSavePrompts
     props.onSavePrompts(
       props.blockNumber,
       systemPrompt,
       userPrompt,
       saveAsCsv,
-      selectedSource !== "none" && fileNicknames[selectedSource]
-        ? {
-            nickname: selectedSource,
-            downloadUrl: fileNicknames[selectedSource].downloadLink,
-          }
-        : undefined,
-      outputVariable || undefined // Pass the constructed outputVariable
+      updatedBlockData.sourceInfo,
+      outputVariable || undefined
     );
   };
 
@@ -546,15 +583,15 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                 </Button>
                 <Button
                   onClick={() => {
-                    setIsSystemPromptOpen(false);
-                    handleSavePrompts();
                     console.log(
-                      `Saved Block ${props.blockNumber} System Prompt:`,
+                      "Save Prompt clicked with systemPrompt:",
                       systemPrompt
                     );
+                    setIsSystemPromptOpen(false);
+                    handleSavePrompts();
                   }}
                 >
-                  Confirm
+                  Save Prompt
                 </Button>
               </div>
             </div>
@@ -588,15 +625,15 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                 </Button>
                 <Button
                   onClick={() => {
-                    setIsUserPromptOpen(false);
-                    handleSavePrompts();
                     console.log(
-                      `Saved Block ${props.blockNumber} User Prompt:`,
+                      "Save Prompt clicked with userPrompt:",
                       userPrompt
                     );
+                    setIsUserPromptOpen(false);
+                    handleSavePrompts();
                   }}
                 >
-                  Confirm
+                  Save Prompt
                 </Button>
               </div>
             </div>

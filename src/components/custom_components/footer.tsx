@@ -22,7 +22,11 @@ import { useSourceStore } from "@/lib/store";
 import { LuBrainCircuit } from "react-icons/lu";
 import { FaDatabase } from "react-icons/fa";
 import { SiMinutemailer } from "react-icons/si";
-import { IoPlaySkipForwardCircle, IoSearchCircle } from "react-icons/io5";
+import {
+  IoPlaySkipForwardCircle,
+  IoSearchCircle,
+  IoGlobeOutline,
+} from "react-icons/io5";
 import ToolsSheet from "./ToolsSheet";
 import { useBlockManager } from "@/hooks/useBlockManager";
 import { useToolsSheet } from "@/hooks/useToolsSheet";
@@ -311,6 +315,29 @@ export default function Footer({
           systemPrompt: "",
           userPrompt: "",
           saveAsCsv: false,
+        });
+      },
+    },
+    {
+      id: "webagent",
+      icon: <IoGlobeOutline className="text-2xl" />,
+      label: "Web Agent",
+      tooltip: "Add a web agent block...",
+      onClick: () => {
+        addBlockToNotebook({
+          type: "webagent",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Web ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          activeTab: "url",
+          url: "",
+          searchVariable: "",
+          selectedVariableId: "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          results: [],
         });
       },
     },

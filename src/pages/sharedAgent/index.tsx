@@ -997,7 +997,8 @@ These steps aim to optimize overall ad performance, leading to an increased retu
     id: "sales-book-research",
     name: "Sales Book Research",
     description: "Let agents help you stay on top of your sales book",
-    agentDescription: "Benefit Metrics: Give your sales reps 20% (<a href='https://www.revenue.io/blog/sales-reps-spend-20-percent-time-research?' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>) - 40% (<a href='https://spotio.com/blog/sales-statistics/?utm_source=chatgpt.com' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>) of their time back by automating their sales book research. ",
+    agentDescription:
+      "Benefit Metrics: Give your sales reps 20% (<a href='https://www.revenue.io/blog/sales-reps-spend-20-percent-time-research?' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>) - 40% (<a href='https://spotio.com/blog/sales-statistics/?utm_source=chatgpt.com' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>) of their time back by automating their sales book research. ",
     tags: ["Sales", "Data Analysis"],
     blocks: [
       {
@@ -1112,18 +1113,21 @@ export default function SharedAgentPage() {
       // Start emoji cycling
       const emojiInterval = setInterval(cycleEmoji, 500);
 
-      // Wait 2 seconds
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Wait 5 seconds
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Stop emoji cycling and show output
       clearInterval(emojiInterval);
       setCompletedBlocks((prev) => [...prev, i]);
 
-      // If this is the last block, mark as completed and show info dialog
+      // If this is the last block, mark as completed and show info dialog after a delay
       if (i === agentData!.blocks.length - 1) {
         setRunState(RunState.COMPLETED);
         setProcessingBlockIndex(null);
-        setShowInfoDialog(true); // Open the info dialog after completion
+        // Wait 3 seconds before showing the info dialog
+        setTimeout(() => {
+          setShowInfoDialog(true);
+        }, 3000);
       }
     }
   };

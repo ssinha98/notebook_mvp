@@ -70,10 +70,11 @@ export function DynamicHeader({
         <div className="flex items-center">
           <NavigationDrawer />
           <div className="flex items-center gap-2 ml-4">
-            <ExperimentOutlined style={{ fontSize: "24px", marginLeft: "-64px" }} />
+            <ExperimentOutlined
+              style={{ fontSize: "24px", marginLeft: "-64px" }}
+            />
             <span className="font-bold">lab</span>
           </div>
-          
         </div>
         {renderPageActions()}
       </div>

@@ -58,7 +58,6 @@ export default function AgentStorePage() {
 
   return (
     <Layout>
-      <SessionHandler />
       <div className="container mx-auto p-6 h-screen flex flex-col">
         {/* Title and Subtitle - not sticky */}
         <div className="text-center mb-8 flex-shrink-0">
@@ -71,7 +70,7 @@ export default function AgentStorePage() {
         {/* Sticky container for filters and subtitle */}
         <div className="sticky top-0 z-10 flex-shrink-0">
           {/* Tags ScrollBar */}
-          <div className="bg-black/90 backdrop-blur-sm pb-4">
+          <div className="bg-transparent backdrop-blur-sm pb-4">
             <div className="overflow-x-auto">
               <div className="flex gap-3 pb-2 min-w-min">
                 {TAGS.map((tag) => (
@@ -130,7 +129,7 @@ export default function AgentStorePage() {
           </div>
 
           {/* Dynamic Subtitle - also sticky */}
-          <div className="bg-black/90 backdrop-blur-sm py-4 border-t border-gray-800/50">
+          <div className="bg-transparent backdrop-blur-sm py-4 border-t border-gray-800/50">
             <div className="flex justify-between items-center">
               <p className="text-gray-300 text-sm">
                 {TAG_SUBTITLES[selectedTag]}

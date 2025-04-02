@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useState, useEffect, useCallback } from "react";
-import Layout from "@/components/Layout";
+import PublicLayout from "@/components/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { PlayIcon, StopIcon } from "@heroicons/react/24/solid";
 import { Share2, Mail } from "lucide-react";
@@ -1310,26 +1310,26 @@ export default function SharedAgentPage() {
 
   if (isLoading) {
     return (
-      <Layout>
+      <PublicLayout>
         <div className="flex items-center justify-center h-screen">
           <div className="text-gray-400">Loading...</div>
         </div>
-      </Layout>
+      </PublicLayout>
     );
   }
 
   if (!agentData) {
     return (
-      <Layout>
+      <PublicLayout>
         <div className="flex items-center justify-center h-screen">
           <div className="text-gray-400">Agent not found</div>
         </div>
-      </Layout>
+      </PublicLayout>
     );
   }
 
   return (
-    <Layout>
+    <PublicLayout>
       <div className="min-h-screen flex flex-col bg-[#141414]">
         {/* Sticky Header */}
         <header className="sticky top-0 z-50 bg-gray-900 border-b border-gray-700">
@@ -1478,6 +1478,6 @@ export default function SharedAgentPage() {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
+    </PublicLayout>
   );
 }

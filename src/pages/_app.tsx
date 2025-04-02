@@ -52,9 +52,28 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, [router.events, router]);
 
+  // List of public routes that don't require authentication
+  const publicRoutes = [
+    "/agentStore",
+    "/sharedAgent",
+    "/login/signup",
+    "/login/signin",
+  ];
+
+  // Check if the current route is a public route
+  const isPublicRoute = publicRoutes.some((route) =>
+    router.pathname.startsWith(route)
+  );
+
   return (
-    <AuthWrapper>
-      <Component {...pageProps} />
-    </AuthWrapper>
+    <>
+      {isPublicRoute ? (
+        <Component {...pageProps} />
+      ) : (
+        <AuthWrapper>
+          <Component {...pageProps} />
+        </AuthWrapper>
+      )}
+    </>
   );
 }

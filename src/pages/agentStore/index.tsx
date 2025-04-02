@@ -1,5 +1,4 @@
-import Layout from "@/components/Layout";
-import { SessionHandler } from "@/components/custom_components/SessionHandler";
+import PublicLayout from "@/components/PublicLayout";
 import AgentCard from "@/components/custom_components/AgentCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline"; // Make sure to install @heroicons/react
@@ -57,7 +56,7 @@ export default function AgentStorePage() {
         );
 
   return (
-    <Layout>
+    <PublicLayout>
       <div className="container mx-auto p-6 h-screen flex flex-col">
         {/* Title and Subtitle - not sticky */}
         <div className="text-center mb-8 flex-shrink-0">
@@ -167,6 +166,6 @@ export default function AgentStorePage() {
           )}
         </ScrollArea>
       </div>
-    </Layout>
+    </PublicLayout>
   );
 }

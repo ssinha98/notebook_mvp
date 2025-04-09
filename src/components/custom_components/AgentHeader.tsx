@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Block } from "@/types/types";
+import { toast } from "sonner";
 
 interface Agent {
   id: string;
@@ -80,61 +81,18 @@ export default function AgentHeader() {
   };
 
   const handleSaveAgent = async () => {
-    if (!blocks.length) return;
+    if (!currentAgent) return;
 
-    setIsSaving(true);
     try {
-      console.log("Original blocks before save:", blocks);
+      setIsSaving(true);
+      // Get blocks directly from the source store
+      const blocksToSave = useSourceStore.getState().blocks;
 
-      const blocksToSave = blocks.map((block) => {
-        // Handle searchagent blocks
-        if (block.type === "searchagent") {
-          return {
-            ...block,
-            type: "searchagent",
-            blockNumber: block.blockNumber,
-            query: block.query,
-            engine: block.engine,
-            limit: block.limit,
-            topic: block.topic,
-            section: block.section,
-            timeWindow: block.timeWindow,
-            trend: block.trend,
-            region: block.region,
-            id: block.id,
-            name: block.name,
-          };
-        }
-        // Handle webagent blocks
-        if (block.type === "webagent") {
-          return {
-            ...block,
-            type: "webagent",
-            blockNumber: block.blockNumber,
-            url: block.url || "",
-            nickname: block.nickname || "",
-            sanitizedUrl: block.sanitizedUrl || "",
-            downloadLink: block.downloadLink || "",
-            id: block.id,
-            name: block.name,
-          };
-        }
-        return block;
-      });
-
-      console.log("Blocks being saved to Firebase:", blocksToSave);
-
-      if (currentAgent) {
-        await saveAgent(blocksToSave as Block[]);
-      } else {
-        const name = prompt("Enter a name for your new agent:");
-        if (name) {
-          await createAgent(name);
-          await saveAgent(blocksToSave as Block[]);
-        }
-      }
+      await saveAgent(blocksToSave);
+      toast.success("Agent saved successfully");
     } catch (error) {
       console.error("Error saving agent:", error);
+      toast.error("Failed to save agent");
     } finally {
       setIsSaving(false);
     }

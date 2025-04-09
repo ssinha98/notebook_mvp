@@ -486,6 +486,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             }
           : undefined,
       outputVariable: outputVariable || undefined,
+      status: "tbd" as const,
     };
 
     console.log("Updating block data in store:", updatedBlockData);

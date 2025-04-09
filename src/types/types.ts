@@ -85,7 +85,9 @@ export type BlockType =
   | "checkin"
   | "searchagent"
   | "contact"
-  | "webagent";
+  | "webagent"
+  | "codeblock"
+  | "make";
 
 /* OLD Block interface
 export interface Block {
@@ -214,14 +216,26 @@ export interface CheckInBlock extends BaseBlock {
   agentId: string;
 }
 
-// Update Block union type to include ContactBlock
+// Add MakeBlock interface
+export interface MakeBlock extends BaseBlock {
+  type: "make";
+  webhookUrl: string;
+  parameters: Array<{
+    key: string;
+    value: string;
+  }>;
+}
+
+// Update Block union type
 export type Block =
   | AgentBlock
   | SearchAgentBlock
   | TransformBlock
   | CheckInBlock
   | ContactBlock
-  | WebAgentBlock;
+  | WebAgentBlock
+  | CodeBlock
+  | MakeBlock;
 
 export interface Agent {
   id: string;
@@ -275,4 +289,19 @@ export interface WebAgentBlock extends BaseBlock {
   selectedVariableId?: string;
   selectedVariableName?: string;
   results?: Array<{ url: string; content: string }>;
+}
+
+// Add CodeBlock interface
+export interface CodeBlock extends BaseBlock {
+  type: "codeblock";
+  language: string;
+  code: string;
+  status: "approved" | "tbd";
+  selectedVariableId?: string;
+  variables: Variable[];
+  outputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate";
+  } | null;
 }

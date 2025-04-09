@@ -1,7 +1,13 @@
 // store.ts
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { PromptStore, PromptType, Source, Block } from "../types/types";
+import {
+  PromptStore,
+  PromptType,
+  Source,
+  Block,
+  CodeBlock,
+} from "../types/types";
 import { fileManager } from "../tools/fileManager";
 
 interface FileNickname {
@@ -152,27 +158,55 @@ export const useSourceStore = create<SourceStore>()(
       addBlockToNotebook: (block: Block) => {
         set((state) => {
           const blocks = [...state.blocks];
-          
+
+          // Find the highest existing block number
+          const maxBlockNumber =
+            blocks.length > 0
+              ? Math.max(...blocks.map((b) => b.blockNumber))
+              : 0;
+
+          // Ensure the new block has a unique number
+          const newBlockNumber = Math.max(
+            maxBlockNumber + 1,
+            state.nextBlockNumber
+          );
+
           // If it's a web agent, ensure it has all required fields
           if (block.type === "webagent") {
             block = {
               ...block,
+              blockNumber: newBlockNumber, // Set the new unique block number
               url: block.url || "",
               searchVariable: block.searchVariable || "",
               selectedVariableId: block.selectedVariableId || "",
               outputVariable: block.outputVariable || null,
               results: block.results || [],
             };
+          } else {
+            block = {
+              ...block,
+              blockNumber: newBlockNumber, // Set the new unique block number
+            };
           }
 
           blocks.push(block);
-          return { blocks, nextBlockNumber: state.nextBlockNumber + 1 };
+          return { blocks, nextBlockNumber: newBlockNumber + 1 };
         });
       },
       updateBlock: (blockNumber: number, updates: Partial<Block>) =>
         set((state) => ({
           blocks: state.blocks.map((block): Block => {
             if (block.blockNumber === blockNumber) {
+              // For CodeBlock types, preserve the status field if it exists
+              if (block.type === "codeblock" && "status" in block) {
+                const codeBlock = block as CodeBlock;
+                return {
+                  ...codeBlock,
+                  ...updates,
+                  status:
+                    (updates as Partial<CodeBlock>).status || codeBlock.status,
+                } as Block;
+              }
               return { ...block, ...updates } as Block;
             }
             return block;

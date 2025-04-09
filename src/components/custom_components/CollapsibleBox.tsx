@@ -9,10 +9,11 @@ import ContactBlock from "./ContactBlock";
 import CheckInBlock from "./CheckInBlock";
 import SearchAgent from "./SearchAgent";
 import { SearchAgentRef } from "./SearchAgent";
-import { SourceInfo } from "@/types/types";
-import { Block } from "@/types/types";
+import { SourceInfo, Block } from "@/types/types";
 import { ContactBlockRef } from "./ContactBlock";
 import WebAgent from "./WebAgent";
+import CodeBlock from "./CodeBlock";
+import MakeBlock from "./MakeBlock";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -62,9 +63,10 @@ const CollapsibleBox = forwardRef<
     [key: number]: boolean;
   }>({});
 
-  const addNewBlock = (blockType: "agent" | "checkin" | "searchagent") => {
-    addBlockToNotebook({
-      type: blockType,
+  const addNewBlock = (
+    blockType: "agent" | "checkin" | "searchagent" | "codeblock" | "make"
+  ) => {
+    const baseBlock = {
       blockNumber: nextBlockNumber,
       systemPrompt: "",
       userPrompt: "",
@@ -72,7 +74,21 @@ const CollapsibleBox = forwardRef<
       name: `Block ${nextBlockNumber}`,
       saveAsCsv: false,
       agentId: props.agentId as string,
-    });
+      status: "tbd" as "tbd" | "approved",
+    };
+
+    const block = {
+      ...baseBlock,
+      type: blockType,
+      ...(blockType === "codeblock" && {
+        language: "python",
+        code: "",
+        variables: [],
+      }),
+      ...(blockType === "make" && { webhookUrl: "", parameters: [] }),
+    } as Block;
+
+    addBlockToNotebook(block);
   };
 
   const handleProcessingChange = (
@@ -306,6 +322,48 @@ const CollapsibleBox = forwardRef<
             initialUrl={block.url}
             initialSearchVariable={block.searchVariable}
             initialSelectedVariableId={block.selectedVariableId}
+          />
+        );
+      case "codeblock":
+        return (
+          <CodeBlock
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            onAddVariable={props.onAddVariable || (() => {})}
+            onOpenTools={props.onOpenTools}
+            initialLanguage={block.language}
+            initialCode={block.code}
+            initialOutputVariable={block.outputVariable}
+            initialStatus={block.status}
+          />
+        );
+      case "make":
+        return (
+          <MakeBlock
+            onAddVariable={props.onAddVariable || (() => {})}
+            variables={props.variables || []}
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            initialWebhookUrl={block.webhookUrl}
+            initialParameters={block.parameters}
           />
         );
       default:

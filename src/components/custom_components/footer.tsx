@@ -26,6 +26,7 @@ import {
   IoPlaySkipForwardCircle,
   IoSearchCircle,
   IoGlobeOutline,
+  IoCodeSlash,
 } from "react-icons/io5";
 import ToolsSheet from "./ToolsSheet";
 import { useBlockManager } from "@/hooks/useBlockManager";
@@ -36,6 +37,8 @@ import { MdOutlineEmail } from "react-icons/md";
 import { api } from "@/tools/api";
 import { doc, setDoc, collection } from "firebase/firestore";
 import { db } from "@/tools/firebase";
+import { SiMakerbot } from "react-icons/si";
+import Image from "next/image";
 
 const footerStyle: CSSProperties = {
   position: "sticky",
@@ -338,6 +341,57 @@ export default function Footer({
           userPrompt: "",
           saveAsCsv: false,
           results: [],
+        });
+      },
+    },
+    {
+      id: "codeblock",
+      icon: <IoCodeSlash className="text-2xl" />,
+      label: "Code Block",
+      tooltip: "Add a code block...",
+      onClick: () => {
+        console.log("Adding code block");
+        addBlockToNotebook({
+          type: "codeblock",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Code ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          language: "python",
+          code: "",
+          outputVariable: null,
+          variables: [],
+          status: "tbd",
+        });
+      },
+    },
+    {
+      id: "make",
+      icon: (
+        <Image
+          src="https://images.ctfassets.net/un655fb9wln6/3xu9WYYJyMScG7FKnuVd1V/c4072d425c64525ea94ae9b60093fbaa/Make-Icon-Circle-Purple.svg"
+          alt="Make.com"
+          width={32}
+          height={32}
+        />
+      ),
+      label: "Make.com Integration",
+      tooltip: "Add a Make.com webhook integration...",
+      onClick: () => {
+        addBlockToNotebook({
+          type: "make",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Make ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          webhookUrl: "",
+          parameters: [{ key: "", value: "" }],
         });
       },
     },

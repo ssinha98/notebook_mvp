@@ -107,6 +107,16 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             financeWindow: block.financeWindow || "1D",
             marketsIndexMarket: block.marketsIndexMarket || "",
           };
+        } else if (block.type === "codeblock") {
+          return {
+            ...block,
+            id: block.id || crypto.randomUUID(),
+            name: block.name || `Code ${block.blockNumber}`,
+            language: block.language || "python",
+            code: block.code || "",
+            status: block.status || "tbd", // Preserve status field
+            outputVariable: block.outputVariable || null,
+          };
         }
         return block;
       });
@@ -257,6 +267,31 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             return preparedBlock;
           }
 
+          case "make": {
+            const makeBlock = block as any;
+            const preparedBlock = {
+              ...makeBlock,
+              id: makeBlock.id || `block-${makeBlock.blockNumber}`,
+              name: makeBlock.name || `Block ${makeBlock.blockNumber}`,
+              blockNumber: makeBlock.blockNumber,
+              type: makeBlock.type,
+              webhookUrl: makeBlock.webhookUrl || "",
+              parameters: makeBlock.parameters || [],
+              outputVariable: makeBlock.outputVariable || null,
+              agentId: get().currentAgent?.id || "",
+              // Ensure all required fields from BaseBlock are included
+              systemPrompt: makeBlock.systemPrompt || "",
+              userPrompt: makeBlock.userPrompt || "",
+              saveAsCsv: makeBlock.saveAsCsv || false,
+            };
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Make Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
           default: {
             // Remove exhaustive check since we handle all known types
             return block;
@@ -304,12 +339,32 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       if (agentDoc.exists()) {
         const agent = { id: agentDoc.id, ...agentDoc.data() } as Agent;
         console.log("Successfully loaded agent:", agent);
-        set({ currentAgent: agent });
+
+        // Process blocks to ensure all fields are properly set
+        const processedBlocks = agent.blocks.map((block) => {
+          if (block.type === "codeblock") {
+            return {
+              ...block,
+              status: block.status || "tbd", // Ensure status is preserved
+              language: block.language || "python",
+              code: block.code || "",
+              outputVariable: block.outputVariable || null,
+            };
+          }
+          return block;
+        });
+
+        const processedAgent = {
+          ...agent,
+          blocks: processedBlocks,
+        };
+
+        set({ currentAgent: processedAgent });
 
         // Update blocks in source store
         const { resetBlocks, addBlockToNotebook } = useSourceStore.getState();
         resetBlocks();
-        agent.blocks.forEach((block) => {
+        processedAgent.blocks.forEach((block) => {
           addBlockToNotebook(block);
         });
 

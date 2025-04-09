@@ -40,6 +40,8 @@ import SearchAgent from "@/components/custom_components/SearchAgent";
 import Layout from "@/components/Layout";
 import { useVariableStore } from "@/lib/variableStore";
 import WebAgent from "@/components/custom_components/WebAgent";
+import CodeBlock from "@/components/custom_components/CodeBlock";
+import MakeBlock from "@/components/custom_components/MakeBlock";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -312,6 +314,43 @@ export default function Notebook() {
             onOpenTools={() => setIsToolsSheetOpen(true)}
           />
         );
+      case "codeblock":
+        return (
+          <CodeBlock
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
+            onAddVariable={handleAddVariable}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
+            initialLanguage={block.language}
+            initialCode={block.code}
+            initialOutputVariable={block.outputVariable}
+          />
+        );
+      case "make":
+        return (
+          <MakeBlock
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
+            initialWebhookUrl={block.webhookUrl}
+            initialParameters={block.parameters}
+            onAddVariable={handleAddVariable}
+            variables={variables}
+          />
+        );
       default:
         const _exhaustiveCheck: never = block;
         throw new Error(`Unhandled block type: ${(block as any).type}`);
@@ -550,6 +589,15 @@ export default function Notebook() {
             case "webagent":
               const webRef = blockRefs.current[block.blockNumber];
               await webRef?.processBlock();
+              break;
+            case "codeblock":
+              console.log("Processing code block", block.blockNumber);
+              const codeRef = blockRefs.current[block.blockNumber];
+              const codeSuccess = await codeRef?.processBlock();
+              if (!codeSuccess) {
+                console.error("Code block failed, stopping execution");
+                return;
+              }
               break;
           }
         } catch (error) {

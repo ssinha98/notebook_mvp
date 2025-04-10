@@ -395,6 +395,28 @@ export default function Footer({
         });
       },
     },
+    {
+      id: "excelagent",
+      icon: <div className="text-2xl">📊</div>,
+      label: "Excel Agent",
+      tooltip: "Add an Excel processing block...",
+      onClick: () => {
+        addBlockToNotebook({
+          type: "excelagent",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Excel ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          fileUrl: "",
+          sheetName: "",
+          range: "",
+          operations: [],
+        });
+      },
+    },
   ];
 
   const { getBlockList } = useSourceStore();

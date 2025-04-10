@@ -1,7 +1,7 @@
 import React, { useState, CSSProperties, forwardRef } from "react";
 import { ExpandAltOutlined, ShrinkOutlined } from "@ant-design/icons";
 import AgentBlock from "./AgentBlock";
-import { Variable } from "@/types/types";
+import { ExcelAgentBlock, Variable } from "@/types/types";
 import { AgentBlockRef } from "./AgentBlock";
 import TransformBlock from "./TransformBlock";
 import { useSourceStore } from "@/lib/store";
@@ -14,6 +14,7 @@ import { ContactBlockRef } from "./ContactBlock";
 import WebAgent from "./WebAgent";
 import CodeBlock from "./CodeBlock";
 import MakeBlock from "./MakeBlock";
+import ExcelAgent from "./ExcelAgent";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -364,6 +365,30 @@ const CollapsibleBox = forwardRef<
             }}
             initialWebhookUrl={block.webhookUrl}
             initialParameters={block.parameters}
+          />
+        );
+      case "excelagent":
+        return (
+          <ExcelAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(
+              blockNumber: number,
+              updates: Partial<ExcelAgentBlock>
+            ) => {
+              updateBlock(blockNumber, updates);
+            }}
+            initialFileUrl={block.fileUrl}
+            initialSheetName={block.sheetName}
+            initialRange={block.range}
+            initialOperations={block.operations}
+            isProcessing={processingBlocks[block.blockNumber] || false}
           />
         );
       default:

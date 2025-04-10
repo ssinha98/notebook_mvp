@@ -42,6 +42,7 @@ import { useVariableStore } from "@/lib/variableStore";
 import WebAgent from "@/components/custom_components/WebAgent";
 import CodeBlock from "@/components/custom_components/CodeBlock";
 import MakeBlock from "@/components/custom_components/MakeBlock";
+import ExcelAgent from "@/components/custom_components/ExcelAgent";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -351,6 +352,27 @@ export default function Notebook() {
             variables={variables}
           />
         );
+      case "excelagent":
+        return (
+          <ExcelAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
+            initialFileUrl={block.fileUrl}
+            initialSheetName={block.sheetName}
+            initialRange={block.range}
+            initialOperations={block.operations}
+            isProcessing={
+              isProcessing && currentBlockIndex === block.blockNumber
+            }
+          />
+        );
       default:
         const _exhaustiveCheck: never = block;
         throw new Error(`Unhandled block type: ${(block as any).type}`);
@@ -596,6 +618,27 @@ export default function Notebook() {
               const codeSuccess = await codeRef?.processBlock();
               if (!codeSuccess) {
                 console.error("Code block failed, stopping execution");
+                return;
+              }
+              break;
+            case "excelagent":
+              console.log("Processing Excel agent block", block.blockNumber);
+              const excelRef = blockRefs.current[block.blockNumber];
+              if (!excelRef) {
+                console.error(
+                  "Excel agent ref not found for block",
+                  block.blockNumber
+                );
+                return;
+              }
+              try {
+                const excelSuccess = await excelRef.processBlock();
+                if (!excelSuccess) {
+                  console.error("Excel agent block failed, stopping execution");
+                  return;
+                }
+              } catch (error) {
+                console.error("Error processing Excel agent block:", error);
                 return;
               }
               break;

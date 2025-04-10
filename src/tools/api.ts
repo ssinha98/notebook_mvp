@@ -35,6 +35,11 @@ export interface GoogleSearchParams {
   index_market?: string;
 }
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const api = {
   async get(endpoint: string) {
     const response = await fetch(`${API_URL}${endpoint}`);
@@ -45,26 +50,47 @@ export const api = {
   },
 
   async post(endpoint: string, data: ApiData) {
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
+    let lastError;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+          credentials: "include", // This helps with CORS
+        });
 
-    if (response.status === 403) {
-      // Handle free tier limit
-      throw new Error(
-        "Free tier limit reached. Please add your API key for unlimited usage."
-      );
+        if (response.status === 403) {
+          // Handle free tier limit
+          throw new Error(
+            "Free tier limit reached. Please add your API key for unlimited usage."
+          );
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.error || `HTTP error! status: ${response.status}`
+          );
+        }
+
+        return await response.json();
+      } catch (error) {
+        lastError = error;
+        console.warn(`Attempt ${attempt} failed:`, error);
+
+        if (attempt < MAX_RETRIES) {
+          console.log(`Retrying in ${RETRY_DELAY}ms...`);
+          await sleep(RETRY_DELAY * attempt); // Exponential backoff
+        }
+      }
     }
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
-    }
-
-    return response.json();
+    throw new Error(
+      `Failed after ${MAX_RETRIES} attempts. Last error: ${(lastError as Error)?.message || "Unknown error"}`
+    );
   },
 
   async uploadFile(

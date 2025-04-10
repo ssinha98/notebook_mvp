@@ -87,7 +87,8 @@ export type BlockType =
   | "contact"
   | "webagent"
   | "codeblock"
-  | "make";
+  | "make"
+  | "excelagent";
 
 /* OLD Block interface
 export interface Block {
@@ -235,7 +236,8 @@ export type Block =
   | ContactBlock
   | WebAgentBlock
   | CodeBlock
-  | MakeBlock;
+  | MakeBlock
+  | ExcelAgentBlock;
 
 export interface Agent {
   id: string;
@@ -304,4 +306,15 @@ export interface CodeBlock extends BaseBlock {
     name: string;
     type: "input" | "intermediate";
   } | null;
+}
+
+export interface ExcelAgentBlock extends BaseBlock {
+  type: "excelagent";
+  fileUrl?: string;
+  sheetName?: string;
+  range?: string;
+  operations?: Array<{
+    type: string;
+    parameters: Record<string, any>;
+  }>;
 }

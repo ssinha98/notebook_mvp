@@ -779,8 +779,16 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         const selectedVariable = props.variables.find((v) => v.id === value);
         if (selectedVariable) {
           props.onUpdateBlock(props.blockNumber, {
-            language,
-            code,
+            type: "searchagent",
+            blockNumber: props.blockNumber,
+            engine: searchEngine,
+            query,
+            limit,
+            topic: newsTopic,
+            section: newsSection,
+            timeWindow,
+            trend: marketsTrend,
+            region: marketsRegion,
             outputVariable: {
               id: selectedVariable.id,
               name: selectedVariable.name,

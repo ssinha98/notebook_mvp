@@ -201,7 +201,9 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
       props.onOpenTools();
     } else {
       setSelectedVariableId(value);
-      const selectedVariable = variables.find((v) => v.id === value);
+      const selectedVariable = Object.values(variables).find(
+        (v) => v.id === value
+      );
       if (selectedVariable) {
         props.onUpdateBlock(props.blockNumber, {
           language,

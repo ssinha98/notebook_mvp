@@ -776,7 +776,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         props.onOpenTools();
       } else {
         setSelectedVariableId(value);
-        const selectedVariable = variables.find((v) => v.id === value);
+        const selectedVariable = props.variables.find((v) => v.id === value);
         if (selectedVariable) {
           props.onUpdateBlock(props.blockNumber, {
             language,

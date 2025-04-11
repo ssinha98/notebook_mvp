@@ -24,6 +24,8 @@ interface ShareableAgentBlockProps {
     name: string;
     value?: string;
   };
+  isCompleted?: boolean;
+  output?: string;
 }
 
 const AGENT_BLOCK_DESCRIPTION =
@@ -34,6 +36,8 @@ export default function ShareableAgentBlock({
   userPrompt,
   attachedFile,
   outputVariable,
+  isCompleted,
+  output,
 }: ShareableAgentBlockProps) {
   const getFileIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -113,6 +117,13 @@ export default function ShareableAgentBlock({
           <div>
             <p className="text-sm text-gray-400 mb-2">Save output as:</p>
             <p className="text-blue-400">{outputVariable.name}</p>
+          </div>
+        )}
+        {isCompleted && output && (
+          <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+            <p className="text-sm text-gray-300 whitespace-pre-wrap">
+              {output}
+            </p>
           </div>
         )}
       </div>

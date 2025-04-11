@@ -24,6 +24,17 @@ import {
 } from "@/components/ui/popover";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -231,13 +242,33 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
             <h3 className="text-lg font-semibold text-gray-100">
               Excel Agent {blockNumber}
             </h3>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-gray-400 hover:text-gray-100"
-            >
-              <FiInfo className="h-4 w-4" />
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-400 hover:text-gray-100"
+                >
+                  <FiInfo className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-gray-900 border-gray-700">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-gray-100">
+                    the Excel Agent
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-300">
+                    {/* Content can be controlled here */}
+                    This agent creates spreadsheets based on your instructions. Spreadsheets can include charts, editable fonts and tables. Its best used with earlier blocks analysing the data, and using the excel agent to create the final spreadsheet.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-gray-800 text-gray-100 hover:bg-gray-700 border-gray-700">
+                    Close
+                  </AlertDialogCancel>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
           <Popover>
             <PopoverTrigger>
@@ -269,10 +300,11 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
               value={userPrompt}
               onChange={(e) => setUserPrompt(e.target.value)}
               className="bg-gray-800 border-gray-700 text-gray-100"
-              placeholder="Describe what you want to do with the Excel data..."
+              placeholder="Describe the Excel file you want the agent to create"
             />
           </div>
 
+          {/* Commented out for future use
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">
               Data to Analyse
@@ -325,6 +357,7 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
               placeholder="Name of the output file"
             />
           </div>
+          */}
 
           {error && <div className="text-red-500 text-sm">{error}</div>}
 

@@ -35,6 +35,7 @@ interface FileItem {
   name: string;
   url: string;
   nickname?: string;
+  timestamp?: number;
 }
 
 interface FileListProps {
@@ -64,11 +65,16 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
             name: data.full_name,
             url: data.download_link,
             nickname: data.nickname,
+            timestamp: new Date(data.created_at).getTime() || 0,
           };
         });
 
-        console.log("Files from Firestore:", fileList);
-        setFiles(fileList);
+        // Sort files by timestamp in descending order (newest first)
+        const sortedFiles = fileList.sort(
+          (a, b) => (b.timestamp || 0) - (a.timestamp || 0)
+        );
+        console.log("Files from Firestore:", sortedFiles);
+        setFiles(sortedFiles);
       } catch (error) {
         console.error("Error fetching files:", error);
       }

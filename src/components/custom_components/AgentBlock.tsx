@@ -35,6 +35,9 @@ import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
 import { Card } from "../ui/card";
 import { auth } from "@/tools/firebase";
+import { toast } from "sonner";
+import { Copy } from "lucide-react";
+import VariableDropdown from "./VariableDropdown";
 
 interface AgentBlockProps {
   blockNumber: number;
@@ -99,6 +102,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [selectedModel, setSelectedModel] = useState<string>("");
   // const { variables: storeVariables } = useSourceStore();
   const syncWithFirestore = useSourceStore((state) => state.syncWithFirestore);
+  const currentAgent = useAgentStore((state) => state.currentAgent);
 
   useEffect(() => {
     // Load variables when component mounts
@@ -662,26 +666,12 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
 
         <div className="flex items-center gap-2 text-gray-300">
           <span>Set output as:</span>
-          <Select
+          <VariableDropdown
             value={selectedVariableId}
             onValueChange={handleVariableSelect}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Variables" />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.values(variables)
-                .filter((v) => v.type === "intermediate")
-                .map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.name}
-                  </SelectItem>
-                ))}
-              <SelectItem value="add_new" className="text-blue-400">
-                + Add new variable
-              </SelectItem>
-            </SelectContent>
-          </Select>
+            agentId={currentAgent?.id || null}
+            onAddNew={props.onOpenTools}
+          />
         </div>
 
         <hr className="border-gray-700 my-4" />

@@ -29,6 +29,10 @@ import { api } from "@/tools/api";
 import { GoogleSearchParams } from "@/tools/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useVariableStore } from "@/lib/variableStore";
+import { toast } from "sonner";
+import { Copy } from "lucide-react";
+import VariableDropdown from "./VariableDropdown";
+import { useAgentStore } from "@/lib/agentStore";
 
 interface SearchAgentProps {
   blockNumber: number;
@@ -622,6 +626,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     const [marketsRegion, setMarketsRegion] = useState<string>(
       props.initialRegion || ""
     );
+    const currentAgent = useAgentStore((state) => state.currentAgent);
 
     // Add state for variables if needed
     const [variables, setVariables] =
@@ -631,7 +636,6 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     useEffect(() => {
       setVariables(storeVariables);
     }, [storeVariables]);
-
 
     // Helper function to find variable by name
     const findVariableByName = (name: string) => {
@@ -772,6 +776,18 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         props.onOpenTools();
       } else {
         setSelectedVariableId(value);
+        const selectedVariable = variables.find((v) => v.id === value);
+        if (selectedVariable) {
+          props.onUpdateBlock(props.blockNumber, {
+            language,
+            code,
+            outputVariable: {
+              id: selectedVariable.id,
+              name: selectedVariable.name,
+              type: selectedVariable.type,
+            },
+          });
+        }
       }
     };
 
@@ -1211,26 +1227,12 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
             <div className="flex items-center gap-2 text-gray-300">
               <span>Set output as:</span>
-              <Select
+              <VariableDropdown
                 value={selectedVariableId}
                 onValueChange={handleVariableSelect}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Variables" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(variables)
-                    .filter((v) => v.type === "intermediate")
-                    .map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.name}
-                      </SelectItem>
-                    ))}
-                  <SelectItem value="add_new" className="text-blue-400">
-                    + Add new variable
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                agentId={currentAgent?.id || null}
+                onAddNew={props.onOpenTools}
+              />
             </div>
 
             {/* Search button */}

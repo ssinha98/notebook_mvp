@@ -19,13 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Settings } from "lucide-react";
+import { Settings, Copy } from "lucide-react";
 import { EditorView, basicSetup } from "codemirror";
 import { python } from "@codemirror/lang-python";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { api } from "@/tools/api";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
+import { toast } from "sonner";
+import VariableDropdown from "./VariableDropdown";
 
 interface CodeBlockProps {
   blockNumber: number;
@@ -358,29 +360,12 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
 
         <div className="flex items-center gap-2 text-gray-300">
           <span>Set output as:</span>
-          <Select
+          <VariableDropdown
             value={selectedVariableId}
             onValueChange={handleVariableSelect}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Variables" />
-            </SelectTrigger>
-            <SelectContent>
-              {variables
-                .filter(
-                  (v) =>
-                    v.type === "intermediate" && v.agentId === currentAgent?.id
-                )
-                .map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.name}
-                  </SelectItem>
-                ))}
-              <SelectItem value="add_new" className="text-blue-400">
-                + Add new variable
-              </SelectItem>
-            </SelectContent>
-          </Select>
+            agentId={currentAgent?.id || null}
+            onAddNew={props.onOpenTools}
+          />
         </div>
       </div>
 

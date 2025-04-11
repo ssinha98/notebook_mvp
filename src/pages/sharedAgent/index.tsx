@@ -22,6 +22,9 @@ import ShareableWebBlock from "@/components/custom_components/shareable_blocks/S
 import ShareableContactBlock from "@/components/custom_components/shareable_blocks/ShareableContactBlock";
 import ShareableCheckinBlock from "@/components/custom_components/shareable_blocks/ShareableCheckinBlock";
 import { toast } from "sonner";
+import ShareableExcelAgent from "@/components/custom_components/shareable_blocks/ShareableExcelAgent";
+import ShareableCodeBlock from "@/components/custom_components/shareable_blocks/ShareableCodeBlock";
+import ShareableMakeBlock from "@/components/custom_components/shareable_blocks/ShareableMakeBlock";
 
 // Enum for run states
 enum RunState {
@@ -71,12 +74,32 @@ interface ShareableCheckinBlock extends BaseShareableBlock {
   type: "checkin";
 }
 
+interface ShareableCodeBlock extends BaseShareableBlock {
+  type: "code";
+  language: string;
+  code: string;
+}
+
+interface ShareableMakeBlock extends BaseShareableBlock {
+  type: "make";
+  webhookUrl: string;
+  parameters: { key: string; value: string }[];
+}
+
+interface ShareableExcelBlock extends BaseShareableBlock {
+  type: "excel";
+  userPrompt: string;
+}
+
 // Update the ShareableBlock type
 type ShareableBlock =
   | ShareableAgentBlock
   | ShareableContactBlock
   | ShareableWebBlock
-  | ShareableCheckinBlock;
+  | ShareableCheckinBlock
+  | ShareableCodeBlock
+  | ShareableMakeBlock
+  | ShareableExcelBlock;
 
 interface ShareableAgent {
   id: string;
@@ -1070,6 +1093,178 @@ These steps aim to optimize overall ad performance, leading to an increased retu
       },
     ],
   },
+  {
+    id: "csv-to-formatted-spreadsheet",
+    name: "Raw .csv -> Formatted Spreadsheet Agent",
+    description:
+      "Transform raw CSV data into beautifully formatted spreadsheets with analysis",
+    agentDescription:
+      "Benefit Metrics: saves ~1 hour per spreadsheet analysis. This agent takes raw data and creates a formatted, professional spreadsheet with analysis and visualizations.",
+    tags: ["Data Analysis"],
+    blocks: [
+      {
+        id: "block1",
+        type: "agent",
+        blockNumber: 1,
+        userPrompt:
+          "analyse @sales_data, and give me the average sales and unit sold per product",
+        attachedFile: {
+          name: "sales_data.csv",
+          type: "csv",
+          url: "https://docs.google.com/spreadsheets/d/10wb4KOm-sMQFU59pP3GlM3gZ_o4BJDh0vTOu2UD7rUM/edit?usp=sharing",
+          content: "Sales data content...",
+        },
+        outputVariable: {
+          name: "data_summary",
+        },
+        output: `Based on the data provided in the source, the average sales and units sold per product are as follows:
+Product, Average Units Sold, Average Sales
+Printer, 4,800
+Laptop, 1.5, 1800
+Monitor,3,900
+Desk,2.5, 1125
+Chair, 5.5,825`,
+      },
+      {
+        id: "block2",
+        type: "agent",
+        blockNumber: 2,
+        userPrompt: "summarize {{data_summary}} into 1-2 concise sentences",
+        outputVariable: {
+          name: "written_summary",
+        },
+        output:
+          "Among the analyzed products, Printers had the highest average sales at $800 with 4 units sold on average, while Chairs showed strong unit sales (5.5 units) but lower average revenue ($825), indicating varying price points and demand patterns across the product line.",
+      },
+      {
+        id: "block3",
+        type: "excel",
+        blockNumber: 3,
+        userPrompt:
+          "Make a spreadsheet showing the analysis of sales data - make the font calibri everywhere. Make a table with {{sales_data_summary}} - bold the headers. Also make a bar chart, with {{written_summary}} as the label.",
+        output:
+          "https://docs.google.com/spreadsheets/d/1Tcavez45sR1cyE-F4iH1STz0yQJeRpqD/edit?usp=sharing&ouid=101486709579123358134&rtpof=true&sd=true",
+      },
+    ],
+  },
+  {
+    id: "meeting-follow-up-tasks",
+    name: "Meeting Follow Up With Tasks",
+    description:
+      "Automatically extract tasks and sync them to your project management tool",
+    agentDescription:
+      "Benefit Metrics: saves ~30 minutes per meeting by automatically extracting tasks and syncing them to your project management tool. No more manual task creation!",
+    tags: ["Project Management", "Admin"],
+    blocks: [
+      {
+        id: "block1",
+        type: "agent",
+        blockNumber: 1,
+        userPrompt:
+          "read these meeting notes. respond with a json object of the summary of the meeting, and the tasks (each tasks hould have the task itself who is responsible, and the dud deate).",
+        attachedFile: {
+          name: "Meeting Transcript",
+          type: "pdf",
+          url: "https://docs.google.com/document/d/1gojUbH-FU4Nqz6mSSOIPCg3a5b3ibGiBHJXliE9_XpU/edit?usp=sharing",
+          content: "Meeting notes content...",
+        },
+        outputVariable: {
+          name: "meeting_tasks",
+        },
+        output: `{
+  "summary": "Weekly team sync focused on Q2 planning and current sprint progress",
+  "tasks": [
+    {
+      "task": "Update project timeline for Q2 initiatives",
+      "responsible": "Sarah",
+      "due_date": "2024-03-25"
+    },
+    {
+      "task": "Review and approve new feature designs",
+      "responsible": "Mike",
+      "due_date": "2024-03-22"
+    },
+    {
+      "task": "Schedule customer feedback sessions",
+      "responsible": "Alex",
+      "due_date": "2024-03-28"
+    }
+  ]
+}`,
+      },
+      {
+        id: "block2",
+        type: "make",
+        blockNumber: 2,
+        webhookUrl: "https://hook.make.com/your-scenario",
+        parameters: [
+          { key: "meeting_summary", value: "{{meeting_tasks.summary}}" },
+          { key: "tasks", value: "{{meeting_tasks.tasks}}" },
+        ],
+        output: "Tasks synced with your Airtable via Make.com Scenario 345",
+      },
+    ],
+  },
+  {
+    id: "weather-api-agent",
+    name: "Weather API Agent",
+    description: "Get real-time weather information for any city",
+    agentDescription:
+      "Benefit Metrics: saves time by automatically fetching and formatting weather data from any city in the world.",
+    tags: ["Data", "API"],
+    blocks: [
+      {
+        id: "block1",
+        type: "agent",
+        blockNumber: 1,
+        userPrompt:
+          'Below is a question a user has asked via an API, about the weather in a given city. Only respond with the city name. User question: {\n\n"What\'s the weather like in Auckland right now?"}',
+        outputVariable: {
+          name: "city",
+        },
+        output: "Auckland, New Zealand",
+      },
+      {
+        id: "block2",
+        type: "code",
+        blockNumber: 2,
+        language: "python",
+        code: `import requests
+
+def get_weather(city):
+    # In a real implementation, this would call a weather API
+    # For this example, we're returning a mock response
+    return {
+        "temperature": 21,
+        "unit": "C"
+    }
+
+weather_data = get_weather("{{city}}")
+print(weather_data)`,
+        outputVariable: {
+          name: "weather_data",
+        },
+        output: `{
+        city: "Auckland",
+        country: "New Zealand",
+        temperature: 21,
+        unit: "C"
+}`,
+      },
+      {
+        id: "block3",
+        type: "agent",
+        blockNumber: 3,
+        userPrompt:
+          "Using the weather data, create a friendly response about the current weather in {{city}}",
+        outputVariable: {
+          name: "weather_response",
+        },
+        output:
+          "The current temperature in Auckland, New Zealand is 21°C. It's a pleasant day with mild temperatures perfect for outdoor activities!",
+      },
+    ],
+  },
 ];
 
 // Helper function within the same file
@@ -1223,23 +1418,40 @@ export default function SharedAgentPage() {
     const isCompleted = completedBlocks.includes(index);
 
     const renderOutput = (output: string) => {
-      if (block.blockNumber === 4 && agentData?.id === "3") {
-        // Only for block 4 of Custom Ads Campaign Generator
-        const [text, url] = output.split("here: ");
+      if (block.type === "excel") {
         return (
           <p className="text-sm text-gray-300 whitespace-pre-wrap">
-            {text}
+            ✅ Excel file generated and downloaded successfully!
+            <br />
             <a
-              href={url}
+              href={output}
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all"
             >
-              here
+              Output.xlsx
             </a>
           </p>
         );
       }
+
+      if (block.type === "code") {
+        return (
+          <pre className="text-white font-mono text-sm whitespace-pre-wrap">
+            {output}
+          </pre>
+        );
+      }
+
+      if (block.type === "make") {
+        return (
+          <pre className="text-white font-mono text-sm whitespace-pre-wrap">
+            {`> Response: 200 ✅\n\n${output}`}
+          </pre>
+        );
+      }
+
+      // Handle other block types
       return (
         <p className="text-sm text-gray-300 whitespace-pre-wrap">{output}</p>
       );
@@ -1280,7 +1492,30 @@ export default function SharedAgentPage() {
             isCompleted={isCompleted}
           />
         )}
-
+        {block.type === "excel" && (
+          <ShareableExcelAgent
+            blockNumber={block.blockNumber}
+            userPrompt={block.userPrompt}
+          />
+        )}
+        {block.type === "code" && (
+          <ShareableCodeBlock
+            blockNumber={block.blockNumber}
+            language={block.language}
+            code={block.code}
+            output={block.output}
+            isCompleted={isCompleted}
+          />
+        )}
+        {block.type === "make" && (
+          <ShareableMakeBlock
+            blockNumber={block.blockNumber}
+            webhookUrl={block.webhookUrl}
+            parameters={block.parameters}
+            output={block.output}
+            isCompleted={isCompleted}
+          />
+        )}
         {/* Processing/Output section */}
         {(isProcessing || isCompleted) && (
           <div className="mt-4 p-4 bg-gray-800 rounded-lg">
@@ -1335,7 +1570,7 @@ export default function SharedAgentPage() {
         <header className="sticky top-0 z-50 bg-gray-900 border-b border-gray-700">
           <div className="max-w-screen-xl mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
+              <div className="flex items-cente<r">
                 <Button
                   variant="ghost"
                   onClick={handleBack}

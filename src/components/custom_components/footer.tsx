@@ -229,6 +229,15 @@ export default function Footer({
 
   const toolButtons: ToolButton[] = [
     {
+      id: "data",
+      icon: <FaDatabase className="text-2xl" />,
+      label: "Data & Variables",
+      tooltip: "Load in some data...",
+      onClick: () => {
+        setIsToolsSheetOpen(true);
+      },
+    },
+    {
       id: "agent",
       icon: <LuBrainCircuit className="text-2xl" />,
       label: "Agent Block",
@@ -249,15 +258,6 @@ export default function Footer({
             downloadUrl: "",
           },
         });
-      },
-    },
-    {
-      id: "data",
-      icon: <FaDatabase className="text-2xl" />,
-      label: "Data and Transformations",
-      tooltip: "Load in some data...",
-      onClick: () => {
-        setIsToolsSheetOpen(true);
       },
     },
     {

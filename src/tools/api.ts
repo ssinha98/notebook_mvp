@@ -3,13 +3,13 @@ import { useSourceStore } from "@/lib/store";
 // const API_URL = "http://127.0.0.1:5000";
 // const API_URL = "http://localhost:5000";
 
-const API_URL = "https://test-render-q8l2.onrender.com";
+export const API_URL = "https://test-render-q8l2.onrender.com";
 
 // Original interface
 // interface ApiData {
 //   [key: string]: any;
 // }
-
+("");
 // New interface with better type safety
 interface ApiData {
   [key: string]: string | number | boolean | object;
@@ -27,12 +27,14 @@ interface FileManagerResponse {
 
 export interface GoogleSearchParams {
   query?: string;
-  engine: "search" | "news" | "finance" | "markets";
+  engine: "search" | "news" | "finance" | "markets" | "image";
   topic_token?: string;
   section_token?: string;
   window?: string;
   trend?: string;
   index_market?: string;
+  num?: number;
+  combine?: boolean;
 }
 
 const MAX_RETRIES = 3;
@@ -139,7 +141,7 @@ export const api = {
       if (value !== undefined) {
         // Map 'query' to 'q' and handle 'engine' specially
         const paramKey = key === "query" ? "q" : key;
-        searchParams.append(paramKey, value);
+        searchParams.append(paramKey, String(value)); // Convert value to string
       }
     });
 

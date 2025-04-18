@@ -33,6 +33,13 @@ import { toast } from "sonner";
 import { Copy } from "lucide-react";
 import VariableDropdown from "./VariableDropdown";
 import { useAgentStore } from "@/lib/agentStore";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown, Download } from "lucide-react";
 
 interface SearchAgentProps {
   blockNumber: number;
@@ -52,7 +59,7 @@ interface SearchAgentProps {
   isProcessing?: boolean;
   onProcessingChange?: (isProcessing: boolean) => void;
   initialQuery?: string;
-  initialEngine?: "search" | "news" | "finance" | "markets";
+  initialEngine?: "search" | "news" | "finance" | "markets" | "image";
   initialLimit?: number;
   initialTopic?: string;
   initialSection?: string;
@@ -66,9 +73,13 @@ export interface SearchAgentRef {
 }
 
 interface ParsedResultsProps {
-  engine: "search" | "news" | "finance" | "markets";
+  engine: string;
   results: any;
   limit: number;
+  props: SearchAgentProps;
+  selectedImages: ImageSearchResult[];
+  setSelectedImages: React.Dispatch<React.SetStateAction<ImageSearchResult[]>>;
+  handleImageSelection: (image: ImageSearchResult) => void;
 }
 
 interface FinanceItem {
@@ -100,6 +111,15 @@ interface MarketItem {
     value: number;
   };
   link: string;
+}
+
+interface ImageSearchResult {
+  url: string;
+  title: string;
+  contextLink: string;
+  analysis?: {
+    individual_analysis?: string;
+  };
 }
 
 const SearchCard: React.FC<SearchItem> = ({
@@ -210,8 +230,24 @@ const MarketsCard: React.FC<MarketItem> = ({
   );
 };
 
-const ParsedResults = ({ engine, results, limit }: ParsedResultsProps) => {
+const ParsedResults = ({
+  engine,
+  results,
+  limit,
+  props,
+  selectedImages,
+  setSelectedImages,
+  handleImageSelection,
+}: ParsedResultsProps) => {
+  // console.log("ParsedResults received:", { engine, results, limit });
+
+  if (!results) {
+    console.log("No results to display");
+    return <div>No results found</div>;
+  }
+
   const getLimitedResults = (items: any[]) => items.slice(0, limit);
+
   switch (engine) {
     case "search":
       const searchData =
@@ -259,6 +295,88 @@ const ParsedResults = ({ engine, results, limit }: ParsedResultsProps) => {
               link={item.link}
             />
           ))}
+        </div>
+      );
+    case "image":
+      const imageData =
+        typeof results === "string" ? JSON.parse(results) : results;
+
+      if (!imageData?.results) {
+        return <div>No image results found</div>;
+      }
+
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-sm text-gray-400">
+              {selectedImages.length} images selected
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedImages(imageData.results)}
+            >
+              Select All
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            <div className="flex gap-4 pb-4">
+              {imageData.results.map((result: any, index: number) => {
+                const isSelected = selectedImages.some(
+                  (img) => img.url === result.url
+                );
+
+                return (
+                  <div
+                    key={index}
+                    className={`flex-none w-[400px] bg-gray-900 rounded-lg overflow-hidden border ${
+                      isSelected ? "border-blue-500" : "border-gray-700"
+                    } relative`}
+                    onClick={() => handleImageSelection(result)}
+                  >
+                    <div className="absolute top-2 right-2 z-10">
+                      <div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                          isSelected ? "bg-blue-500" : "bg-gray-700"
+                        }`}
+                      >
+                        {isSelected && "✓"}
+                      </div>
+                    </div>
+                    <div className="relative aspect-square">
+                      <img
+                        src={result.url}
+                        alt={result.title}
+                        className="w-full h-full object-cover cursor-pointer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            "https://via.placeholder.com/400x400?text=Image+Not+Available";
+                        }}
+                      />
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <h3 className="text-lg font-semibold text-gray-200 line-clamp-2">
+                        {result.title}
+                      </h3>
+                      <a
+                        href={result.contextLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-400 hover:text-blue-300"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View Source
+                      </a>
+                      <div className="text-sm text-gray-300">
+                        {result.analysis?.individual_analysis ||
+                          "No analysis available"}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       );
     default:
@@ -599,22 +717,6 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     const [newsSection, setNewsSection] = useState<string>(
       props.initialSection || ""
     );
-    const validTrends = [
-      "indexes",
-      "most-active",
-      "gainers",
-      "losers",
-      "climate-leaders",
-      "cryptocurrencies",
-      "currencies",
-    ] as const;
-    const [marketsTrend, setMarketsTrend] = useState<
-      (typeof validTrends)[number]
-    >(
-      props.initialTrend && validTrends.includes(props.initialTrend as any)
-        ? (props.initialTrend as (typeof validTrends)[number])
-        : "indexes"
-    );
     const [selectedVariableId, setSelectedVariableId] = useState<string>("");
     const [modelResponse, setModelResponse] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<string>("parsed");
@@ -627,6 +729,11 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       props.initialRegion || ""
     );
     const currentAgent = useAgentStore((state) => state.currentAgent);
+    const { updateVariable } = useVariableStore();
+    const [imagePrompt, setImagePrompt] = useState<string>("");
+    const [selectedImages, setSelectedImages] = useState<ImageSearchResult[]>(
+      []
+    );
 
     // Add state for variables if needed
     const [variables, setVariables] =
@@ -687,6 +794,24 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       return parts.length ? parts : text;
     };
 
+    const validTrends = [
+      "indexes",
+      "most-active",
+      "gainers",
+      "losers",
+      "climate-leaders",
+      "cryptocurrencies",
+      "currencies",
+    ] as const;
+
+    const [marketsTrend, setMarketsTrend] = useState<
+      (typeof validTrends)[number]
+    >(
+      props.initialTrend && validTrends.includes(props.initialTrend as any)
+        ? (props.initialTrend as (typeof validTrends)[number])
+        : "indexes"
+    );
+
     // Expose processBlock to parent components
     useImperativeHandle(ref, () => ({
       processBlock: async () => {
@@ -708,11 +833,13 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
     const handleEngineChange = (value: string) => {
       console.log("Engine changing to:", value);
-      setSearchEngine(value as "search" | "news" | "finance" | "markets");
+      setSearchEngine(
+        value as "search" | "news" | "finance" | "markets" | "image"
+      );
       handleUpdateBlock({
         type: "searchagent",
         blockNumber: props.blockNumber,
-        engine: value as "search" | "news" | "finance" | "markets",
+        engine: value as "search" | "news" | "finance" | "markets" | "image",
         query,
         limit,
         topic: newsTopic,
@@ -771,94 +898,84 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       } as Partial<SearchAgentBlock>);
     };
 
-    const handleVariableSelect = (value: string) => {
-      if (value === "add_new" && props.onOpenTools) {
-        props.onOpenTools();
-      } else {
-        setSelectedVariableId(value);
-        const selectedVariable = props.variables.find((v) => v.id === value);
-        if (selectedVariable) {
-          props.onUpdateBlock(props.blockNumber, {
-            type: "searchagent",
-            blockNumber: props.blockNumber,
-            engine: searchEngine,
-            query,
-            limit,
-            topic: newsTopic,
-            section: newsSection,
-            timeWindow,
-            trend: marketsTrend,
-            region: marketsRegion,
-            outputVariable: {
-              id: selectedVariable.id,
-              name: selectedVariable.name,
-              type: selectedVariable.type,
-            },
-          });
-        }
-      }
-    };
+    const handleSearch = async (): Promise<boolean> => {
+      console.log("=== Search Debug Logs ===");
+      console.log("1. Starting search with params:", {
+        searchEngine,
+        query,
+        limit,
+        imagePrompt,
+      });
 
-    const handleSearch = async () => {
+      if (props.onProcessingChange) {
+        props.onProcessingChange(true);
+      }
+
       try {
         const processedQuery = processVariablesInText(query);
+        const endpoint =
+          searchEngine === "image" ? "/api/image_search" : "/api/search";
 
-        const response = await api.post("/api/search", {
-          engine: searchEngine,
+        const payload = {
           query: processedQuery,
-          limit: limit || 5,
-          ...(searchEngine === "markets" && { trend: marketsTrend }),
-          ...(searchEngine === "finance" && {
-            window: props.financeWindow,
-          }),
-          ...(searchEngine === "news" && {
-            searchType: newsSearchType,
-            topic: newsTopic,
-            publication: newsPublication,
-          }),
-        });
+          num: limit || 5,
+          ...(searchEngine === "image"
+            ? {
+                image_prompt: imagePrompt,
+              }
+            : {}),
+        };
 
-        console.log("Search params:", {
-          engine: searchEngine,
-          trend: marketsTrend,
-        });
+        console.log("2. Sending request to endpoint:", endpoint);
+        console.log("3. With payload:", payload);
 
-        console.log("Search response:", response);
+        const response = await api.post(endpoint, payload);
+        console.log("4. Full response object:", response);
+        console.log("4a. Response status:", response.status);
+        console.log("4b. Response headers:", response.headers);
+        console.log("4c. Response data:", response.data);
 
-        if (!response || typeof response !== "object") {
-          throw new Error(
-            `Invalid response format: ${JSON.stringify(response)}`
-          );
-        }
-
-        setModelResponse(response);
-
-        if (selectedVariableId) {
-          props.onAddVariable({
-            id: selectedVariableId,
-            name:
-              Object.values(variables).find((v) => v.id === selectedVariableId)
-                ?.name || `search_results_${props.blockNumber}`,
-            type: "intermediate",
-            value: response,
-          });
-        }
-
+        // Convert the entire response to a string and set it
+        setModelResponse(JSON.stringify(response, null, 2));
         return true;
-      } catch (error) {
-        console.error("Error in search block:", error);
+      } catch (error: any) {
+        console.error("5. Search error:", error);
+        if (error.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          console.error("5a. Error response data:", error.response.data);
+          console.error("5b. Error response status:", error.response.status);
+          console.error("5c. Error response headers:", error.response.headers);
+        } else if (error.request) {
+          // The request was made but no response was received
+          console.error("5d. Error request:", error.request);
+        } else {
+          // Something happened in setting up the request that triggered an Error
+          console.error("5e. Error message:", error.message);
+        }
+        toast.error(
+          `Search failed: ${error.message || "Unknown error occurred"}`
+        );
         return false;
+      } finally {
+        if (props.onProcessingChange) {
+          props.onProcessingChange(false);
+        }
       }
     };
 
     const renderResults = () => {
-      if (!modelResponse) return null;
+      console.log("=== Render Results Debug Logs ===");
+      console.log("1. Current modelResponse:", modelResponse);
+      console.log("2. Current searchEngine:", searchEngine);
+
+      if (!modelResponse) {
+        console.log("3. No modelResponse, returning null");
+        return null;
+      }
 
       try {
-        const getLimitedResults = (items: any[]) => {
-          return limit ? items.slice(0, limit) : items;
-        };
-
+        const getLimitedResults = (items: any[]) => items.slice(0, limit);
         let displayResults;
 
         switch (searchEngine) {
@@ -889,6 +1006,8 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
             displayResults = modelResponse;
         }
 
+        console.log("5. Final displayResults:", displayResults);
+
         return (
           <div className="mt-4 p-4 bg-gray-800 rounded">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -903,16 +1022,18 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                   value="full"
                   className="text-gray-300 data-[state=active]:bg-gray-800 data-[state=active]:text-white"
                 >
-                  Full
+                  Raw response
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="parsed">
                 <ParsedResults
-                  engine={
-                    searchEngine as "search" | "news" | "finance" | "markets"
-                  }
+                  engine={searchEngine}
                   results={displayResults}
                   limit={limit}
+                  props={props}
+                  selectedImages={selectedImages}
+                  setSelectedImages={setSelectedImages}
+                  handleImageSelection={handleImageSelection}
                 />
               </TabsContent>
               <TabsContent value="full">
@@ -924,8 +1045,8 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           </div>
         );
       } catch (error) {
-        console.error("Error parsing results:", error);
-        return <div className="text-red-500">Error parsing results</div>;
+        console.error("Error in renderResults:", error);
+        return <div className="text-red-500">Error rendering results</div>;
       }
     };
 
@@ -949,6 +1070,72 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         )}
       </div>
     );
+
+    const handleVariableSelect = (value: string) => {
+      if (value === "add_new" && props.onOpenTools) {
+        props.onOpenTools();
+      } else {
+        setSelectedVariableId(value);
+        // Update variable immediately with current selected images
+      }
+    };
+
+    // Add this effect to handle initial selection of all images when results come in
+    useEffect(() => {
+      if (modelResponse && searchEngine === "image") {
+        try {
+          const imageData =
+            typeof modelResponse === "string"
+              ? JSON.parse(modelResponse)
+              : modelResponse;
+          if (imageData?.results) {
+            setSelectedImages(imageData.results);
+          }
+        } catch (error) {
+          console.error("Error setting initial selected images:", error);
+        }
+      }
+    }, [modelResponse, searchEngine]);
+
+    // Add this function to handle image selection/deselection
+    const handleImageSelection = (image: ImageSearchResult) => {
+      setSelectedImages((prev) => {
+        const isSelected = prev.some((i) => i.url === image.url);
+        if (isSelected) {
+          return prev.filter((i) => i.url !== image.url);
+        } else {
+          return [...prev, image];
+        }
+      });
+    };
+
+    // Add this effect to update the variable when selected images change
+    useEffect(() => {
+      const updateVariableWithImages = async () => {
+        if (selectedVariableId && selectedImages.length > 0) {
+          try {
+            const imagesJson = JSON.stringify(
+              selectedImages.map((img) => ({
+                url: img.url,
+                title: img.title,
+                analysis: img.analysis?.individual_analysis || null,
+              }))
+            );
+            await useVariableStore
+              .getState()
+              .updateVariable(selectedVariableId, imagesJson);
+          } catch (error) {
+            console.error(
+              "Error updating variable with selected images:",
+              error
+            );
+            toast.error("Failed to save selected images to variable");
+          }
+        }
+      };
+
+      updateVariableWithImages();
+    }, [selectedImages, selectedVariableId]);
 
     return (
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
@@ -986,6 +1173,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
               <SelectItem value="news">📰 News</SelectItem>
               <SelectItem value="finance">💳 Finance</SelectItem>
               <SelectItem value="markets">📈 Finance Markets</SelectItem>
+              <SelectItem value="image">🖼️ Image Search</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1229,6 +1417,26 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                 )}
               </div>
             )}
+            {searchEngine === "image" && (
+              <div className="mt-4 space-y-4">
+                {renderQueryInput()}
+                <div className="space-y-2">
+                  <label
+                    htmlFor="imagePrompt"
+                    className="block text-sm text-gray-400"
+                  >
+                    Analysis Prompt
+                  </label>
+                  <Input
+                    id="imagePrompt"
+                    value={imagePrompt}
+                    onChange={(e) => setImagePrompt(e.target.value)}
+                    placeholder="The prompt or question you'd like an AI to run over each of the results"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Conditional divider before variable selector */}
             <Separator className="my-4" />
@@ -1241,6 +1449,21 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                 agentId={currentAgent?.id || null}
                 onAddNew={props.onOpenTools}
               />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const variable = Object.values(storeVariables).find(
+                    (v) => v.id === selectedVariableId
+                  );
+                  console.log("Selected Variable Value:", variable?.value);
+                  toast.info(
+                    `Variable Value: ${variable?.value || "No value set"}`
+                  );
+                }}
+              >
+                Show Value
+              </Button>
             </div>
 
             {/* Search button */}
@@ -1250,14 +1473,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                 onClick={handleSearch}
                 disabled={props.isProcessing}
               >
-                {props.isProcessing ? (
-                  <>
-                    <span className="animate-spin mr-2">⟳</span>
-                    Searching...
-                  </>
-                ) : (
-                  "Search"
-                )}
+                {props.isProcessing ? "Loading..." : "Search"}
               </Button>
             </div>
           </>

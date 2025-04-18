@@ -15,6 +15,7 @@ import WebAgent from "./WebAgent";
 import CodeBlock from "./CodeBlock";
 import MakeBlock from "./MakeBlock";
 import ExcelAgent from "./ExcelAgent";
+import InstagramAgent from "./InstagramAgent";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -219,6 +220,7 @@ const CollapsibleBox = forwardRef<
             initialTimeWindow={block.timeWindow}
             initialTrend={block.trend}
             initialRegion={block.region}
+            onOpenTools={props.onOpenTools}
           />
         );
       case "agent":
@@ -388,7 +390,33 @@ const CollapsibleBox = forwardRef<
             initialSheetName={block.sheetName}
             initialRange={block.range}
             initialOperations={block.operations}
+            initialPrompt={block.prompt}
             isProcessing={processingBlocks[block.blockNumber] || false}
+          />
+        );
+      case "instagramagent":
+        return (
+          <InstagramAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            variables={props.variables || []}
+            onAddVariable={props.onAddVariable || (() => {})}
+            onOpenTools={props.onOpenTools}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+            onProcessingChange={(isProcessing) =>
+              handleProcessingChange(block.blockNumber, isProcessing)
+            }
+            initialUrl={block.url}
+            initialPostCount={block.postCount}
           />
         );
       default:

@@ -417,6 +417,26 @@ export default function Footer({
         });
       },
     },
+    {
+      id: "instagramagent",
+      icon: <div className="text-2xl">📸</div>,
+      label: "Instagram Agent",
+      tooltip: "Add an Instagram processing block...",
+      onClick: () => {
+        addBlockToNotebook({
+          type: "instagramagent",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Instagram ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          url: "",
+          postCount: 5,
+        });
+      },
+    },
   ];
 
   const { getBlockList } = useSourceStore();

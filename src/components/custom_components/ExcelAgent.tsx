@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { auth } from "@/tools/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { getFirestore, collection, getDocs } from "firebase/firestore";
-import { api } from "@/tools/api";
+import { api, API_URL } from "@/tools/api";
 import {
   Popover,
   PopoverContent,
@@ -36,8 +36,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
 interface ExcelAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
@@ -49,6 +47,7 @@ interface ExcelAgentProps {
   initialSheetName?: string;
   initialRange?: string;
   initialOperations?: ExcelAgentBlock["operations"];
+  initialPrompt?: string;
   isProcessing?: boolean;
 }
 
@@ -58,10 +57,16 @@ interface ExcelAgentRef {
 
 const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
   (
-    { blockNumber, onDeleteBlock, onUpdateBlock, isProcessing = false },
+    {
+      blockNumber,
+      onDeleteBlock,
+      onUpdateBlock,
+      initialPrompt = "",
+      isProcessing = false,
+    },
     ref
   ) => {
-    const [userPrompt, setUserPrompt] = useState("");
+    const [userPrompt, setUserPrompt] = useState(initialPrompt);
     const [selectedSource, setSelectedSource] = useState("none");
     const [selectedFormatSource, setSelectedFormatSource] = useState("none");
     const [outputFilename, setOutputFilename] = useState("");
@@ -116,6 +121,25 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
       }
     }, [currentAgentId]);
 
+    // Load initial prompt only once
+    useEffect(() => {
+      if (initialPrompt && userPrompt !== initialPrompt) {
+        setUserPrompt(initialPrompt);
+      }
+    }, [initialPrompt]);
+
+    // Save prompt with debounce
+    useEffect(() => {
+      const timeoutId = setTimeout(() => {
+        // Only update if the prompt has actually changed
+        if (userPrompt !== initialPrompt) {
+          onUpdateBlock(blockNumber, { prompt: userPrompt });
+        }
+      }, 500); // 500ms debounce
+
+      return () => clearTimeout(timeoutId);
+    }, [userPrompt, blockNumber, onUpdateBlock, initialPrompt]);
+
     // Function to process variables in text
     const processVariablesInText = (text: string): string => {
       const regex = /{{(.*?)}}/g;
@@ -141,28 +165,25 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
 
         // Process variables in the prompt
         const processedPrompt = processVariablesInText(userPrompt.trim());
-        console.log("Original prompt:", userPrompt);
-        console.log("Processed prompt:", processedPrompt);
+        console.log("Excel Agent - Original prompt:", userPrompt);
+        console.log("Excel Agent - Processed prompt:", processedPrompt);
 
-        const requestBody: Record<string, string> = {
+        const requestBody = {
           prompt: processedPrompt,
+          ...(selectedSource !== "none" && { source: selectedSource }),
+          ...(selectedFormatSource !== "none" && {
+            format_source: selectedFormatSource,
+          }),
+          ...(outputFilename && { output_filename: outputFilename }),
         };
 
-        if (selectedSource !== "none") {
-          requestBody.source = selectedSource;
-        }
+        // Get the base URL from the api module
+        const baseUrl = API_URL;
+        console.log("Excel Agent - Using base URL:", baseUrl);
+        console.log("Excel Agent - Request body:", requestBody);
 
-        if (selectedFormatSource !== "none") {
-          requestBody.format_source = selectedFormatSource;
-        }
-
-        if (outputFilename) {
-          requestBody.output_filename = outputFilename;
-        }
-
-        console.log("Sending request with body:", requestBody);
-
-        const response = await fetch(`${API_URL}/api/excel_agent`, {
+        // Make direct fetch call instead of using api.post since we're expecting binary data
+        const response = await fetch(`${baseUrl}/api/excel_agent`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -170,41 +191,54 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           },
           body: JSON.stringify(requestBody),
+          credentials: "include", // Add this to handle CORS properly
         });
 
-        console.log("Full API Response:", response);
-        console.log("Response status:", response.status);
+        console.log("Excel Agent - Response status:", response.status);
         console.log(
-          "Response headers:",
+          "Excel Agent - Response headers:",
           Object.fromEntries(response.headers.entries())
         );
 
-        const contentType = response.headers.get("content-type") || "";
+        const contentType = response.headers.get("Content-Type");
+        console.log("Excel Agent - Content Type:", contentType);
 
         if (!response.ok) {
-          // Try to parse error as JSON (if it's a proper JSON error)
-          if (contentType.includes("application/json")) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to generate Excel file");
-          } else {
-            // If not JSON, just throw a generic error
-            throw new Error(
-              "Failed to generate Excel file (non-JSON response)"
+          // If we got HTML, it's likely an error page
+          if (contentType?.includes("text/html")) {
+            console.error(
+              "Excel Agent - Received HTML error page instead of expected response"
             );
+            throw new Error(
+              "Received unexpected HTML response. The server might be unavailable."
+            );
+          }
+
+          try {
+            // Try to parse as JSON error
+            const errorData = await response.json();
+            console.error("Excel Agent - Error response:", errorData);
+            throw new Error(errorData.error || "Failed to generate Excel file");
+          } catch (parseError) {
+            // If we can't parse as JSON, return the status text
+            console.error(
+              "Excel Agent - Could not parse error response:",
+              parseError
+            );
+            throw new Error(`Server error: ${response.statusText}`);
           }
         }
 
-        // Handle Excel file download
-        if (
-          contentType.includes(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          )
-        ) {
+        // Check if we received an Excel file
+        if (contentType && contentType.includes("spreadsheetml")) {
+          console.log(
+            "Excel Agent - Received Excel file, processing download..."
+          );
           const blob = await response.blob();
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = "output.xlsx"; // or outputFilename if you want to customize it
+          a.download = outputFilename || "output.xlsx";
           document.body.appendChild(a);
           a.click();
           a.remove();
@@ -214,16 +248,15 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
           return true;
         }
 
-        // If neither Excel nor JSON — fallback
-        throw new Error("Unknown response format received from the server");
+        // If we got here, something unexpected happened
+        console.error("Excel Agent - Unexpected response type:", contentType);
+        throw new Error("Received unexpected response format from server");
       } catch (err: any) {
-        console.error("Error processing Excel:", err);
-
+        console.error("Excel Agent - Error processing request:", err);
         const message =
           err.message || "An error occurred while processing the Excel file";
         setError(message);
         setOutput("");
-
         return false;
       } finally {
         setIsLoading(false);
@@ -259,7 +292,10 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
                   </AlertDialogTitle>
                   <AlertDialogDescription className="text-gray-300">
                     {/* Content can be controlled here */}
-                    This agent creates spreadsheets based on your instructions. Spreadsheets can include charts, editable fonts and tables. Its best used with earlier blocks analysing the data, and using the excel agent to create the final spreadsheet.
+                    This agent creates spreadsheets based on your instructions.
+                    Spreadsheets can include charts, editable fonts and tables.
+                    Its best used with earlier blocks analysing the data, and
+                    using the excel agent to create the final spreadsheet.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -298,7 +334,9 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
             </label>
             <Textarea
               value={userPrompt}
-              onChange={(e) => setUserPrompt(e.target.value)}
+              onChange={(e) => {
+                setUserPrompt(e.target.value);
+              }}
               className="bg-gray-800 border-gray-700 text-gray-100"
               placeholder="Describe the Excel file you want the agent to create"
             />

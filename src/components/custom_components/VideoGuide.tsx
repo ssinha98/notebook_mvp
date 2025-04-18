@@ -29,7 +29,7 @@ const VideoGuide: React.FC<VideoGuideProps> = ({ open, onOpenChange }) => {
           <iframe
             width="100%"
             height="100%"
-            src="https://www.youtube.com/embed/kGfkL9LS3PU"
+            src="https://www.youtube.com/embed/JX_wnWfgkjI"
             title="Tutorial Video"
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

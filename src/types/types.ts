@@ -88,7 +88,8 @@ export type BlockType =
   | "webagent"
   | "codeblock"
   | "make"
-  | "excelagent";
+  | "excelagent"
+  | "instagramagent";
 
 /* OLD Block interface
 export interface Block {
@@ -153,13 +154,14 @@ export interface SearchAgentBlock extends Block {
 export interface SearchAgentBlock extends BaseBlock {
   type: "searchagent";
   query?: string;
-  engine?: "search" | "news" | "finance" | "markets";
+  engine?: "search" | "news" | "finance" | "markets" | "image";
   limit?: number;
   topic?: string;
   section?: string;
   timeWindow?: string;
   trend?: string;
   region?: string;
+  combineImage?: boolean;
   marketsTrend?:
     | "indexes"
     | "most-active"
@@ -237,7 +239,8 @@ export type Block =
   | WebAgentBlock
   | CodeBlock
   | MakeBlock
-  | ExcelAgentBlock;
+  | ExcelAgentBlock
+  | InstagramAgentBlock;
 
 export interface Agent {
   id: string;
@@ -317,4 +320,16 @@ export interface ExcelAgentBlock extends BaseBlock {
     type: string;
     parameters: Record<string, any>;
   }>;
+  prompt?: string;
+}
+
+export interface InstagramAgentBlock extends BaseBlock {
+  type: "instagramagent";
+  url: string;
+  postCount: number;
+  outputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate";
+  } | null;
 }

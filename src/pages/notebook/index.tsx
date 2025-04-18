@@ -43,6 +43,7 @@ import WebAgent from "@/components/custom_components/WebAgent";
 import CodeBlock from "@/components/custom_components/CodeBlock";
 import MakeBlock from "@/components/custom_components/MakeBlock";
 import ExcelAgent from "@/components/custom_components/ExcelAgent";
+import InstagramAgent from "@/components/custom_components/InstagramAgent";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -279,7 +280,6 @@ export default function Notebook() {
             blockNumber={block.blockNumber}
             onDeleteBlock={deleteBlock}
             onUpdateBlock={(blockNumber, updates) => {
-              // console.log("SearchAgent update received:", updates);
               updateBlockData(blockNumber, updates);
             }}
             variables={variables}
@@ -292,6 +292,10 @@ export default function Notebook() {
             initialTimeWindow={block.timeWindow}
             initialTrend={block.trend}
             initialRegion={block.region}
+            isProcessing={
+              isProcessing && currentBlockIndex === block.blockNumber
+            }
+            onProcessingChange={setIsProcessing}
           />
         );
       case "contact":
@@ -371,6 +375,29 @@ export default function Notebook() {
             isProcessing={
               isProcessing && currentBlockIndex === block.blockNumber
             }
+          />
+        );
+      case "instagramagent":
+        return (
+          <InstagramAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
+            variables={variables}
+            onAddVariable={handleAddVariable}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
+            isProcessing={
+              isProcessing && currentBlockIndex === block.blockNumber
+            }
+            onProcessingChange={setIsProcessing}
+            initialUrl={block.url}
+            initialPostCount={block.postCount}
           />
         );
       default:
@@ -605,8 +632,27 @@ export default function Notebook() {
               await agentRef?.processBlock();
               break;
             case "searchagent":
+              console.log("Processing search agent block", block.blockNumber);
               const searchRef = blockRefs.current[block.blockNumber];
-              await searchRef?.processBlock();
+              if (!searchRef) {
+                console.error(
+                  "Search agent ref not found for block",
+                  block.blockNumber
+                );
+                return;
+              }
+              try {
+                const searchSuccess = await searchRef.processBlock();
+                if (!searchSuccess) {
+                  console.error(
+                    "Search agent block failed, stopping execution"
+                  );
+                  return;
+                }
+              } catch (error) {
+                console.error("Error processing search agent block:", error);
+                return;
+              }
               break;
             case "webagent":
               const webRef = blockRefs.current[block.blockNumber];
@@ -639,6 +685,32 @@ export default function Notebook() {
                 }
               } catch (error) {
                 console.error("Error processing Excel agent block:", error);
+                return;
+              }
+              break;
+            case "instagramagent":
+              console.log(
+                "Processing Instagram agent block",
+                block.blockNumber
+              );
+              const instagramRef = blockRefs.current[block.blockNumber];
+              if (!instagramRef) {
+                console.error(
+                  "Instagram agent ref not found for block",
+                  block.blockNumber
+                );
+                return;
+              }
+              try {
+                const instagramSuccess = await instagramRef.processBlock();
+                if (!instagramSuccess) {
+                  console.error(
+                    "Instagram agent block failed, stopping execution"
+                  );
+                  return;
+                }
+              } catch (error) {
+                console.error("Error processing Instagram agent block:", error);
                 return;
               }
               break;
@@ -748,6 +820,13 @@ export default function Notebook() {
           <div className="flex justify-end mt-4"></div>
           <div className="flex justify-center mb-4"></div>
         </main>
+        {/* <InstagramAgent
+          blockNumber={1}
+          variables={variables}
+          onDeleteBlock={() => {}}
+          onUpdateBlock={() => {}}
+          onAddVariable={handleAddVariable}
+        /> */}
         <Footer
           onRun={runAllBlocks}
           isProcessing={isProcessing}

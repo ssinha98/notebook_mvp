@@ -16,6 +16,10 @@ interface ShareableContactBlockProps {
   to: string;
   subject: string;
   body: string;
+  isProcessing?: boolean;
+  thinkingEmoji?: string;
+  isCompleted?: boolean;
+  output?: string;
 }
 
 const CONTACT_BLOCK_DESCRIPTION =
@@ -26,6 +30,10 @@ export default function ShareableContactBlock({
   to,
   subject,
   body,
+  isProcessing,
+  thinkingEmoji,
+  isCompleted,
+  output,
 }: ShareableContactBlockProps) {
   return (
     <div className="bg-gray-900 rounded-lg p-6 border border-gray-700 mb-4">
@@ -80,6 +88,21 @@ export default function ShareableContactBlock({
             <span className="text-white">{body}</span>
           </div>
         </div>
+
+        {isProcessing && (
+          <div className="flex justify-center mt-4">
+            <span className="text-2xl">{thinkingEmoji}</span>
+          </div>
+        )}
+
+        {isCompleted && output && (
+          <div className="mt-4">
+            <p className="text-sm text-gray-400 mb-2">Output:</p>
+            <div className="bg-gray-800 p-3 rounded-lg">
+              <span className="text-white">{output}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

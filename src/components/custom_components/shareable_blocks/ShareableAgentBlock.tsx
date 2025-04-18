@@ -26,6 +26,8 @@ interface ShareableAgentBlockProps {
   };
   isCompleted?: boolean;
   output?: string;
+  isProcessing?: boolean;
+  thinkingEmoji?: string;
 }
 
 const AGENT_BLOCK_DESCRIPTION =
@@ -38,6 +40,8 @@ export default function ShareableAgentBlock({
   outputVariable,
   isCompleted,
   output,
+  isProcessing,
+  thinkingEmoji,
 }: ShareableAgentBlockProps) {
   const getFileIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -118,6 +122,9 @@ export default function ShareableAgentBlock({
             <p className="text-sm text-gray-400 mb-2">Save output as:</p>
             <p className="text-blue-400">{outputVariable.name}</p>
           </div>
+        )}
+        {isProcessing && thinkingEmoji && (
+          <div className="text-2xl mb-4 animate-pulse">{thinkingEmoji}</div>
         )}
         {isCompleted && output && (
           <div className="mt-4 p-4 bg-gray-800 rounded-lg">

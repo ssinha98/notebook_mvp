@@ -38,11 +38,25 @@ export interface ShareableCheckinBlock extends BaseShareableBlock {
   type: "checkin";
 }
 
+export interface ShareableInstagramBlock extends BaseShareableBlock {
+  type: "instagramagent";
+  url: string;
+  postCount: number;
+  mockPosts?: {
+    imageUrl: string;
+    caption: string;
+    likes: number;
+    comments: number;
+    timestamp: string;
+  }[];
+}
+
 export type ShareableBlock =
   | ShareableAgentBlock
   | ShareableWebBlock
   | ShareableContactBlock
-  | ShareableCheckinBlock;
+  | ShareableCheckinBlock
+  | ShareableInstagramBlock;
 
 export interface ShareableAgent {
   id: string;

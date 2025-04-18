@@ -22,6 +22,8 @@ interface ShareableMakeBlockProps {
   };
   output?: string;
   isCompleted?: boolean;
+  isProcessing?: boolean;
+  thinkingEmoji?: string;
 }
 
 const MAKE_BLOCK_DESCRIPTION =
@@ -32,6 +34,10 @@ export default function ShareableMakeBlock({
   webhookUrl,
   parameters,
   outputVariable,
+  output,
+  isCompleted,
+  isProcessing,
+  thinkingEmoji,
 }: ShareableMakeBlockProps) {
   return (
     <div className="bg-gray-900 rounded-lg p-6 border border-gray-700">
@@ -105,6 +111,19 @@ export default function ShareableMakeBlock({
           <div>
             <p className="text-sm text-gray-400 mb-2">Save output as:</p>
             <p className="text-blue-400">{outputVariable.name}</p>
+          </div>
+        )}
+
+        {isProcessing && thinkingEmoji && (
+          <div className="mt-4 text-center text-2xl">{thinkingEmoji}</div>
+        )}
+
+        {isCompleted && output && (
+          <div className="mt-4">
+            <p className="text-sm text-gray-400 mb-2">Output:</p>
+            <div className="bg-gray-800 p-3 rounded-lg">
+              <p className="text-white">{output}</p>
+            </div>
           </div>
         )}
       </div>

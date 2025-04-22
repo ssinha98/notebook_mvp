@@ -1,7 +1,6 @@
 import PublicLayout from "@/components/PublicLayout";
 import AgentCard from "@/components/custom_components/AgentCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline"; // Make sure to install @heroicons/react
 import { useState } from "react";
 import ComingSoonCard from "@/components/custom_components/ComingSoonCard";
 import { SHAREABLE_AGENTS } from "../sharedAgent";

@@ -4,6 +4,7 @@ import { SaveOutlined, EditOutlined } from "@ant-design/icons";
 import { useAgentStore } from "@/lib/agentStore";
 import { useSourceStore } from "@/lib/store";
 import { isEqual } from "lodash";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +20,11 @@ import { Input } from "@/components/ui/input";
 import { Block } from "@/types/types";
 import { toast } from "sonner";
 
+interface AgentHeaderProps {
+  isEditMode: boolean;
+  onEditModeChange: (value: boolean) => void;
+}
+
 interface Agent {
   id: string;
   name: string;
@@ -26,7 +32,10 @@ interface Agent {
   createdAt: string;
 }
 
-export default function AgentHeader() {
+export default function AgentHeader({
+  isEditMode,
+  onEditModeChange,
+}: AgentHeaderProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -136,27 +145,44 @@ export default function AgentHeader() {
           </AlertDialog>
         )}
       </div>
-      <Button
-        onClick={handleSaveAgent}
-        disabled={isSaving}
-        className={`${
-          currentAgent
-            ? "bg-green-600 hover:bg-green-700"
-            : "bg-blue-600 hover:bg-blue-700"
-        }`}
-      >
-        {isSaving ? (
-          <>
-            <span className="animate-spin mr-2">⟳</span>
-            Saving...
-          </>
-        ) : (
-          <>
-            <SaveOutlined className="mr-2" />
-            {currentAgent ? "Save Changes" : "Save New Agent"}
-          </>
+      <div className="flex items-center gap-4">
+        {isEditMode && (
+          <Button
+            onClick={handleSaveAgent}
+            disabled={isSaving}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {isSaving ? (
+              <>
+                <span className="animate-spin mr-2">⟳</span>
+                Saving...
+              </>
+            ) : (
+              <>
+                <SaveOutlined className="mr-2" />
+                Save Changes
+              </>
+            )}
+          </Button>
         )}
-      </Button>
+        <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-lg">
+          <span
+            className={`text-sm ${!isEditMode ? "text-white" : "text-gray-400"}`}
+          >
+            View
+          </span>
+          <Switch
+            checked={isEditMode}
+            onCheckedChange={onEditModeChange}
+            className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-600 h-6 w-11 [&>span]:h-5 [&>span]:w-5 [&>span]:bg-white"
+          />
+          <span
+            className={`text-sm ${isEditMode ? "text-white" : "text-gray-400"}`}
+          >
+            Edit
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -44,6 +44,7 @@ import CodeBlock from "@/components/custom_components/CodeBlock";
 import MakeBlock from "@/components/custom_components/MakeBlock";
 import ExcelAgent from "@/components/custom_components/ExcelAgent";
 import InstagramAgent from "@/components/custom_components/InstagramAgent";
+import RateAgentRun from "@/components/custom_components/RateAgentRun";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -65,6 +66,9 @@ export default function Notebook() {
   const [isApiKeySheetOpen, setIsApiKeySheetOpen] = useState(false);
   const [isToolsSheetOpen, setIsToolsSheetOpen] = useState(false);
   const [variables, setVariables] = useState<Variable[]>([]);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [currentBlock, setCurrentBlock] = useState<Block | null>(null);
   // const [blockNumberInput, setBlockNumberInput] = useState<string>("");
   // const [promptTypeSelect, setPromptTypeSelect] = useState<"system" | "user">(
   //   "system"
@@ -128,42 +132,6 @@ export default function Notebook() {
     addPrompt(blockNumber, "system", systemPrompt);
     addPrompt(blockNumber, "user", userPrompt);
   };
-
-  // const displayBlockPrompts = () => {
-  //   const blockNumber = parseInt(blockNumberInput);
-  //   if (isNaN(blockNumber)) {
-  //     return;
-  //   }
-
-  //   const promptValue = getPrompt(blockNumber, promptTypeSelect);
-
-  //   if (!promptValue) {
-  //     return;
-  //   }
-  // };
-
-  // const displayAllPrompts = () => {
-  //   const allPrompts = getAllPrompts();
-  //   const promptsByBlock = allPrompts.reduce(
-  //     (acc: Record<number, any>, prompt) => {
-  //       if (!acc[prompt.id]) {
-  //         acc[prompt.id] = {};
-  //       }
-  //       acc[prompt.id][prompt.type] = prompt.value;
-  //       return acc;
-  //     },
-  //     {}
-  //   );
-
-  //   const promptsText = Object.entries(promptsByBlock)
-  //     .map(
-  //       ([blockId, prompts]: [string, any]) =>
-  //         `Block ${blockId}:\nSystem: ${prompts.system || "None"}\nUser: ${prompts.user || "None"}\n`
-  //     )
-  //     .join("\n");
-
-  //   return promptsText;
-  // };
 
   const handleAddVariable = (newVariable: Variable) => {
     setVariables((prev) => {
@@ -414,7 +382,12 @@ export default function Notebook() {
   // And modify runAllBlocks to wait for refs
   const runAllBlocks = () => {
     console.log("Starting new run");
+    setIsRunning(true); // Show the side panel
     runBlocks(0); // Use our new implementation
+
+    // Temporarily commented out for testing - DO NOT DELETE
+    /*
+     */
   };
 
   React.useEffect(() => {
@@ -571,6 +544,7 @@ export default function Notebook() {
   } = useBlockManager();
 
   const runBlocks = async (startIndex: number = 0) => {
+    setIsRunning(true);
     const blockList = getBlockList();
     console.log("Starting run from index:", startIndex);
     if (startIndex === 0) {
@@ -581,6 +555,7 @@ export default function Notebook() {
     try {
       for (let i = startIndex; i < blockList.length; i++) {
         const block = blockList[i];
+        setCurrentBlock(block as unknown as Block); // Double cast through unknown
         setCurrentBlockIndex(i);
         console.log(`Processing block ${block.blockNumber} (${block.type})`);
 
@@ -724,6 +699,7 @@ export default function Notebook() {
       if (!isRunPaused) {
         setIsProcessing(false);
         setCurrentBlockIndex(null);
+        // Don't set isRunning to false here as we want to keep the panel open
       }
     }
   };
@@ -752,16 +728,22 @@ export default function Notebook() {
     addBlockToNotebook(newBlock);
   };
 
+  // Add a handler for ratings
+  const handleRateAgent = (isPositive: boolean) => {
+    // We can add API call or state management here later
+    console.log("Agent rated:", isPositive);
+  };
+
+  const [isRunComplete, setIsRunComplete] = useState(false);
+
   return (
     <Layout>
       <div style={pageStyle}>
-        {/* <Header
-          onApiKeyClick={() => setIsApiKeySheetOpen(true)}
-        onToolsClick={() => setIsToolsSheetOpen(true)}
-        onLogout={() => router.push("/login/signout")}
-      /> */}
         {!isLoading && agentId ? (
-          <AgentHeader />
+          <AgentHeader
+            isEditMode={isEditMode}
+            onEditModeChange={setIsEditMode}
+          />
         ) : (
           <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-900">
             <div className="flex items-center gap-4">
@@ -792,6 +774,29 @@ export default function Notebook() {
           </div>
         )}
         <main style={mainStyle}>
+          {/* DEBUG BUTTON - REMOVE BEFORE PRODUCTION */}
+          {/* <div className="flex justify-start mb-4">
+            <Button
+              onClick={() => {
+                setIsProcessing(false);
+                if (currentBlock) {
+                  setCurrentBlock({
+                    ...currentBlock,
+                    type: "agent" as Block["type"],
+                    systemPrompt: currentBlock.systemPrompt || "",
+                    userPrompt: currentBlock.userPrompt || "",
+                    saveAsCsv: currentBlock.saveAsCsv || false,
+                    modelResponse: "Test response for rating flow",
+                  });
+                  // Set isRunComplete to true to show the rating UI
+                  setIsRunComplete(true);
+                }
+              }}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white"
+            >
+              Debug: Mark Agent Done
+            </Button>
+          </div> */}
           <CollapsibleBox
             title="Agent Flow"
             variables={variables}
@@ -800,33 +805,21 @@ export default function Notebook() {
             onOpenTools={() => setIsToolsSheetOpen(true)}
             onSavePrompts={handleSavePrompts}
             blockRefs={blockRefs}
+            isEditMode={isEditMode}
+            isRunning={isRunning}
+            onMinimize={() => setIsRunning(false)}
+            currentBlock={currentBlock}
+            isRunComplete={isRunComplete}
           >
-            {/* Then render other blocks */}
-            {blocks.map((block) => renderBlock(block))}
+            {isEditMode
+              ? blocks.map((block) => renderBlock(block))
+              : blocks.length > 0 && renderBlock(blocks[0])}
+            {currentBlock && currentBlock.modelResponse && (
+              <RateAgentRun onRate={handleRateAgent} />
+            )}
           </CollapsibleBox>
-          {/* <WebAgent
-            blockNumber={1}
-            onDeleteBlock={() => {}}
-            onAddVariable={handleAddVariable}
-            onOpenTools={() => setIsToolsSheetOpen(true)}
-          /> */}
-          {/* <SearchAgent
-          blockNumber={1}
-          onDeleteBlock={() => {}}
-          onUpdateBlock={() => {}}
-          variables={variables}
-          onAddVariable={handleAddVariable}
-        /> */}
-          <div className="flex justify-end mt-4"></div>
           <div className="flex justify-center mb-4"></div>
         </main>
-        {/* <InstagramAgent
-          blockNumber={1}
-          variables={variables}
-          onDeleteBlock={() => {}}
-          onUpdateBlock={() => {}}
-          onAddVariable={handleAddVariable}
-        /> */}
         <Footer
           onRun={runAllBlocks}
           isProcessing={isProcessing}

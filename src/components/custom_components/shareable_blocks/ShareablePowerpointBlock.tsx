@@ -1,6 +1,5 @@
-import { FileCode, Info, X } from "lucide-react";
+import { Presentation, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -12,31 +11,28 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 
-interface ShareableCodeBlockProps {
+interface ShareablePowerpointBlockProps {
   blockNumber: number;
-  language: string;
-  code: string;
+  prompt: string;
+  slides: number;
   output?: string;
-  outputVariable?: {
-    name: string;
-    value?: string;
-  };
   isCompleted?: boolean;
   isProcessing?: boolean;
   thinkingEmoji?: string;
 }
 
-const CODE_BLOCK_DESCRIPTION =
-  "Code blocks let you write and execute Python code. You can use variables from other blocks and save the output to new variables.";
+const POWERPOINT_BLOCK_DESCRIPTION =
+  "PowerPoint Agent blocks let you create presentations with AI assistance. Specify the content requirements and number of slides needed.";
 
-export default function ShareableCodeBlock({
+export default function ShareablePowerpointBlock({
   blockNumber,
-  language,
-  code,
-  outputVariable,
+  prompt,
+  slides,
+  output,
+  isCompleted,
   isProcessing,
   thinkingEmoji,
-}: ShareableCodeBlockProps) {
+}: ShareablePowerpointBlockProps) {
   return (
     <div className="bg-gray-900 rounded-lg p-6 border border-gray-700">
       <div className="flex items-center mb-4">
@@ -49,16 +45,16 @@ export default function ShareableCodeBlock({
               variant="outline"
               className="flex items-center gap-1 cursor-pointer hover:bg-gray-800"
             >
-              Code <Info className="h-3 w-3" />
+              PowerPoint <Presentation className="h-3 w-3 ml-1" />
             </Badge>
           </AlertDialogTrigger>
           <AlertDialogContent className="bg-gray-900 border-gray-700">
             <AlertDialogHeader>
               <AlertDialogTitle className="text-white">
-                Code Block
+                PowerPoint Block
               </AlertDialogTitle>
               <AlertDialogDescription className="text-gray-400">
-                {CODE_BLOCK_DESCRIPTION}
+                {POWERPOINT_BLOCK_DESCRIPTION}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -71,24 +67,15 @@ export default function ShareableCodeBlock({
       </div>
       <div className="space-y-4">
         <div>
-          <p className="text-sm text-gray-400 mb-2">Language</p>
-          <div className="flex items-center gap-2">
-            <FileCode className="h-5 w-5 text-blue-400" />
-            <span className="text-white">{language}</span>
-          </div>
+          <p className="text-sm text-gray-400 mb-2">Prompt</p>
+          <p className="text-white bg-gray-800 p-3 rounded-lg">{prompt}</p>
         </div>
+
         <div>
-          <p className="text-sm text-gray-400 mb-2">Code</p>
-          <pre className="bg-gray-800 p-4 rounded-lg overflow-x-auto text-white font-mono text-sm">
-            {code}
-          </pre>
+          <p className="text-sm text-gray-400 mb-2">Number of Slides</p>
+          <p className="text-white bg-gray-800 p-3 rounded-lg">{slides}</p>
         </div>
-        {outputVariable && (
-          <div>
-            <p className="text-sm text-gray-400 mb-2">Save output as:</p>
-            <p className="text-blue-400">{outputVariable.name}</p>
-          </div>
-        )}
+
         {isProcessing && thinkingEmoji && (
           <div className="text-2xl mb-4 animate-pulse text-center">
             {thinkingEmoji}

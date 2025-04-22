@@ -1,5 +1,12 @@
 import React, { useState, CSSProperties, forwardRef } from "react";
-import { ExpandAltOutlined, ShrinkOutlined } from "@ant-design/icons";
+import {
+  ExpandAltOutlined,
+  ShrinkOutlined,
+  MinusOutlined,
+  PauseCircleOutlined,
+  CloseOutlined,
+  PauseOutlined,
+} from "@ant-design/icons";
 import AgentBlock from "./AgentBlock";
 import { ExcelAgentBlock, Variable } from "@/types/types";
 import { AgentBlockRef } from "./AgentBlock";
@@ -16,6 +23,9 @@ import CodeBlock from "./CodeBlock";
 import MakeBlock from "./MakeBlock";
 import ExcelAgent from "./ExcelAgent";
 import InstagramAgent from "./InstagramAgent";
+import { Button } from "@/components/ui/button";
+import BlockTypeDisplay from "./BlockTypeDisplay";
+import RateAgentRun from "./RateAgentRun";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -26,6 +36,8 @@ interface CollapsibleBoxProps {
   agentId?: string;
   onAddVariable?: (variable: Variable) => void;
   onOpenTools?: () => void;
+  isEditMode?: boolean;
+  isRunning?: boolean;
   onSavePrompts: (
     blockNumber: number,
     systemPrompt: string,
@@ -45,15 +57,15 @@ interface CollapsibleBoxProps {
   onContinue?: () => void;
   onStop?: () => void;
   isProcessing?: boolean;
+  onMinimize?: () => void;
+  currentBlock?: Block | null;
+  isRunComplete?: boolean;
 }
 
 const CollapsibleBox = forwardRef<
   AgentBlockRef | SearchAgentRef,
   CollapsibleBoxProps
 >((props, ref) => {
-  const [isMaximized, setIsMaximized] = useState(
-    props.isExpandedByDefault || false
-  );
   const blocks = useSourceStore((state) => state.blocks);
   const updateBlock = useSourceStore((state) => state.updateBlock);
   const addBlockToNotebook = useSourceStore(
@@ -64,6 +76,7 @@ const CollapsibleBox = forwardRef<
   const [processingBlocks, setProcessingBlocks] = useState<{
     [key: number]: boolean;
   }>({});
+  const [hasRated, setHasRated] = useState(false);
 
   const addNewBlock = (
     blockType: "agent" | "checkin" | "searchagent" | "codeblock" | "make"
@@ -109,7 +122,6 @@ const CollapsibleBox = forwardRef<
     padding: "16px",
     position: "relative",
     transition: "all 0.3s ease",
-    height: isMaximized ? "auto" : "120px",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
@@ -424,26 +436,129 @@ const CollapsibleBox = forwardRef<
     }
   };
 
+  const handleButtonClick = () => {
+    if (hasRated) {
+      props.onMinimize?.();
+    } else if (props.onStop) {
+      props.onStop();
+    }
+  };
+
+  const handleRatingSubmit = () => {
+    setHasRated(true);
+  };
+
   return (
-    <div style={boxStyle}>
-      <div className="font-bold text-lg mb-2">{props.title}</div>
+    <div className="flex w-full gap-4">
       <div
-        className="absolute top-4 right-4 cursor-pointer"
-        onClick={() => setIsMaximized(!isMaximized)}
+        style={{
+          ...boxStyle,
+          width: props.isRunning && !props.isEditMode ? "50%" : "100%",
+          transition: "width 0.3s ease-in-out",
+        }}
       >
-        {isMaximized ? <ShrinkOutlined /> : <ExpandAltOutlined />}
+        <div className="font-bold text-lg mb-2">
+          {!props.isEditMode && (
+            <div className="text-xl mb-4 text-blue-500">Start Flow</div>
+          )}
+          {props.title}
+        </div>
+        <div style={contentStyle}>
+          {props.title === "Agent Flow" ? (
+            <>
+              <div style={blockContainerStyle}>
+                {props.isEditMode ? (
+                  blocks.map((block) => renderBlock(block))
+                ) : (
+                  <>
+                    {blocks.length > 0 && renderBlock(blocks[0])}
+                    {blocks.length > 1 && (
+                      <div className="text-gray-400 text-sm mt-4 italic">
+                        and {blocks.length - 1} more block
+                        {blocks.length > 2 ? "s" : ""}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            props.children
+          )}
+        </div>
       </div>
-      <div style={contentStyle}>
-        {props.title === "Agent Flow" ? (
-          <>
-            <div style={blockContainerStyle}>
-              {blocks.map((block) => renderBlock(block))}
-            </div>
-          </>
-        ) : (
-          props.children
-        )}
-      </div>
+
+      {/* Side Panel */}
+      {props.isRunning && !props.isEditMode && (
+        <div
+          className="w-1/2 bg-white rounded-lg shadow-lg fixed right-0 h-screen"
+          style={{
+            animation: "slideIn 0.3s ease-in-out",
+            top: "72px",
+            height: "calc(100vh - 72px)",
+          }}
+        >
+          <style jsx>{`
+            @keyframes slideIn {
+              from {
+                transform: translateX(100%);
+                opacity: 0;
+              }
+              to {
+                transform: translateX(0);
+                opacity: 1;
+              }
+            }
+          `}</style>
+          <div
+            className="absolute top-6 right-6 cursor-pointer text-black hover:text-gray-700 p-2 bg-gray-100 rounded-full"
+            onClick={() => props.onMinimize?.()}
+          >
+            <MinusOutlined style={{ fontSize: "24px" }} />
+          </div>
+          <div className="text-black p-6 flex flex-col h-full">
+            {props.currentBlock ? (
+              <div className="flex-grow flex items-center justify-center">
+                {props.isRunComplete ? (
+                  <RateAgentRun onRate={handleRatingSubmit} />
+                ) : (
+                  <BlockTypeDisplay
+                    blockType={props.currentBlock.type}
+                    blockNumber={props.currentBlock.blockNumber}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="flex-grow flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-6xl mb-4">⏳</div>
+                  <div className="text-xl text-gray-700">
+                    Waiting to start...
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pause/Close Button */}
+            <Button
+              className="w-full bg-[#09CE6B] hover:bg-[#07b55d] text-white rounded-lg py-6 mt-4 text-lg font-medium"
+              onClick={handleButtonClick}
+            >
+              {hasRated ? (
+                <>
+                  <CloseOutlined className="mr-2 text-xl" />
+                  Close
+                </>
+              ) : (
+                <>
+                  <PauseOutlined className="mr-2 text-xl" />
+                  Pause & Edit
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

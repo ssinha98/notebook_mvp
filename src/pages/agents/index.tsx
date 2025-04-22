@@ -37,26 +37,29 @@ import {
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import AgentsList from "@/components/custom_components/AgentList";
+import AgentTasks from "@/components/custom_components/AgentTasks";
+import ScheduledAgents from "@/components/custom_components/ScheduledAgents";
+import { AgentTask } from "@/types/types";
 
 // Dummy data for tasks
-const tasks = [
-  {
-    id: 1,
-    name: "Review cold email drafts",
-    agent: "Sales Agent",
-    completed: false,
-  },
-  {
-    id: 2,
-    name: "Confirm website URLs from incoming lead form",
-    agent: "Data Analysis Agent",
-    completed: false,
-  },
-];
+// const tasks = [
+//   {
+//     id: 1,
+//     name: "Review cold email drafts",
+//     agent: "Sales Agent",
+//     completed: false,
+//   },
+//   {
+//     id: 2,
+//     name: "Confirm website URLs from incoming lead form",
+//     agent: "Data Analysis Agent",
+//     completed: false,
+//   },
+// ];
 
 export default function AgentsPage() {
   const router = useRouter();
-  const { loadAgent } = useAgentStore();
+  const { loadAgent, agents } = useAgentStore();
   const [activeTab, setActiveTab] = useState("cost");
 
   const handleAgentSelect = async (agentId: string) => {
@@ -66,6 +69,14 @@ export default function AgentsPage() {
   const handlePerformanceClick = (agentId: string) => {
     router.push(`/agents/performance/${agentId}`);
   };
+
+  const agentNames = agents.reduce(
+    (acc, agent) => {
+      acc[agent.id] = agent.name;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
 
   return (
     <Layout>
@@ -132,6 +143,15 @@ export default function AgentsPage() {
           💡 Need inspiration? Check out our Agent Store for a set of pre-built
           agents.
           <ArrowRightOutlined />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="p-4">
+            <AgentTasks agentNames={agentNames} />
+          </div>
+          <div className="p-4">
+            <ScheduledAgents />
+          </div>
         </div>
 
         <AgentsList onAgentSelect={handleAgentSelect} />

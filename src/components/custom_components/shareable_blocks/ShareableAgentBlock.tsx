@@ -126,13 +126,6 @@ export default function ShareableAgentBlock({
         {isProcessing && thinkingEmoji && (
           <div className="text-2xl mb-4 animate-pulse">{thinkingEmoji}</div>
         )}
-        {isCompleted && output && (
-          <div className="mt-4 p-4 bg-gray-800 rounded-lg">
-            <p className="text-sm text-gray-300 whitespace-pre-wrap">
-              {output}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -2,12 +2,13 @@ import { useRouter } from "next/router";
 import { useState, useEffect, useCallback } from "react";
 import PublicLayout from "@/components/PublicLayout";
 import { Button } from "@/components/ui/button";
-import { PlayIcon, StopIcon } from "@heroicons/react/24/solid";
+import { PlayIcon, StopIcon, LockClosedIcon } from "@heroicons/react/24/solid";
 import { Share2, Mail } from "lucide-react";
 import {
   ArrowLeftIcon,
   InformationCircleIcon,
 } from "@heroicons/react/24/outline";
+import { MinusOutlined } from "@ant-design/icons";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,14 @@ import ShareableMakeBlock from "@/components/custom_components/shareable_blocks/
 import ShareableInstagramAgent from "@/components/custom_components/shareable_blocks/ShareableInstagramAgent";
 import { ShareableInstagramBlock } from "@/types/shareable_blocks";
 import ShareableSearchBlock from "@/components/custom_components/shareable_blocks/ShareableSearchBlock";
-
+import { Switch } from "@/components/ui/switch";
+import BlockTypeDisplay from "@/components/custom_components/BlockTypeDisplay";
+import RateAgentRun from "@/components/custom_components/RateAgentRun";
+import ShareablePowerpointBlock from "@/components/custom_components/shareable_blocks/ShareablePowerpointBlock";
+import ShareableDocDiffBlock from "@/components/custom_components/shareable_blocks/ShareableDocDiff";
+import { ShareableDocDiffBlock as ShareableDocDiffBlockType } from "../../types/shareable_blocks";
+import { ShareableDocAnnotatorBlock as ShareableDocAnnotatorBlockType } from "../../types/shareable_blocks";
+import ShareableDocAnnotatorBlock from "@/components/custom_components/shareable_blocks/ShareableDocAnnotator";
 // Enum for run states
 enum RunState {
   NOT_STARTED = "NOT_STARTED",
@@ -78,7 +86,7 @@ interface ShareableCheckinBlock extends BaseShareableBlock {
 }
 
 interface ShareableCodeBlock extends BaseShareableBlock {
-  type: "code";
+  type: "codeblock";
   language: string;
   code: string;
 }
@@ -90,12 +98,12 @@ interface ShareableMakeBlock extends BaseShareableBlock {
 }
 
 interface ShareableExcelBlock extends BaseShareableBlock {
-  type: "excel";
+  type: "excelagent";
   userPrompt: string;
 }
 
 interface ShareableSearchBlock extends BaseShareableBlock {
-  type: "search";
+  type: "searchagent";
   engine: "search" | "news" | "finance" | "markets" | "image";
   query: string;
   limit: number;
@@ -112,6 +120,12 @@ interface ShareableSearchBlock extends BaseShareableBlock {
   }[];
 }
 
+interface ShareablePowerpointBlock extends BaseShareableBlock {
+  type: "powerpoint";
+  prompt: string;
+  slides: number;
+}
+
 // Update the ShareableBlock type
 type ShareableBlock =
   | ShareableAgentBlock
@@ -122,7 +136,10 @@ type ShareableBlock =
   | ShareableMakeBlock
   | ShareableExcelBlock
   | ShareableInstagramBlock
-  | ShareableSearchBlock;
+  | ShareableSearchBlock
+  | ShareablePowerpointBlock
+  | ShareableDocDiffBlockType
+  | ShareableDocAnnotatorBlockType;
 
 interface ShareableAgent {
   id: string;
@@ -166,7 +183,7 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
 - Companies are using Al tools to enhance productivity, automate routine tasks, and drive innovation.
 - The research in the document examines the sentiment of over 2,000 professionals across various industries towards Al adoption.
 - 78% of respondents found Al as a useful tool in their daily work, stating that it increases efficiency, reduces manual workload, and improves decision-making.
-- 65% of surveyed professionals believe that Al enables them to focus on high-value tasks, thereby improving job satisfaction.
+- 65% of surveyed professionals believe that Al enables them to focus more on high-value tasks, thereby improving job satisfaction.
 - The study concludes that there's a positive correlation between Al adoption and both workplace efficiency and employee satisfaction, underscoring the benefits of responsible Al integration in professional`,
       },
       {
@@ -1161,7 +1178,7 @@ Chair, 5.5,825`,
       },
       {
         id: "block3",
-        type: "excel",
+        type: "excelagent",
         blockNumber: 3,
         userPrompt:
           "Make a spreadsheet showing the analysis of sales data - make the font calibri everywhere. Make a table with {{sales_data_summary}} - bold the headers. Also make a bar chart, with {{written_summary}} as the label.",
@@ -1249,7 +1266,7 @@ Chair, 5.5,825`,
       },
       {
         id: "block2",
-        type: "code",
+        type: "codeblock",
         blockNumber: 2,
         language: "python",
         code: `import requests
@@ -1316,36 +1333,336 @@ print(weather_data)`,
             imageUrl:
               "data:image/jpeg;base64,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",
             caption:
-              "We're re-releasing our chocolate covered strawberries for the Holiday Season",
-            likes: 850,
-            comments: 32,
-            timestamp: "2024-03-19T09:15:00Z",
+              "New! Chobani Greek Yogurt, now in 100% recyclable packaging",
+            likes: 1200,
+            comments: 45,
+            timestamp: "2024-03-20T15:30:00Z",
+          },
+          {
+            imageUrl:
+              "https://upload.wikimedia.org/wikipedia/commons/9/92/UFC_Logo.svg",
+            caption: "Tune into UFC 400 on ESPN Live!",
+            likes: 1200,
+            comments: 45,
+            timestamp: "2024-03-20T15:30:00Z",
+          },
+          {
+            imageUrl:
+              "https://media.video-cdn.espn.com/motion/2024/0601/dm_240601_UFC_Poirier_DVC_Edit_date_with_destiny/dm_240601_UFC_Poirier_DVC_Edit_date_with_destiny.jpg",
+            caption: "Catch Dustin fight for the belt on UFC 400",
+            likes: 1200,
+            comments: 45,
+            timestamp: "2024-03-20T15:30:00Z",
           },
         ]),
-        outputVariable: {
-          name: "instagram_posts",
-        },
       },
       {
         id: "block2",
         type: "agent",
         blockNumber: 2,
         userPrompt:
-          "Analyse instagram_output, and identify posts related to new product annoucnements and/or posts that reference packaging",
-        outputVariable: {
-          name: "profile_analysis",
+          "You are a social media manager for a sports promotion, and you have an upcoming event (UFC 400 on June 16th 2025). Review {{instagram_results}}, and identify any comments in the posts that ask questions about the events, or comments that are getting a lot of likes for you to engage with. For each, give me the post id, the username of the poster, the comment and the suggested reply",
+        attachedFile: {
+          name: "instagram_results.pdf",
+          type: "pdf",
+          url: "https://drive.google.com/file/d/1SWvBJxN7VQy-JPly6vAmxQ0blXUhFFto/view?usp=sharing",
+          content: "Instagram results...",
         },
-        output:
-          "The following post includes a areference to a new product launch, and a new kind of packaging: Caption - 'We're re-releasing our chocolate covered strawberries for the Holiday Season'(https://m.media-amazon.com/images/I/71n5WjmCrcL.jpg) ",
+        outputVariable: {
+          name: "instagram_results",
+        },
+        output: `{
+          "post_id": "pk72927848",
+          "commenter": "mma_fan_2024",
+          "comment": "Will there be a live stream option for international fans?",
+          "reply": "Yes! UFC 400 will be available worldwide through UFC Fight Pass and our official broadcasting partners. Stay tuned for the full list of streaming options in your region! 🌎 #UFC400"
+        }, {
+          "post_id": "pk10122",
+          "commenter": "sahil_sinha",
+          "comment": "casual fans don't undersetand why this is huge 🔥",
+          "reply": "No casuals allowed ❌"
+        }`,
       },
       {
         id: "block3",
-        type: "contact",
+        type: "make",
         blockNumber: 3,
-        to: "your_email@company.com",
-        subject: "Instagram Profile watcher",
-        body: "{{profile_analysis}}",
-        output: "✉️ Sent!",
+        webhookUrl: "https://hook.make.com/ig-automation",
+        output: "Comments were synced using Make Scenario 30482",
+        parameters: [
+          {
+            key: "post_id",
+            value: "{{instagram_results.post_id}}",
+          },
+          {
+            key: "commenter",
+            value: "{{instagram_results.commenter}}",
+          },
+          {
+            key: "reply",
+            value: "{{instagram_results.reply}}",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "powerpoint-agent",
+    name: "Data to Powerpoint Agent",
+    description:
+      "Create professional PowerPoint presentations with AI assistance",
+    agentDescription:
+      "Benefit Metrics: saves ~2-3 hours per presentation by automating slide creation and formatting. This agent helps create professional presentations quickly.",
+    tags: ["Content", "Marketing"],
+    blocks: [
+      {
+        id: "block1",
+        type: "agent",
+        blockNumber: 1,
+        userPrompt:
+          "@sales.csv represents raw sales data from our last 1 month of sales. Give me the average dollars and units sold per product, and per region.",
+        attachedFile: {
+          name: "april_sales.csv",
+          type: "csv",
+          url: "https://drive.google.com/file/d/1IzrBjZfEZqV5ol55BfDpdAQZo-ZP2hzZ/view?usp=sharing",
+          content: "Raw sales data for April 2025",
+        },
+        outputVariable: {
+          name: "analysis",
+        },
+        output: `Model Response:
+Group,Avg Units Sold,Avg Dollars Sold
+Product: Headphones,36.375,5456.25
+Product: Keyboard,63.857143,6385.714286
+Product: Laptop,42.25,42250.0
+Product: Monitor,46.857143,14057.142857
+Product: Mouse,47.0,2350.0
+Product: Smartphone,55.625,44550.0
+Product: Tablet,55.9,30000.0
+City: Chicago,32.0,15400.0
+City: Houston,46.25,6806.25
+City: Los Angeles,58.4,23690.0
+City: New York,61.2,33400.0
+City: Philadelphia,46.375,24087.5
+City: Phoenix,36.6,20510.0
+City: San Antonio,50.625,35775.0
+`,
+      },
+      {
+        id: "block2",
+        type: "codeblock",
+        blockNumber: 2,
+        language: "python",
+        code: `
+import pandas as pd
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import requests
+from io import BytesIO
+
+# Step 1: Load CSV
+df = pd.read_csv("sales_data_demo.csv")
+
+# Step 2: Map cities to states
+city_to_state = {
+    'New York': 'New York',
+    'Houston': 'Texas',
+    'San Antonio': 'Texas',
+    'Phoenix': 'Arizona',
+    'Philadelphia': 'Pennsylvania'
+}
+df['State'] = df['City'].map(city_to_state)
+
+# Step 3: Group by state
+units_per_state = df.groupby('State')['Units Sold'].sum().reset_index()
+
+# Step 4: Load US states geometry
+geojson_url = "https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json"
+response = requests.get(geojson_url)
+states = gpd.read_file(BytesIO(response.content))
+
+# Step 5: Merge sales data into map
+choropleth_data = states.merge(units_per_state, how='left', left_on='name', right_on='State')
+choropleth_data['Units Sold'] = choropleth_data['Units Sold'].fillna(0)
+
+# Step 6: Plot
+fig, ax = plt.subplots(figsize=(15, 10))
+choropleth_data.plot(column='Units Sold', ax=ax, cmap='Blues', edgecolor='black', legend=True)
+ax.set_title("Units Sold by State", fontsize=18)
+ax.axis("off")
+
+plt.tight_layout()
+plt.savefig("units_sold_map.png")
+plt.show()
+`,
+        outputVariable: {
+          name: "data_viz",
+        },
+        output:
+          "✅ code run successfully! Find the image at this link: https://drive.google.com/file/d/1XvdMrgtK9NOjHbRXmWc9TuM3i4jNRN90/view?usp=sharing",
+      },
+      {
+        id: "block3",
+        type: "agent",
+        // output: `https://www.usesolari.ai/`,
+        blockNumber: 3,
+        userPrompt:
+          "take {{analysis}}, and create 2-3 sentence summaries, summarizing each point. these will go in a powerpoint presnting the data, alongside a chart. speak in a professional and concise manner.",
+        // slides: 3,
+        outputVariable: {
+          name: "analysis_summary",
+        },
+        output: `
+Per Product Insights
+	•	Smartphones had the highest average dollar value per sale at $44,550, with an average of 55 units sold per entry — making it your top high-ticket item.
+	•	Laptops followed closely with $42,250 average revenue, though with fewer units sold (42 avg) — indicating fewer but larger transactions.
+	•	Monitors and Tablets had solid performance too, averaging $14,057 and $30,000 respectively.
+	•	Headphones, Keyboards, and Mice had much lower revenue per transaction (around $2K–$6K), suggesting they're lower-cost, higher-volume items.
+Per City Insights
+	•	New York leads in both units sold (61.2 avg) and revenue per entry ($33,400), indicating it's your strongest performing region.
+	•	San Antonio and Los Angeles also perform well, averaging over $23K–$35K in sales.
+	•	Philadelphia shows moderate volume but strong revenue, suggesting balanced performance.
+	•	Phoenix and Chicago trail in both units and revenue, potentially signaling underperforming regions or opportunities for growth.
+          `,
+      },
+      {
+        id: "block4",
+        type: "powerpoint",
+        blockNumber: 4,
+        prompt:
+          "create a 3-slide presentation about the sales data. Include {{analysis_summary}} in the first slide, and {{data_viz}} in the second slide.",
+        slides: 3,
+        output:
+          "https://docs.google.com/presentation/d/1L8-goD0L-okVxsrZe5NvOKXUmOVl_Wse_HBQlRTBlf8/edit?usp=sharing",
+      },
+    ],
+  },
+  {
+    id: "data-viz-excel-agent",
+    name: "Data to Spreadsheet + Data Viz Agent",
+    description: "Create professional Excel spreadsheets with AI assistance",
+    agentDescription:
+      "Benefit Metrics: saves ~2-3 hours per presentation by automating spreadsheet creation and formatting. This agent helps create professional spreadsheets quickly.",
+    tags: ["Content", "Marketing"],
+    blocks: [
+      {
+        id: "block1",
+        type: "agent",
+        blockNumber: 1,
+        userPrompt:
+          "@sales.csv represents raw sales data from our last 1 month of sales. Give me the average dollars and units sold per product, and per region.",
+        attachedFile: {
+          name: "april_sales.csv",
+          type: "csv",
+          url: "https://drive.google.com/file/d/1IzrBjZfEZqV5ol55BfDpdAQZo-ZP2hzZ/view?usp=sharing",
+          content: "Raw sales data for April 2025",
+        },
+        outputVariable: {
+          name: "analysis",
+        },
+        output: `Model Response:
+Group,Avg Units Sold,Avg Dollars Sold
+Product: Headphones,36.375,5456.25
+Product: Keyboard,63.857143,6385.714286
+Product: Laptop,42.25,42250.0
+Product: Monitor,46.857143,14057.142857
+Product: Mouse,47.0,2350.0
+Product: Smartphone,55.625,44550.0
+Product: Tablet,55.9,30000.0
+City: Chicago,32.0,15400.0
+City: Houston,46.25,6806.25
+City: Los Angeles,58.4,23690.0
+City: New York,61.2,33400.0
+City: Philadelphia,46.375,24087.5
+City: Phoenix,36.6,20510.0
+City: San Antonio,50.625,35775.0
+`,
+      },
+      {
+        id: "block2",
+        type: "codeblock",
+        blockNumber: 2,
+        language: "python",
+        code: `
+import pandas as pd
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import requests
+from io import BytesIO
+
+# Step 1: Load CSV
+df = pd.read_csv("sales_data_demo.csv")
+
+# Step 2: Map cities to states
+city_to_state = {
+    'New York': 'New York',
+    'Houston': 'Texas',
+    'San Antonio': 'Texas',
+    'Phoenix': 'Arizona',
+    'Philadelphia': 'Pennsylvania'
+}
+df['State'] = df['City'].map(city_to_state)
+
+# Step 3: Group by state
+units_per_state = df.groupby('State')['Units Sold'].sum().reset_index()
+
+# Step 4: Load US states geometry
+geojson_url = "https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json"
+response = requests.get(geojson_url)
+states = gpd.read_file(BytesIO(response.content))
+
+# Step 5: Merge sales data into map
+choropleth_data = states.merge(units_per_state, how='left', left_on='name', right_on='State')
+choropleth_data['Units Sold'] = choropleth_data['Units Sold'].fillna(0)
+
+# Step 6: Plot
+fig, ax = plt.subplots(figsize=(15, 10))
+choropleth_data.plot(column='Units Sold', ax=ax, cmap='Blues', edgecolor='black', legend=True)
+ax.set_title("Units Sold by State", fontsize=18)
+ax.axis("off")
+
+plt.tight_layout()
+plt.savefig("units_sold_map.png")
+plt.show()
+`,
+        outputVariable: {
+          name: "data_viz",
+        },
+        output:
+          "✅ code run successfully! Find the image at this link: https://drive.google.com/file/d/1XvdMrgtK9NOjHbRXmWc9TuM3i4jNRN90/view?usp=sharing",
+      },
+      {
+        id: "block3",
+        type: "agent",
+        blockNumber: 3,
+        userPrompt:
+          "take {{analysis}}, and create 2-3 sentence summaries, summarizing each point. these will go in a spreadsheet presnting the data, alongside a chart. speak in a professional and concise manner.",
+        // slides: 3,
+        outputVariable: {
+          name: "analysis_summary",
+        },
+        output: `
+Per Product Insights
+	•	Smartphones had the highest average dollar value per sale at $44,550, with an average of 55 units sold per entry — making it your top high-ticket item.
+	•	Laptops followed closely with $42,250 average revenue, though with fewer units sold (42 avg) — indicating fewer but larger transactions.
+	•	Monitors and Tablets had solid performance too, averaging $14,057 and $30,000 respectively.
+	•	Headphones, Keyboards, and Mice had much lower revenue per transaction (around $2K–$6K), suggesting they're lower-cost, higher-volume items.
+Per City Insights
+	•	New York leads in both units sold (61.2 avg) and revenue per entry ($33,400), indicating it's your strongest performing region.
+	•	San Antonio and Los Angeles also perform well, averaging over $23K–$35K in sales.
+	•	Philadelphia shows moderate volume but strong revenue, suggesting balanced performance.
+	•	Phoenix and Chicago trail in both units and revenue, potentially signaling underperforming regions or opportunities for growth.
+          `,
+      },
+      {
+        id: "block4",
+        type: "excelagent",
+        blockNumber: 4,
+        userPrompt:
+          "Make a table with the sales and product data with bolded headers. Also make a bar chart showing both tables, include {{analysis_summary}} as the caption to both tables. Also include {{data_viz}} as the chart.",
+        // slides: 3,
+        output:
+          "https://docs.google.com/spreadsheets/d/1MnY_36sqFLThKmOQFfp1Czb0FV74MB9cuCVFnYH6VKk/edit?usp=sharing",
       },
     ],
   },
@@ -1380,16 +1697,16 @@ print(weather_data)`,
             imageUrl:
               "data:image/jpeg;base64,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",
             caption:
-              "We're re-releasing our chocolate covered strawberries for the Holiday Season",
-            likes: 850,
-            comments: 32,
-            timestamp: "2024-03-19T09:15:00Z",
+              "New! Chobani Greek Yogurt, now in 100% recyclable packaging",
+            likes: 1200,
+            comments: 45,
+            timestamp: "2024-03-20T15:30:00Z",
           },
         ]),
       },
       {
         id: "block2",
-        type: "search",
+        type: "searchagent",
         blockNumber: 2,
         engine: "image",
         query: "Chobani Packaging",
@@ -1422,6 +1739,7 @@ print(weather_data)`,
         blockNumber: 3,
         userPrompt:
           "You're a sales analyst, reviewing a prospective customers google image results and instagram content, for mentions of recycleable content. Analyse  {{image_results_analysi}} and {{instagram_posts}}, and summarize the results in a concise emaill. ",
+        // slides: 3,
         outputVariable: {
           name: "market_analysis",
         },
@@ -1517,6 +1835,70 @@ print(weather_data)`,
       },
     ],
   },
+  // {
+  //   id: "doc-diff-agent",
+  //   name: "Document Diff Agent",
+  //   description: "Compare and analyze differences between two documents",
+  //   agentDescription:
+  //     "Benefit Metrics: saves time by automatically highlighting differences between document versions",
+  //   tags: ["Document Analysis", "Content"],
+  //   blocks: [
+  //     {
+  //       id: "block1",
+  //       type: "docannotator",
+  //       blockNumber: 1,
+  //       document: "This is the original document content",
+  //       annotations: [
+  //         {
+  //           text: "This is the modified document content",
+  //           comment: "This is the comment",
+  //           startIndex: 0,
+  //           endIndex: 10,
+  //         },
+  //       ],
+  //     },
+  //   ],
+  // },
+  {
+    id: "doc-annotator",
+    name: "Document Annotator",
+    description: "Extract and annotate key information from documents",
+    agentDescription:
+      "Benefit Metrics: Automatically identifies and extracts relevant information from documents",
+    tags: ["Document", "Analysis"],
+    blocks: [
+      {
+        id: "block1",
+        type: "docannotator",
+        blockNumber: 1,
+        sourceName: "Investor call transcript",
+        sourceLink:
+          "https://docs.google.com/document/d/129-MgWwNgxWNAQ-_wgPM8C-TRToLalsWnCG9qKfWyYE/edit?usp=sharing",
+        prompt: "identify any conversations about mergers and acquisitions",
+        annotatedDocLink:
+          "https://drive.google.com/file/d/14KmW2bd4CtWxi9dfgw-F8OZMjKbeB-9m/preview",
+        extractedChunks: [
+          "mergers & acquisitions",
+          "strategic M&A opportunities",
+          "early conversations with a European data modeling startup",
+          "finalized an acquisition of OpsBot",
+        ],
+        isCompleted: true,
+        output: "Extraction complete!",
+      },
+      {
+        id: "block2",
+        type: "agent",
+        blockNumber: 2,
+        userPrompt:
+          "{{transcript_extraction}} represents the parts of an investor call, related to mergers and acquisitions. @investor_call_transcript represents the full transcript. Produce a concise summary of what the company is sayign to investors, specifically about mergers and acquisitions.",
+        outputVariable: {
+          name: "summary",
+        },
+        output: `Summary of Mergers & Acquisitions Discussion: The company is actively pursuing strategic mergers and acquisitions to enhance its product offerings. For Flow, they are exploring opportunities in the document summarization space. Beacon may see an expansion through early-stage discussions with a European data modeling startup. Most notably, Nexus has finalized the acquisition of OpsBot, a lightweight SRE monitoring tool, which will be integrated by Q3. These moves reflect a targeted approach to expanding capabilities across all core products.`,
+      },
+    ],
+  },
 ];
 
 // Helper function within the same file
@@ -1541,6 +1923,21 @@ export default function SharedAgentPage() {
   const [thinkingEmoji, setThinkingEmoji] = useState("🤔");
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showInfoDialog, setShowInfoDialog] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [currentBlock, setCurrentBlock] = useState<ShareableBlock | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentBlockIndex, setCurrentBlockIndex] = useState<number | null>(
+    null
+  );
+  const [displaySwitchState, setDisplaySwitchState] = useState(false);
+
+  // Add effect to start processing when entering edit mode
+  // useEffect(() => {
+  //   if (isEditMode && agentData) {
+  //     processBlocks();
+  //   }
+  // }, [isEditMode, agentData]);
 
   const cycleEmoji = useCallback(() => {
     const emojis = ["🤔", "🧠", "💭"];
@@ -1553,34 +1950,39 @@ export default function SharedAgentPage() {
   const processBlocks = async () => {
     setRunState(RunState.RUNNING);
     setCompletedBlocks([]);
+    setIsProcessing(true);
 
     for (let i = 0; i < agentData!.blocks.length; i++) {
       setProcessingBlockIndex(i);
+      setCurrentBlock(agentData!.blocks[i]);
 
       // Start emoji cycling
       const emojiInterval = setInterval(cycleEmoji, 500);
 
-      // Wait 3 seconds instead of 5
+      // Wait 3 seconds
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Stop emoji cycling and show output
       clearInterval(emojiInterval);
       setCompletedBlocks((prev) => [...prev, i]);
 
-      // If this is the last block, mark as completed and show info dialog after a delay
+      // If this is the last block, mark as completed
       if (i === agentData!.blocks.length - 1) {
         setRunState(RunState.COMPLETED);
         setProcessingBlockIndex(null);
-        // Wait 3 seconds before showing the info dialog
-        setTimeout(() => {
-          setShowInfoDialog(true);
-        }, 3000);
+        setIsProcessing(false);
       }
     }
   };
 
   const handleRunAgent = () => {
+    if (!agentData) return;
+    setRunState(RunState.RUNNING);
     processBlocks();
+    if (agentData.blocks.length > 0) {
+      setCurrentBlock(agentData.blocks[0]);
+      setIsPanelOpen(true);
+    }
   };
 
   const handleStopAgent = () => {
@@ -1606,6 +2008,31 @@ export default function SharedAgentPage() {
   const handleGetInTouch = () => {
     window.location.href = "mailto:sahil@lytix.co";
   };
+
+  const handleClosePanel = () => {
+    console.log("Closing panel...");
+    console.log("Before:", { isPanelOpen, currentBlock, runState });
+    setIsPanelOpen(false);
+    setCurrentBlock(null);
+    setRunState(RunState.COMPLETED);
+    console.log("After:", {
+      isPanelOpen: false,
+      currentBlock: null,
+      runState: RunState.COMPLETED,
+    });
+  };
+
+  // Add effect to track panel state changes
+  useEffect(() => {
+    console.log("Panel state changed:", { isPanelOpen });
+  }, [isPanelOpen]);
+
+  // Add effect to close panel when switching to edit mode
+  useEffect(() => {
+    if (isEditMode && isPanelOpen) {
+      handleClosePanel();
+    }
+  }, [isEditMode]);
 
   // Dynamic footer content based on run state
   const renderFooterContent = () => {
@@ -1715,7 +2142,7 @@ export default function SharedAgentPage() {
               postCount={block.postCount}
             />
           );
-        case "search":
+        case "searchagent":
           return (
             <ShareableSearchBlock
               {...commonProps}
@@ -1739,6 +2166,48 @@ export default function SharedAgentPage() {
               parameters={block.parameters}
             />
           );
+        case "powerpoint":
+          return (
+            <ShareablePowerpointBlock
+              {...commonProps}
+              prompt={block.prompt}
+              slides={block.slides}
+            />
+          );
+        case "excelagent":
+          return (
+            <ShareableExcelAgent
+              {...commonProps}
+              userPrompt={block.userPrompt}
+            />
+          );
+        case "codeblock":
+          return (
+            <ShareableCodeBlock
+              {...commonProps}
+              language={block.language}
+              code={block.code}
+            />
+          );
+        case "docdiff":
+          return (
+            <ShareableDocDiffBlock
+              {...commonProps}
+              originalDoc={block.originalDoc}
+              modifiedDoc={block.modifiedDoc}
+            />
+          );
+        case "docannotator":
+          return (
+            <ShareableDocAnnotatorBlock
+              {...commonProps}
+              sourceName={block.sourceName}
+              sourceLink={block.sourceLink}
+              prompt={block.prompt}
+              annotatedDocLink={block.annotatedDocLink}
+              extractedChunks={block.extractedChunks}
+            />
+          );
         default:
           return null;
       }
@@ -1757,6 +2226,26 @@ export default function SharedAgentPage() {
       setIsLoading(false);
     }
   }, [agentId]);
+
+  const handleRateAgent = (isPositive: boolean) => {
+    console.log("Agent rated:", isPositive);
+  };
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (runState === RunState.COMPLETED) {
+      interval = setInterval(() => {
+        setDisplaySwitchState((prev) => !prev);
+      }, 3000); // Toggle every 3 seconds
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [runState]);
 
   if (isLoading) {
     return (
@@ -1780,153 +2269,263 @@ export default function SharedAgentPage() {
 
   return (
     <PublicLayout>
-      <div className="min-h-screen flex flex-col bg-[#141414]">
-        {/* Sticky Header */}
-        <header className="sticky top-0 z-50 bg-gray-900 border-b border-gray-700">
-          <div className="max-w-screen-xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-cente<r">
-                <Button
-                  variant="ghost"
+      <div className="min-h-screen flex flex-col">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-gray-900 border-b border-gray-700">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center justify-between py-4">
+              <div className="flex items-center space-x-4">
+                <button
                   onClick={handleBack}
-                  className="mr-4 text-gray-300 hover:text-white"
+                  className="text-gray-400 hover:text-white"
                 >
-                  <ArrowLeftIcon className="h-5 w-5" />
-                </Button>
+                  <ArrowLeftIcon className="h-6 w-6" />
+                </button>
                 <h1 className="text-xl font-semibold text-white">
-                  {agentData?.name}
+                  {agentData.name}
                 </h1>
+                <button
+                  onClick={() => setShowInfoDialog(true)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <InformationCircleIcon className="h-6 w-6" />
+                </button>
               </div>
-
-              {/* Info Button with Dialog */}
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="flex items-center gap-2 text-gray-300 hover:text-white border-gray-700"
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-lg">
+                  <span
+                    className={`text-sm ${!isEditMode ? "text-white" : "text-gray-400"}`}
                   >
-                    <InformationCircleIcon className="h-5 w-5" />
-                    Agent Info
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-gray-900 border-gray-700">
-                  <DialogHeader>
-                    <DialogTitle className="text-white">
-                      {agentData?.name}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="text-gray-300 space-y-4">
-                    <div>
-                      <p
-                        className="text-sm"
-                        dangerouslySetInnerHTML={{
-                          __html: agentData?.agentDescription || "",
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-400 mb-2">
-                        Tags
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {agentData?.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="px-2 py-1 bg-gray-800 rounded-full text-xs text-gray-300"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div></div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-grow container mx-auto px-4 py-6">
-          <div className="space-y-6">
-            <p className="text-gray-400 mb-6">{agentData.description}</p>
-            {agentData.blocks.map((block, index) => renderBlock(block))}
-          </div>
-        </main>
-
-        {/* Sticky Footer */}
-        <footer className="sticky bottom-0 z-50 bg-gray-900 border-t border-gray-700 py-4">
-          {renderFooterContent()}
-        </footer>
-
-        {/* Info Dialog */}
-        <Dialog open={showInfoDialog} onOpenChange={setShowInfoDialog}>
-          <DialogContent className="bg-gray-900 border-gray-700">
-            <DialogHeader>
-              <DialogTitle className="text-white">
-                {agentData?.name}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="text-gray-300 space-y-4">
-              <div>
-                <p
-                  className="text-sm"
-                  dangerouslySetInnerHTML={{
-                    __html: agentData?.agentDescription || "",
-                  }}
-                />
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-gray-400 mb-2">Tags</h4>
-                <div className="flex flex-wrap gap-2">
-                  {agentData?.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-1 bg-gray-800 rounded-full text-xs text-gray-300"
-                    >
-                      {tag}
-                    </span>
-                  ))}
+                    View
+                  </span>
+                  <Switch
+                    checked={isEditMode}
+                    onCheckedChange={setIsEditMode}
+                    className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-600 h-6 w-11 [&>span]:h-5 [&>span]:w-5 [&>span]:bg-white"
+                  />
+                  <span
+                    className={`text-sm ${isEditMode ? "text-white" : "text-gray-400"}`}
+                  >
+                    Edit
+                  </span>
                 </div>
               </div>
             </div>
-            <DialogFooter>
-              <Button
-                onClick={handleGetInTouch}
-                className="bg-blue-600/80 hover:bg-blue-700/90"
-              >
-                <Mail className="h-5 w-5 mr-2" />
-                Get in touch!
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
 
-        {/* Contact Dialog */}
-        <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
-          <DialogContent className="bg-gray-900 border-gray-700">
-            <DialogHeader>
-              <DialogTitle className="text-white">Get in Touch</DialogTitle>
-            </DialogHeader>
-            <div className="text-gray-300 space-y-4">
-              <p>
-                Have questions about this agent? We'd love to hear from you!
+        {/* Add our new edit mode box here */}
+        {isEditMode && (
+          <div className="fixed right-4 top-32 bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-64 z-20">
+            <div className="flex flex-col items-center text-center">
+              <LockClosedIcon className="h-6 w-6 text-gray-800 mb-2" />
+              <p className="text-sm text-gray-800 mb-4">
+                Edit mode is locked for shared agents
               </p>
-              <p>Email us at: sahil@lytix.co</p>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                className="border-gray-700 hover:bg-gray-800"
-                onClick={() => setShowContactDialog(false)}
+              <a
+                href="https://usesolari.ai/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm hover:bg-gray-700 transition-colors inline-block"
               >
-                <Mail className="h-5 w-5 mr-2" />
-                Send Email
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                Log in
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Main container with flex layout */}
+        <div className="flex flex-grow">
+          {/* Main Content */}
+          <main
+            className={`transition-all duration-300 px-4 py-6 ${
+              isPanelOpen && !isEditMode ? "w-1/2" : "w-full"
+            }`}
+          >
+            <div className="space-y-6">
+              <p className="text-gray-400 mb-6">{agentData.description}</p>
+              {isEditMode ? (
+                // In edit mode, show all blocks with their outputs
+                agentData.blocks.map((block, index) => (
+                  <div key={block.id} className="space-y-4">
+                    {renderBlock(block)}
+                    {completedBlocks.includes(index) && block.output && (
+                      <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+                        {block.type === "powerpoint" ? (
+                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                            <span>
+                              Your presentation is ready! View it at:{" "}
+                            </span>
+                            <a
+                              href={block.output}
+                              className="text-blue-500 underline hover:text-blue-400"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {block.output}
+                            </a>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-300 whitespace-pre-wrap">
+                            {block.output}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <>
+                  {agentData.blocks.length > 0 &&
+                    renderBlock(agentData.blocks[0])}
+                  {agentData.blocks.length > 1 && (
+                    <div className="text-gray-400 text-sm mt-4 text-center">
+                      and {agentData.blocks.length - 1} more blocks
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </main>
+
+          {/* Side Panel - Only show if not in edit mode */}
+          {isPanelOpen && !isEditMode && (
+            <div className="w-1/2 bg-white border-l border-gray-200 overflow-y-auto">
+              <div className="p-4 relative">
+                <button
+                  className="absolute top-4 right-4 cursor-pointer text-black hover:text-gray-700 p-2 bg-gray-100 rounded-full z-50 hover:bg-gray-200"
+                  onClick={(e) => {
+                    console.log("Minimize button clicked");
+                    e.preventDefault();
+                    handleClosePanel();
+                  }}
+                  style={{ zIndex: 50 }}
+                >
+                  <MinusOutlined style={{ fontSize: "24px" }} />
+                </button>
+                <div className="mt-12">
+                  {currentBlock ? (
+                    <div className="flex-grow flex flex-col items-center justify-center">
+                      {/* what shows in panel when run is complete */}
+                      {runState === RunState.COMPLETED ? (
+                        <>
+                          <div className="flex-grow flex flex-col items-center justify-between h-full py-12 space-y-16">
+                            {/* Component 1: How it was made */}
+                            <div className="text-center">
+                              <div className="text-black mb-4 text-center">
+                                Want to see how this agent was made? Switch to
+                                Edit mode to see how it's configured
+                              </div>
+                              <div className="inline-flex items-center justify-center gap-2 bg-gray-800 px-3 py-1.5 rounded-lg">
+                                <span
+                                  className={`text-sm ${!displaySwitchState ? "text-white" : "text-gray-400"}`}
+                                >
+                                  View
+                                </span>
+                                <Switch
+                                  checked={displaySwitchState}
+                                  className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-600 h-6 w-11 [&>span]:h-5 [&>span]:w-5 [&>span]:bg-white pointer-events-none"
+                                />
+                                <span
+                                  className={`text-sm ${displaySwitchState ? "text-white" : "text-gray-400"}`}
+                                >
+                                  Edit
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Component 2: Last Block */}
+                            {agentData?.blocks.length > 0 && (
+                              <div className="w-full space-y-4">
+                                {/* Render the block itself */}
+                                {renderBlock(
+                                  agentData.blocks[agentData.blocks.length - 1]
+                                )}
+
+                                {/* Add the output display */}
+                                {agentData.blocks[agentData.blocks.length - 1]
+                                  .output && (
+                                  <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+                                    {agentData.blocks[
+                                      agentData.blocks.length - 1
+                                    ].type === "powerpoint" ? (
+                                      <div className="flex items-center gap-2 text-sm text-gray-300">
+                                        <span>
+                                          Your presentation is ready! View it
+                                          at:{" "}
+                                        </span>
+                                        <a
+                                          href={
+                                            agentData.blocks[
+                                              agentData.blocks.length - 1
+                                            ].output
+                                          }
+                                          className="text-blue-500 underline hover:text-blue-400"
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                        >
+                                          {
+                                            agentData.blocks[
+                                              agentData.blocks.length - 1
+                                            ].output
+                                          }
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm text-gray-300 whitespace-pre-wrap">
+                                        {
+                                          agentData.blocks[
+                                            agentData.blocks.length - 1
+                                          ].output
+                                        }
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Component 3: Rate Agent */}
+                            <div className="text-center">
+                              <RateAgentRun onRate={handleRateAgent} />
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex-grow flex flex-col items-center justify-center min-h-[600px]">
+                          <div className="flex flex-col items-center text-center">
+                            <div className="text-6xl mb-6">⌛</div>
+                            <div className="text-xl text-gray-400 mb-3">
+                              Running...
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Current block: {currentBlock.type}{" "}
+                              {currentBlock.blockNumber}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex-grow flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-6xl mb-4">⏳</div>
+                        <div className="text-xl text-gray-700">
+                          Waiting to start...
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 py-4">
+          <div className="container mx-auto px-4">{renderFooterContent()}</div>
+        </div>
       </div>
     </PublicLayout>
   );

@@ -71,6 +71,7 @@ export interface BaseBlock {
   systemPrompt: string;
   userPrompt: string;
   saveAsCsv: boolean;
+  modelResponse?: string;
   outputVariable?: {
     id: string;
     name: string;
@@ -249,6 +250,9 @@ export interface Agent {
   createdAt: string;
   outputVariableId?: string;
   blocks: Block[];
+  agent_rating_thumbs_up?: number;
+  agent_rating_thumbs_down?: number;
+  start_method?: string;
   sourceInfo?: {
     nickname: string;
     downloadUrl: string;
@@ -332,4 +336,12 @@ export interface InstagramAgentBlock extends BaseBlock {
     name: string;
     type: "input" | "intermediate";
   } | null;
+}
+
+export interface AgentTask {
+  id: string;
+  title: string;
+  agentId: string;
+  date: string;
+  completed: boolean;
 }

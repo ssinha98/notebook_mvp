@@ -34,6 +34,22 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+// import { Link } from "react-router-dom";
+import { ShoppingBag } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { Trash } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface AgentsListProps {
   onAgentSelect: (agentId: string) => void;
@@ -44,11 +60,14 @@ export default function AgentsList({
   onAgentSelect,
   renderAgentCard,
 }: AgentsListProps) {
+  const router = useRouter();
   const { agents, loadAgents, createAgent, deleteAgent, currentAgent } =
     useAgentStore();
   const { resetBlocks } = useSourceStore();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newAgentName, setNewAgentName] = useState("");
+  const [agentToDelete, setAgentToDelete] = useState<string | null>(null);
+  const [showNameDialog, setShowNameDialog] = useState(false);
 
   useEffect(() => {
     loadAgents();
@@ -75,7 +94,50 @@ export default function AgentsList({
           Create Agent
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent className="bg-black">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Create New Agent</AlertDialogTitle>
+          <AlertDialogDescription>
+            Choose how you'd like to create your agent
+          </AlertDialogDescription>
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div
+              onClick={() => {
+                setIsCreateDialogOpen(false);
+                setShowNameDialog(true);
+              }}
+              className="border rounded-lg p-4 hover:border-blue-500 transition-colors cursor-pointer flex flex-col items-center text-center"
+            >
+              <PlusIcon className="w-8 h-8 mb-2" />
+              <h3 className="font-semibold mb-1">Start from scratch</h3>
+              <p className="text-sm text-gray-400">
+                Build your own custom agent from the ground up
+              </p>
+            </div>
+            <div
+              onClick={() => router.push("/agentStore")}
+              className="border rounded-lg p-4 hover:border-blue-500 transition-colors cursor-pointer flex flex-col items-center text-center"
+            >
+              <ShoppingBag className="w-8 h-8 mb-2" />
+              <h3 className="font-semibold mb-1">Browse the Agent Store</h3>
+              <p className="text-sm text-gray-400">
+                Choose from pre-built agents for your needs
+              </p>
+            </div>
+          </div>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setIsCreateDialogOpen(false)}>
+            Cancel
+          </AlertDialogCancel>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  const renderNameDialog = () => (
+    <AlertDialog open={showNameDialog} onOpenChange={setShowNameDialog}>
+      <AlertDialogContent className="bg-black">
         <AlertDialogHeader>
           <AlertDialogTitle>Create New Agent</AlertDialogTitle>
           <AlertDialogDescription>
@@ -89,7 +151,12 @@ export default function AgentsList({
           />
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => setNewAgentName("")}>
+          <AlertDialogCancel
+            onClick={() => {
+              setShowNameDialog(false);
+              setNewAgentName("");
+            }}
+          >
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction onClick={handleCreateAgent}>
@@ -106,6 +173,7 @@ export default function AgentsList({
         <h2 className="text-xl font-bold text-white">My Agents</h2>
         {renderCreateButton()}
       </div>
+      {renderNameDialog()}
 
       {agents.length === 0 ? (
         <div
@@ -210,11 +278,32 @@ export default function AgentsList({
                       <span className="text-gray-400">no ratings yet</span>
                     )}
                   </TableCell>
-                  {/* <TableCell>
-                    <Button variant="ghost" size="sm">
-                      <VscSettings className="h-4 w-4" />
-                    </Button>
-                  </TableCell> */}
+                  <TableCell>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <VscSettings className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-40 p-0 bg-black">
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start px-3 py-2 text-red-500 hover:text-red-400 hover:bg-black"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteAgent(agent.id);
+                          }}
+                        >
+                          <Trash className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </PopoverContent>
+                    </Popover>
+                  </TableCell>
                 </TableRow>
               ))}
           </TableBody>

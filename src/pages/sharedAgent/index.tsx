@@ -553,6 +553,7 @@ Chair, 5.5,825`,
     agentDescription:
       "Benefit Metrics: saves ~2-3 hours per presentation by automating slide creation and formatting. This agent helps create professional presentations quickly.",
     tags: ["Content", "Marketing"],
+    start_method: "schedule",
     blocks: [
       {
         id: "block1",

@@ -98,18 +98,46 @@ export interface ShareableDocAnnotatorBlock extends BaseShareableBlock {
   thinkingEmoji?: string;
 }
 
+export interface SimulatedApiBlockType extends BaseShareableBlock {
+  type: "simulatedapi";
+  endpoint: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+export interface SimulatedEmailBlockType extends BaseShareableBlock {
+  type: "simulatedemail";
+  from: string;
+  subject: string;
+  body: string;
+  attachments?: {
+    name: string;
+    type: string;
+    content: string;
+  }[];
+}
+
+export interface ShareablePowerpointBlock extends BaseShareableBlock {
+  type: "powerpoint";
+  // Add any necessary properties for the powerpoint block
+}
+
 export type ShareableBlock =
   | ShareableAgentBlock
-  | ShareableWebBlock
   | ShareableContactBlock
+  | ShareableWebBlock
   | ShareableCheckinBlock
-  | ShareableInstagramBlock
-  | ShareableSearchBlock
   | ShareableCodeBlock
   | ShareableMakeBlock
   | ShareableExcelBlock
+  | ShareableInstagramBlock
+  | ShareableSearchBlock
+  | ShareablePowerpointBlock
   | ShareableDocDiffBlock
-  | ShareableDocAnnotatorBlock;
+  | ShareableDocAnnotatorBlock
+  | SimulatedApiBlockType
+  | SimulatedEmailBlockType;
 
 export interface ShareableAgent {
   id: string;
@@ -118,6 +146,8 @@ export interface ShareableAgent {
   agentDescription: string;
   tags: string[];
   blocks: ShareableBlock[];
+  start_method?: string;
+  tools?: string[];
 }
 
 export interface ShareableWebBlockProps {
@@ -127,4 +157,24 @@ export interface ShareableWebBlockProps {
   outputVariable?: {
     name: string;
   };
+}
+
+export interface SimulatedApiBlockProps {
+  blockNumber: number;
+  endpoint: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+export interface SimulatedEmailBlockProps {
+  blockNumber: number;
+  from: string;
+  subject: string;
+  body: string;
+  attachments?: {
+    name: string;
+    type: string;
+    content: string;
+  }[];
 }

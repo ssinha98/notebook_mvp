@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
+  images: {
+    domains: ['upload.wikimedia.org']
+  },
 };
 
 export default nextConfig;

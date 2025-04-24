@@ -42,7 +42,7 @@ export default function AgentTasks({ agentNames }: AgentTasksProps) {
           <div className="py-8 text-center text-gray-400">
             <div>No agent tasks yet</div>
             <a
-              href="https://usesolari.ai/"
+              href="https://lytix-nocode-agents.beehiiv.com/p/notebook-changelog-feb-28"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 underline mt-2 inline-block"

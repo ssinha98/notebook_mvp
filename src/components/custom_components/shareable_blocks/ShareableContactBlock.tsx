@@ -95,14 +95,6 @@ export default function ShareableContactBlock({
           </div>
         )}
 
-        {isCompleted && output && (
-          <div className="mt-4">
-            <p className="text-sm text-gray-400 mb-2">Output:</p>
-            <div className="bg-gray-800 p-3 rounded-lg">
-              <span className="text-white">{output}</span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

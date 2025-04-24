@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import PublicLayout from "@/components/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { PlayIcon, StopIcon, LockClosedIcon } from "@heroicons/react/24/solid";
-import { Share2, Mail } from "lucide-react";
+import { Share2, Mail, Clock } from "lucide-react";
 import {
   ArrowLeftIcon,
   InformationCircleIcon,
@@ -27,7 +27,11 @@ import ShareableExcelAgent from "@/components/custom_components/shareable_blocks
 import ShareableCodeBlock from "@/components/custom_components/shareable_blocks/ShareableCodeBlock";
 import ShareableMakeBlock from "@/components/custom_components/shareable_blocks/ShareableMakeBlock";
 import ShareableInstagramAgent from "@/components/custom_components/shareable_blocks/ShareableInstagramAgent";
-import { ShareableInstagramBlock } from "@/types/shareable_blocks";
+import {
+  ShareableInstagramBlock,
+  SimulatedApiBlockType,
+  SimulatedEmailBlockType,
+} from "@/types/shareable_blocks";
 import ShareableSearchBlock from "@/components/custom_components/shareable_blocks/ShareableSearchBlock";
 import { Switch } from "@/components/ui/switch";
 import BlockTypeDisplay from "@/components/custom_components/BlockTypeDisplay";
@@ -37,6 +41,10 @@ import ShareableDocDiffBlock from "@/components/custom_components/shareable_bloc
 import { ShareableDocDiffBlock as ShareableDocDiffBlockType } from "../../types/shareable_blocks";
 import { ShareableDocAnnotatorBlock as ShareableDocAnnotatorBlockType } from "../../types/shareable_blocks";
 import ShareableDocAnnotatorBlock from "@/components/custom_components/shareable_blocks/ShareableDocAnnotator";
+import { MdOutlineEmail } from "react-icons/md";
+import { TbApi } from "react-icons/tb";
+import SimulatedEmailBlock from "@/components/custom_components/shareable_blocks/SimulatedEmailBlock";
+import SimulatedApiBlock from "@/components/custom_components/shareable_blocks/SimulatedApiBlock";
 // Enum for run states
 enum RunState {
   NOT_STARTED = "NOT_STARTED",
@@ -127,7 +135,7 @@ interface ShareablePowerpointBlock extends BaseShareableBlock {
 }
 
 // Update the ShareableBlock type
-type ShareableBlock =
+export type ShareableBlock =
   | ShareableAgentBlock
   | ShareableContactBlock
   | ShareableWebBlock
@@ -139,7 +147,9 @@ type ShareableBlock =
   | ShareableSearchBlock
   | ShareablePowerpointBlock
   | ShareableDocDiffBlockType
-  | ShareableDocAnnotatorBlockType;
+  | ShareableDocAnnotatorBlockType
+  | SimulatedApiBlockType
+  | SimulatedEmailBlockType;
 
 interface ShareableAgent {
   id: string;
@@ -148,10 +158,604 @@ interface ShareableAgent {
   agentDescription: string;
   tags: string[];
   blocks: ShareableBlock[];
+  start_method?: string;
+  tools?: string[];
 }
 
 // Add export to the constant declaration
 export const SHAREABLE_AGENTS: ShareableAgent[] = [
+  {
+    id: "event-scheduler",
+    name: "Schedule & Coordinate Meetings",
+    description: "Automated meeting coordination and calendar management",
+    agentDescription:
+      "This agent streamlines the complex process of scheduling meetings with large groups by automatically analyzing calendar availability and coordinating with team members. It handles the back-and-forth communication to find optimal meeting times, even for participants without public calendars. Benefit Metrics: Reduces meeting scheduling time by 90%, eliminates scheduling conflicts, and saves ~2-3 hours per week in calendar coordination.",
+    tags: ["Admin", "Calendars", "Project Management"],
+    start_method: "email",
+    blocks: [
+      {
+        id: "initial_request_block",
+        type: "simulatedemail",
+        blockNumber: 1,
+        from: "susan@usesolar.ai",
+        subject: "Meeting Coordination Request",
+        body: "help me schedule a meeting with everyone involved in the braze migration project",
+        attachments: [],
+      },
+      {
+        id: "participant_identification_block",
+        type: "agent",
+        blockNumber: 2,
+        userPrompt:
+          "You are a scheduling agent responsible for coordinating events between multiple parties.\n\t1.\tCheck each participant's availability via their Outlook calendar (if accessible).\n\t2.\tFor participants not on Outlook, send a quick email requesting their next available time slots.\n\t3.\tPropose a few meeting time options that work for everyone and email the group to confirm.\n\t4.\tTrack RSVPs and follow up with anyone who hasn't responded.\n\t5.\tOnce confirmed, send a final calendar invite to all participants and notify me when done.\n\nKeep your tone professional and efficient. The goal is to schedule as quickly and smoothly as possible.\n\nFirst, give me a list of people who should be in the meeting",
+        outputVariable: {
+          name: "participants",
+          value:
+            "Product Team\n\t•\tJordan Lee – Product Manager (Messaging & Growth)\n\t•\tRina Patel – UX Designer\n\nEngineering Team\n\t•\tMarcus Chen – Backend Engineer\n\t•\tDiana Gomez – Frontend Engineer\n\t•\tKevin Zhou – DevOps / Infrastructure\n\nData & Analytics Team\n\t•\tPriya Nair – Data Analyst\n\t•\tSamuel Reed – Data Engineer\n\nMarketing Team\n\t•\tTaylor Brooks – Lifecycle Marketing Manager\n\t•\tAlex Nguyen – Marketing Operations\n\nProject Management / Operations\n\t•\tNina Alvarez – Program Manager\n\t•\tAndrew Lim – Chief of Staff",
+        },
+        output:
+          "Product Team\n\t•\tJordan Lee – Product Manager (Messaging & Growth)\n\t•\tRina Patel – UX Designer\n\nEngineering Team\n\t•\tMarcus Chen – Backend Engineer\n\t•\tDiana Gomez – Frontend Engineer\n\t•\tKevin Zhou – DevOps / Infrastructure\n\nData & Analytics Team\n\t•\tPriya Nair – Data Analyst\n\t•\tSamuel Reed – Data Engineer\n\nMarketing Team\n\t•\tTaylor Brooks – Lifecycle Marketing Manager\n\t•\tAlex Nguyen – Marketing Operations\n\nProject Management / Operations\n\t•\tNina Alvarez – Program Manager\n\t•\tAndrew Lim – Chief of Staff",
+      },
+      {
+        id: "calendar_check_block",
+        type: "codeblock",
+        blockNumber: 3,
+        language: "python",
+        code: 'import requests\nimport datetime\nfrom msal import ConfidentialClientApplication\n\n# Azure AD app credentials (replace with your actual values)\nCLIENT_ID = \'your-client-id\'\nCLIENT_SECRET = \'your-client-secret\'\nTENANT_ID = \'your-tenant-id\'\n\n# Get access token from Microsoft Identity platform\nauthority = f"https://login.microsoftonline.com/{TENANT_ID}"\napp = ConfidentialClientApplication(\n    CLIENT_ID,\n    authority=authority,\n    client_credential=CLIENT_SECRET\n)\ntoken_response = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])\naccess_token = token_response["access_token"]\n\n# Team members\nteam_members = [\n    {"name": "Jordan Lee", "email": "jordan@company.com"},\n    {"name": "Rina Patel", "email": "rina@company.com"},\n    {"name": "Marcus Chen", "email": "marcus@company.com"},\n    {"name": "Diana Gomez", "email": "diana@company.com"},\n    {"name": "Kevin Zhou", "email": "kevin@company.com"},\n    {"name": "Priya Nair", "email": "priya@company.com"},\n    {"name": "Samuel Reed", "email": "samuel@company.com"},\n    {"name": "Taylor Brooks", "email": "taylor@company.com"},\n    {"name": "Alex Nguyen", "email": "alex@company.com"},\n    {"name": "Nina Alvarez", "email": "nina@company.com"},\n    {"name": "Andrew Lim", "email": "andrew@company.com"},\n]\n\n# Define time window to check for availability\nstart_time = datetime.datetime.utcnow().replace(hour=9, minute=0, second=0, microsecond=0).isoformat() + "Z"\nend_time = datetime.datetime.utcnow().replace(hour=18, minute=0, second=0, microsecond=0).isoformat() + "Z"\n\n# Query each team member\'s calendar\nfor member in team_members:\n    url = "https://graph.microsoft.com/v1.0/me/calendar/getSchedule"\n    headers = {\n        "Authorization": f"Bearer {access_token}",\n        "Content-Type": "application/json"\n    }\n    body = {\n        "schedules": [member["email"]],\n        "startTime": {\n            "dateTime": start_time,\n            "timeZone": "UTC"\n        },\n        "endTime": {\n            "dateTime": end_time,\n            "timeZone": "UTC"\n        },\n        "availabilityViewInterval": 30\n    }\n\n    response = requests.post(url, headers=headers, json=body)\n    \n    if response.ok:\n        availability = response.json()["value"][0]["availabilityView"]\n        print(f"Availability for {member[\'name\']} ({member[\'email\']}): {availability}")\n    else:\n        print(f"Failed to fetch availability for {member[\'name\']}: {response.status_code} – {response.text}")',
+        outputVariable: {
+          name: "response",
+          value:
+            '{"participants":[{"name":"Jordan Lee","email":"jordan@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Rina Patel","email":"rina@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Marcus Chen","email":"marcus@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Diana Gomez","email":"diana@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Kevin Zhou","email":"kevin@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Priya Nair","email":"priya@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Samuel Reed","email":"samuel@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Taylor Brooks","email":"taylor@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Alex Nguyen","email":"alex@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Nina Alvarez","email":"nina@company.com","available_slots":null,"status":"calendar_unavailable"},{"name":"Andrew Lim","email":"andrew@company.com","available_slots":null,"status":"calendar_unavailable"}],"common_available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]}',
+        },
+        output:
+          '{"participants":[{"name":"Jordan Lee","email":"jordan@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Rina Patel","email":"rina@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Marcus Chen","email":"marcus@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Diana Gomez","email":"diana@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Kevin Zhou","email":"kevin@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Priya Nair","email":"priya@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Samuel Reed","email":"samuel@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Taylor Brooks","email":"taylor@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Alex Nguyen","email":"alex@company.com","available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]},{"name":"Nina Alvarez","email":"nina@company.com","available_slots":null,"status":"calendar_unavailable"},{"name":"Andrew Lim","email":"andrew@company.com","available_slots":null,"status":"calendar_unavailable"}],"common_available_slots":["2025-04-24T14:00:00Z","2025-04-24T14:30:00Z","2025-04-24T15:00:00Z"]}',
+      },
+      {
+        id: "missing_data_analysis_block",
+        type: "agent",
+        blockNumber: 4,
+        userPrompt:
+          "{[response}} epresents the response of a code request for getting outlook data. some responses will be time that that person is available. and for some, it will be 'no data' showing that they are not on outlook. Tell me who we didn't find times for.",
+        outputVariable: {
+          name: "missing_outlook_events_raw",
+          value:
+            'People we didn\'t find availability for:\n\t•\tNina Alvarez – Program Manager\n\t•\tAndrew Lim – Chief of Staff\n\nThese individuals returned "available_slots": null with "status": "calendar_unavailable", indicating no data was available from Outlook — likely because they are not on the platform.',
+        },
+        output:
+          'People we didn\'t find availability for:\n\t•\tNina Alvarez – Program Manager\n\t•\tAndrew Lim – Chief of Staff\n\nThese individuals returned "available_slots": null with "status": "calendar_unavailable", indicating no data was available from Outlook — likely because they are not on the platform.',
+      },
+      {
+        id: "missing_data_json_block",
+        type: "agent",
+        blockNumber: 5,
+        userPrompt:
+          "{{missing_outlook_events_raw}} are people that didn't have outlook data. give me their name and their email. respond in JSON.",
+        outputVariable: {
+          name: "missing_outlook_events",
+          value:
+            '[\n  {\n    "name": "Nina Alvarez",\n    "email": "nina@company.com"\n  },\n  {\n    "name": "Andrew Lim",\n    "email": "andrew@company.com"\n  }\n]',
+        },
+        output:
+          '[\n  {\n    "name": "Nina Alvarez",\n    "email": "nina@company.com"\n  },\n  {\n    "name": "Andrew Lim",\n    "email": "andrew@company.com"\n  }\n]',
+      },
+      {
+        id: "draft_emails_block",
+        type: "agent",
+        blockNumber: 6,
+        userPrompt:
+          "draft a response to {{missing_outlook_events}}, asking if any of the slots in {{response}} would work",
+        outputVariable: {
+          name: "draft_emails",
+          value:
+            "Subject: Quick Check on Your Availability\n\nHi Nina,\n\nWe're coordinating schedules for the group and wanted to see if any of the following times work for you:\n\t•\tThursday, April 24 at 2:00 PM UTC\n\t•\tThursday, April 24 at 2:30 PM UTC\n\t•\tThursday, April 24 at 3:00 PM UTC\n\nLet me know what works best for you, and we'll lock in a time!\n\nThanks,\n[Your Name]\n\nHi Andrew,\n\nWe're working on scheduling a team session and are looking at the following time slots:\n\t•\tThursday, April 24 at 2:00 PM UTC\n\t•\tThursday, April 24 at 2:30 PM UTC\n\t•\tThursday, April 24 at 3:00 PM UTC\n\nCould you let me know if any of these work for you?\n\nAppreciate it!",
+        },
+        output:
+          "Subject: Quick Check on Your Availability\n\nHi Nina,\n\nWe're coordinating schedules for the group and wanted to see if any of the following times work for you:\n\t•\tThursday, April 24 at 2:00 PM UTC\n\t•\tThursday, April 24 at 2:30 PM UTC\n\t•\tThursday, April 24 at 3:00 PM UTC\n\nLet me know what works best for you, and we'll lock in a time!\n\nThanks,\n[Your Name]\n\nHi Andrew,\n\nWe're working on scheduling a team session and are looking at the following time slots:\n\t•\tThursday, April 24 at 2:00 PM UTC\n\t•\tThursday, April 24 at 2:30 PM UTC\n\t•\tThursday, April 24 at 3:00 PM UTC\n\nCould you let me know if any of these work for you?\n\nAppreciate it!",
+      },
+      {
+        id: "nina_email_block",
+        type: "contact",
+        blockNumber: 7,
+        to: "nina@company.com",
+        subject: "Quick Check on Your Availability",
+        body: "{{draft_emails}}[1]",
+        outputVariable: {
+          name: "nina_email_sent",
+          value: "",
+        },
+        output: "Response 200: 📨 email sent!",
+      },
+      {
+        id: "andrew_email_block",
+        type: "contact",
+        blockNumber: 8,
+        to: "andrew@company.com",
+        subject: "Quick Check on Your Availability",
+        body: "{{draft_emails}}[2]",
+        outputVariable: {
+          name: "andrew_email_sent",
+          value: "",
+        },
+        output: "Response 200: 📨 email sent!",
+      },
+      {
+        id: "nina_response_block",
+        type: "simulatedemail",
+        blockNumber: 9,
+        from: "nina@usesolari.ai",
+        subject: "Re: Quick Check on Your Availability",
+        body: "Hi!\n\nThanks for checking in — all of those times work for me. Feel free to book whichever slot works best for the group.\n\nBest,\nNina",
+        attachments: [],
+      },
+      {
+        id: "andrew_response_block",
+        type: "simulatedemail",
+        blockNumber: 10,
+        from: "andrew@usesolari.ai",
+        subject: "Re: Quick Check on Your Availability",
+        body: "Hi!\n\nThanks for reaching out. I'm only available for the 3:00 PM UTC slot on April 24 — the earlier times don't work for me due to other commitments.\n\nLet me know if that ends up being the time.\n\nBest,\nAndrew",
+        attachments: [],
+      },
+      {
+        id: "calendar_update_block",
+        type: "make",
+        blockNumber: 11,
+        webhookUrl: "https://hook.make.com/calendar-automation",
+        parameters: [
+          {
+            key: "event_time",
+            value: "2025-04-24T15:00:00Z",
+          },
+          {
+            key: "participants",
+            value: "{{participants}}",
+          },
+          {
+            key: "project",
+            value: "Braze Migration",
+          },
+        ],
+      },
+      {
+        id: "final_confirmation_block",
+        type: "contact",
+        blockNumber: 12,
+        to: "migration-project@usesolar.ai",
+        subject: "Finalized Meeting Time – Braze Migration Project",
+        body: "Hi all,\n\nI'm reaching out on behalf of Susan to confirm the meeting time for the Braze migration project.\n\nAfter reviewing everyone's availability, the following time worked best for the group. I've added the event to your calendars and updated our project management docs and dashboards accordingly.\n\nIf anything changes or you need to reschedule, feel free to reach out to robnots@usesolari.ai.\n\nThanks, and talk soon!\n\nBest,\nYour Scheduling Agent",
+        outputVariable: {
+          name: "final_confirmation_sent",
+          value: "",
+        },
+        output: "Response 200: 📨 email sent!",
+      },
+    ],
+  },
+  {
+    id: "candidate-qualifier",
+    name: "Qualify Prospective Hiring Candidates",
+    description: "Automated preliminary candidate screening via email",
+    agentDescription:
+      "This agent conducts initial candidate screening through email conversations, qualifying candidates before involving the hiring team. Benefit Metrics: Saves ~3-4 hours per candidate by automating initial screening and reduces hiring team involvement with unqualified candidates.",
+    tags: ["HR", "Project Management"],
+    start_method: "email",
+    blocks: [
+      {
+        id: "initial_email_block",
+        type: "simulatedemail",
+        blockNumber: 1,
+        from: "rstevens25@cmc.edu",
+        subject: "Inquiry About the Data Analyst Position",
+        body: `Dear Solari hiring team - 
+
+I hope you’re well. I came across the Data Analyst position at your company and was excited by the opportunity to apply my skills in a more technical, data-focused role.
+
+My background is in English, but over the past two years, I’ve worked in data-heavy roles where I’ve developed strong proficiency in SQL and Python. I’ve grown passionate about uncovering insights through data and would love to continue building on this foundation in a more structured analytics environment.
+
+Could you share more about the day-to-day work for this role, and how candidates from non-traditional academic backgrounds might fit in?
+
+Thank you for your time—I look forward to hearing from you.`,
+        attachments: [],
+      },
+      {
+        id: "candidate_analysis_block",
+        type: "agent",
+        blockNumber: 2,
+        userPrompt:
+          "you are responsible for screening job candidates. @source is the job description. review the email and attachment (if present), and analyse if someone on the team should interview this person. For each assessment, identify 1) any red flags (i.e. skills we need that aren't present, if years of work or education experience are below what we're looking for). Respond in the following format: \nRed flags: (any red flags)\nThings we are looking for: (skills, experience or traits in the job description that we're looking for)\nadditional questions: (any questions you have that weren't answered).",
+        attachedFile: {
+          name: "source",
+          type: "PDF",
+          // replace with Job description
+          url: "https://docs.google.com/document/d/1pBly1mjCAqa2Se7uA4TmEivR1fK4A-bwc06q2AwBXgQ/edit?usp=sharing",
+          content: "@source",
+        },
+        outputVariable: {
+          name: "analysis",
+          value: "",
+        },
+        output:
+          "Red flags:\n\t•\tThe candidate has 2 years of experience, while the role requires a minimum of 3 years.\n\t•\tTheir academic background is in English, whereas the role prefers a degree in Statistics, Mathematics, Economics, Computer Science, or a related field.\n\nThings we are looking for:\n\t•\tDemonstrates strong interest and initiative in transitioning into data analysis from a non-traditional background.\n\t•\tSelf-reported proficiency in SQL and Python, which are core requirements for the role.\n\t•\tHas relevant work experience in data-heavy roles, indicating practical exposure to the field.\n\t•\tStrong communication skills, as evidenced by a clear and thoughtful email.\n\nAdditional questions:\n\t•\tCan the candidate provide examples or a portfolio of projects that showcase their SQL and Python skills?\n\t•\tWhat specific tools (e.g., Excel, Tableau, pandas) and datasets has the candidate worked with in previous roles?\n\t•\tDoes the candidate have any formal training or certifications in data analysis or programming?",
+      },
+      {
+        id: "email_draft_block",
+        type: "agent",
+        blockNumber: 3,
+        userPrompt:
+          "take {analysis}. create an email that asks the candidate questions in {additional questions}",
+        outputVariable: {
+          name: "email_draft",
+          value: "",
+        },
+        output:
+          "Hi [Candidate's Name],\n\nThanks for reaching out and for your interest in the Data Analyst position—we appreciate you taking the time to share your background.\n\nTo help us better understand your experience and fit for the role, would you mind answering a few quick questions?\n\t1.\tDo you have a portfolio or any examples of projects that highlight your skills in SQL and Python?\n\t2.\tWhat specific tools or technologies (e.g., Excel, Tableau, pandas) have you worked with in your past roles?\n\t3.\tHave you completed any formal training or certifications in data analysis or programming?\n\nLooking forward to your reply!\n\nBest,\n[Your Name]\n[Your Title / Team Name]\n[Company Name]",
+      },
+      {
+        id: "email_response_block",
+        type: "contact",
+        blockNumber: 4,
+        to: "rstevens25@cmc.edu",
+        subject: "Quick Follow-Up on Your Data Analyst Application",
+        body: "{{email_draft}}",
+        outputVariable: {
+          name: "email_sent",
+          value: "",
+        },
+        output: "📨 email sent!",
+      },
+      {
+        id: "candidate_response_block",
+        type: "simulatedemail",
+        blockNumber: 5,
+        from: "rstevens25@cmc.edu",
+        subject: "Re: Data Analyst Position - Additional Information",
+        body: "Hi [Your Name],\n\nThanks for getting back to me—happy to share more details.\n\nI've worked on several personal projects using SQL and Python (with pandas), though I haven't published them online yet. They're saved locally, but I'd be happy to walk through them or share the code directly if that's helpful.\n\nIn my previous roles, I haven't used tools like Excel, Tableau, or pandas professionally. That said, I've been actively building my technical skills through Codecademy's certification programs for both SQL and Python, including work with pandas.\n\nPlease let me know if there's anything else I can share!\n\nBest,\n[Candidate's Full Name]\n[Contact Info]",
+        attachments: [],
+      },
+      {
+        id: "final_response_block",
+        type: "contact",
+        blockNumber: 6,
+        to: "{{candidate_email}}",
+        subject: "Re: Data Analyst Position - Next Steps",
+        body: "Hi [Candidate's Name],\n\nThanks so much for following up and sharing those details. We appreciate the time you took to walk us through your experience and background.\n\nWe have everything we need for now, and someone from the team will be in touch within the next few days with next steps.\n\nThanks again for your interest in the role!\n\nBest,\n[Your Name]\n[Your Title / Team Name]\n[Company Name]",
+        outputVariable: {
+          name: "final_email_sent",
+          value: "",
+        },
+        output: "📨 email sent!",
+      },
+      {
+        id: "final_analysis_block",
+        type: "agent",
+        blockNumber: 7,
+        userPrompt:
+          "analyse the email thread, and give me an update analysis of this candidate.",
+        outputVariable: {
+          name: "final_analysis",
+          value: "",
+        },
+        output:
+          "Red flags:\n\t•\tThe candidate does not have professional experience with key tools like Excel, Tableau, or pandas, which are commonly used in data analyst roles.\n\t•\tProjects are not hosted or publicly available, making it harder to independently assess the quality of their work.\n\nThings we are looking for:\n\t•\tDemonstrates initiative and self-learning through completion of Codecademy certifications in SQL and Python (including pandas).\n\t•\tHas built personal projects using relevant tools, indicating practical familiarity even without professional application.\n\t•\tResponsive, communicative, and open to sharing their work in a 1:1 setting, which shows good collaboration potential.\n\nAdditional questions/comments:\n\t•\tIf the candidate advances, we may want to include a short technical assessment to evaluate practical skills.\n\t•\tWould benefit from mentorship or a team environment where they can build professional experience with standard analytics tools.",
+      },
+      {
+        id: "update_project_board",
+        type: "make",
+        blockNumber: 8,
+        webhookUrl: "https://hook.make.com/hiring-board-automation",
+        parameters: [
+          {
+            key: "candidate_name",
+            value: "{{candidate_name}}",
+          },
+          {
+            key: "position",
+            value: "Data Analyst",
+          },
+          {
+            key: "status",
+            value: "Initial Screening Complete",
+          },
+          {
+            key: "final_analysis",
+            value: "{{final_analysis}}",
+          },
+          {
+            key: "next_steps",
+            value: "Technical Assessment Required",
+          },
+          {
+            key: "screening_date",
+            value: "{{current_date}}",
+          },
+        ],
+        outputVariable: {
+          name: "project_board_update",
+          value: "",
+        },
+      },
+      {
+        id: "team_notification_block",
+        type: "contact",
+        blockNumber: 9,
+        to: "data@yourco.in",
+        subject: "Hiring Update",
+        body: "Hey team!\n\nThis candidate has passed our preliminary screening. You can find their notes below:\n\t•\tStrengths: Codecademy-certified in SQL and Python (with pandas), built personal projects, proactive and communicative.\n\t•\tGaps: No professional experience with Tableau/Excel; projects not hosted online but available to review.\n\t•\tNote: A quick technical screen might help validate skills further.\n\nWe've updated the hiring project board on Airtable with these details. Please schedule an interview at your earliest convenience.\n\nThanks!\n[Your Name]",
+        outputVariable: {
+          name: "team_notification_sent",
+          value: "",
+        },
+        output: "📨 email sent!",
+      },
+    ],
+  },
+
+  {
+    id: "csv-to-formatted-spreadsheet",
+    name: "Raw .csv -> Formatted Spreadsheet Agent",
+    description:
+      "Transform raw CSV data into beautifully formatted spreadsheets with analysis",
+    agentDescription:
+      "Benefit Metrics: saves ~1 hour per spreadsheet analysis. This agent takes raw data and creates a formatted, professional spreadsheet with analysis and visualizations.",
+    tags: ["Data Analysis"],
+    blocks: [
+      {
+        id: "block1",
+        type: "agent",
+        blockNumber: 1,
+        userPrompt:
+          "analyse @sales_data, and give me the average sales and unit sold per product",
+        attachedFile: {
+          name: "sales_data.csv",
+          type: "csv",
+          url: "https://docs.google.com/spreadsheets/d/10wb4KOm-sMQFU59pP3GlM3gZ_o4BJDh0vTOu2UD7rUM/edit?usp=sharing",
+          content: "Sales data content...",
+        },
+        outputVariable: {
+          name: "data_summary",
+        },
+        output: `Based on the data provided in the source, the average sales and units sold per product are as follows:
+Product, Average Units Sold, Average Sales
+Printer, 4,800
+Laptop, 1.5, 1800
+Monitor,3,900
+Desk,2.5, 1125
+Chair, 5.5,825`,
+      },
+      {
+        id: "block2",
+        type: "agent",
+        blockNumber: 2,
+        userPrompt: "summarize {{data_summary}} into 1-2 concise sentences",
+        outputVariable: {
+          name: "written_summary",
+        },
+        output:
+          "Among the analyzed products, Printers had the highest average sales at $800 with 4 units sold on average, while Chairs showed strong unit sales (5.5 units) but lower average revenue ($825), indicating varying price points and demand patterns across the product line.",
+      },
+      {
+        id: "block3",
+        type: "excelagent",
+        blockNumber: 3,
+        userPrompt:
+          "Make a spreadsheet showing the analysis of sales data - make the font calibri everywhere. Make a table with {{sales_data_summary}} - bold the headers. Also make a bar chart, with {{written_summary}} as the label.",
+        output:
+          "https://docs.google.com/spreadsheets/d/1Tcavez45sR1cyE-F4iH1STz0yQJeRpqD/edit?usp=sharing&ouid=101486709579123358134&rtpof=true&sd=true",
+      },
+    ],
+  },
+
+  {
+    id: "powerpoint-agent",
+    name: "Data to Powerpoint Agent",
+    description:
+      "Create professional PowerPoint presentations with AI assistance",
+    agentDescription:
+      "Benefit Metrics: saves ~2-3 hours per presentation by automating slide creation and formatting. This agent helps create professional presentations quickly.",
+    tags: ["Content", "Marketing"],
+    blocks: [
+      {
+        id: "block1",
+        type: "agent",
+        blockNumber: 1,
+        userPrompt:
+          "@sales.csv represents raw sales data from our last 1 month of sales. Give me the average dollars and units sold per product, and per region.",
+        attachedFile: {
+          name: "april_sales.csv",
+          type: "csv",
+          url: "https://drive.google.com/file/d/1IzrBjZfEZqV5ol55BfDpdAQZo-ZP2hzZ/view?usp=sharing",
+          content: "Raw sales data for April 2025",
+        },
+        outputVariable: {
+          name: "analysis",
+        },
+        output: `Model Response:
+Group,Avg Units Sold,Avg Dollars Sold
+Product: Headphones,36.375,5456.25
+Product: Keyboard,63.857143,6385.714286
+Product: Laptop,42.25,42250.0
+Product: Monitor,46.857143,14057.142857
+Product: Mouse,47.0,2350.0
+Product: Smartphone,55.625,44550.0
+Product: Tablet,55.9,30000.0
+City: Chicago,32.0,15400.0
+City: Houston,46.25,6806.25
+City: Los Angeles,58.4,23690.0
+City: New York,61.2,33400.0
+City: Philadelphia,46.375,24087.5
+City: Phoenix,36.6,20510.0
+City: San Antonio,50.625,35775.0
+`,
+      },
+      {
+        id: "block2",
+        type: "codeblock",
+        blockNumber: 2,
+        language: "python",
+        code: `
+import pandas as pd
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import requests
+from io import BytesIO
+
+# Step 1: Load CSV
+df = pd.read_csv("sales_data_demo.csv")
+
+# Step 2: Map cities to states
+city_to_state = {
+    'New York': 'New York',
+    'Houston': 'Texas',
+    'San Antonio': 'Texas',
+    'Phoenix': 'Arizona',
+    'Philadelphia': 'Pennsylvania'
+}
+df['State'] = df['City'].map(city_to_state)
+
+# Step 3: Group by state
+units_per_state = df.groupby('State')['Units Sold'].sum().reset_index()
+
+# Step 4: Load US states geometry
+geojson_url = "https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json"
+response = requests.get(geojson_url)
+states = gpd.read_file(BytesIO(response.content))
+
+# Step 5: Merge sales data into map
+choropleth_data = states.merge(units_per_state, how='left', left_on='name', right_on='State')
+choropleth_data['Units Sold'] = choropleth_data['Units Sold'].fillna(0)
+
+# Step 6: Plot
+fig, ax = plt.subplots(figsize=(15, 10))
+choropleth_data.plot(column='Units Sold', ax=ax, cmap='Blues', edgecolor='black', legend=True)
+ax.set_title("Units Sold by State", fontsize=18)
+ax.axis("off")
+
+plt.tight_layout()
+plt.savefig("units_sold_map.png")
+plt.show()
+`,
+        outputVariable: {
+          name: "data_viz",
+        },
+        output:
+          "✅ code run successfully! Find the image at this link: https://drive.google.com/file/d/1XvdMrgtK9NOjHbRXmWc9TuM3i4jNRN90/view?usp=sharing",
+      },
+      {
+        id: "block3",
+        type: "agent",
+        // output: `https://www.usesolari.ai/`,
+        blockNumber: 3,
+        userPrompt:
+          "take {{analysis}}, and create 2-3 sentence summaries, summarizing each point. these will go in a powerpoint presnting the data, alongside a chart. speak in a professional and concise manner.",
+        // slides: 3,
+        outputVariable: {
+          name: "analysis_summary",
+        },
+        output: `
+Per Product Insights
+	•	Smartphones had the highest average dollar value per sale at $44,550, with an average of 55 units sold per entry — making it your top high-ticket item.
+	•	Laptops followed closely with $42,250 average revenue, though with fewer units sold (42 avg) — indicating fewer but larger transactions.
+	•	Monitors and Tablets had solid performance too, averaging $14,057 and $30,000 respectively.
+	•	Headphones, Keyboards, and Mice had much lower revenue per transaction (around $2K–$6K), suggesting they're lower-cost, higher-volume items.
+Per City Insights
+	•	New York leads in both units sold (61.2 avg) and revenue per entry ($33,400), indicating it's your strongest performing region.
+	•	San Antonio and Los Angeles also perform well, averaging over $23K–$35K in sales.
+	•	Philadelphia shows moderate volume but strong revenue, suggesting balanced performance.
+	•	Phoenix and Chicago trail in both units and revenue, potentially signaling underperforming regions or opportunities for growth.
+          `,
+      },
+      {
+        id: "block4",
+        type: "powerpoint",
+        blockNumber: 4,
+        prompt:
+          "create a 3-slide presentation about the sales data. Include {{analysis_summary}} in the first slide, and {{data_viz}} in the second slide.",
+        slides: 3,
+        output:
+          "https://docs.google.com/presentation/d/1L8-goD0L-okVxsrZe5NvOKXUmOVl_Wse_HBQlRTBlf8/edit?usp=sharing",
+      },
+    ],
+  },
+
+  {
+    id: "weather-api-agent",
+    name: "Weather API Agent",
+    start_method: "api",
+    description: "Get real-time weather information for any city",
+    agentDescription:
+      "Benefit Metrics: saves time by automatically fetching and formatting weather data from any city in the world.",
+    tags: ["Data", "API"],
+    blocks: [
+      {
+        id: "block1",
+        type: "simulatedapi",
+        blockNumber: 1,
+        endpoint: "https://api.example.com/weather",
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: "What's the weather in Auckland right now?",
+          uuid: "303402",
+        }),
+        outputVariable: {
+          name: "weather_response",
+        },
+        // output: "Simulated API response for weather in Auckland",
+      },
+      {
+        id: "block2",
+        type: "agent",
+        blockNumber: 2,
+        userPrompt:
+          "{{weather_response}} is a question a user has asked via an API, about the weather in a given city. Only respond with the city name.",
+        outputVariable: {
+          name: "city",
+        },
+        output: "Auckland, New Zealand",
+      },
+      {
+        id: "block3",
+        type: "codeblock",
+        blockNumber: 3,
+        language: "python",
+        code: `import requests
+
+def get_weather(city):
+    # In a real implementation, this would call a weather API
+    # For this example, we're returning a mock response
+    return {
+        "temperature": 21,
+        "unit": "C"
+    }
+
+weather_data = get_weather("{{city}}")
+print(weather_data)`,
+        outputVariable: {
+          name: "weather_data",
+        },
+        output: `{
+        city: "Auckland",
+        country: "New Zealand",
+        temperature: 21,
+        unit: "C"
+}`,
+      },
+      {
+        id: "block3",
+        type: "agent",
+        blockNumber: 3,
+        userPrompt:
+          "Using the weather data, create a friendly response about the current weather in {{city}}",
+        outputVariable: {
+          name: "weather_response",
+        },
+        output:
+          "The current temperature in Auckland, New Zealand is 21°C. It's a pleasant day with mild temperatures perfect for outdoor activities!",
+      },
+    ],
+  },
   {
     id: "thought-leadership",
     name: "Thought Leadership Blog Post",
@@ -160,6 +764,7 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
     agentDescription:
       "Benefit Metrics: saves ~2 hours per blog post (<a href='https://blog.hubspot.com/marketing/blogging-time-benchmark' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>)",
     tags: ["Content", "Marketing"],
+    tools: ["agent", "email"],
     blocks: [
       {
         id: "block1",
@@ -258,6 +863,7 @@ The value of Al is unquestionable. It is the ultimate tool that will help us re-
       "Qualify leads efficiently with automated analysis and scoring",
     agentDescription:
       "Benefit Metrics: Turns lead qualification from hours to seconds, letting you qualify and contact inbound leads in seconds. Contact leads within 5 minutes can increase conversion rates by 21x (<a href='https://forecastio.ai/blog/sales-pipeline-metrics' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>)",
+    tools: ["agent", "web", "contact"],
     //   "Benefit Metrics: Turns lead qualification from hours to seconds, letting you qualify and contact inbound leads in seconds. Contact leads within 5 minutes can increase conversion rates by 21x. (source)",
     blocks: [
       {
@@ -414,6 +1020,7 @@ Next Steps:
     description: "Generate personalized cold emails that convert",
     agentDescription:
       "Benefit Metrics: ~30x increase in personalized emails written per hour (~ on average 60 vs 2 emails per hour). Additionally, this agent frees up your sales reps to focus on higher leverage, more complex tasks.",
+    tools: ["agent", "web", "contact"],
     blocks: [
       {
         id: "block1",
@@ -512,6 +1119,7 @@ Sahil`,
     description: "Create targeted ad campaigns across multiple platforms",
     agentDescription:
       "Benefit Metrics: saves ~3 hours per personalized campaign. The agent creates a first draft of a Google ads campaign, which you can edit as needed and upload directly into Google Ads.",
+    tools: ["agent", "web"],
     blocks: [
       {
         id: "block1",
@@ -596,6 +1204,7 @@ Check for targeted SEO content and alignment with relevant keywords.
     id: "4",
     name: "Project Updater",
     tags: ["Project Management", "Admin"],
+    tools: ["agent", "contact"],
     description: "Keep stakeholders informed with automated project updates",
     agentDescription:
       "Benefit Metrics: saves ~1 hour per project update. The agent can also be extended to adding necessary tickets and sending follow-ups. Free your project manager up to fight important fires!",
@@ -727,6 +1336,7 @@ New Action Items:
     description: "Generate timely and personalized follow-up emails",
     agentDescription:
       "Benefit Metrics: Conversion rates increase by as much as 7x (<a href='https://growthlist.co/sales-follow-up-statistics/' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>) by sending a follow up within an hour. Personlized emails see 2.7x higher conversion rates, and 5.7x more revenue (<a href='https://www.conversica.com/blog/inbound-lead-follow-up-stats-for-2023/' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>).",
+    tools: ["agent", "contact"],
     blocks: [
       {
         id: "block1",
@@ -834,6 +1444,7 @@ Best Regards,
     name: "Company Analyser",
     tags: ["Finance", "Data Analysis"],
     description: "Deep dive into company financials and metrics",
+    tools: ["agent", "contact"],
     agentDescription:
       "Benefit Metrics: reduces time to analyse all documents from ~3-4 hours (<a href='https://www.reddit.com/r/Accounting/comments/taxhv2/how_long_does_it_take_you_to_do_analysis_on/' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>) to minutes. This agent takes over the tedious tasks, freeing your analysis up for more qualitative and complex tasks. ",
     blocks: [
@@ -982,6 +1593,7 @@ In conclusion, strong growth in revenues and net income alongside increased tota
     description: "Analyze and optimize marketing campaign performance",
     agentDescription:
       "Benefit Metrics: save hours per campaign analysis, by handing the basics off to this agent. This agent reduces the reliance of your marketing managers on data analysis, freeing up your analysts to run more interesting analyses and build durable dashboards. ",
+    tools: ["agent", "contact"],
     blocks: [
       {
         id: "block1",
@@ -1063,6 +1675,7 @@ These steps aim to optimize overall ad performance, leading to an increased retu
     agentDescription:
       "Benefit Metrics: Give your sales reps 20% (<a href='https://www.revenue.io/blog/sales-reps-spend-20-percent-time-research?' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>) - 40% (<a href='https://spotio.com/blog/sales-statistics/?utm_source=chatgpt.com' target='_blank' rel='noopener noreferrer' className='text-blue-400 hover:text-blue-300 underline hover:underline-offset-4 transition-all'>source</a>) of their time back by automating their sales book research. ",
     tags: ["Sales", "Data Analysis"],
+    tools: ["agent", "check in", "web", ""],
     blocks: [
       {
         id: "block1",
@@ -1134,60 +1747,6 @@ These steps aim to optimize overall ad performance, leading to an increased retu
     ],
   },
   {
-    id: "csv-to-formatted-spreadsheet",
-    name: "Raw .csv -> Formatted Spreadsheet Agent",
-    description:
-      "Transform raw CSV data into beautifully formatted spreadsheets with analysis",
-    agentDescription:
-      "Benefit Metrics: saves ~1 hour per spreadsheet analysis. This agent takes raw data and creates a formatted, professional spreadsheet with analysis and visualizations.",
-    tags: ["Data Analysis"],
-    blocks: [
-      {
-        id: "block1",
-        type: "agent",
-        blockNumber: 1,
-        userPrompt:
-          "analyse @sales_data, and give me the average sales and unit sold per product",
-        attachedFile: {
-          name: "sales_data.csv",
-          type: "csv",
-          url: "https://docs.google.com/spreadsheets/d/10wb4KOm-sMQFU59pP3GlM3gZ_o4BJDh0vTOu2UD7rUM/edit?usp=sharing",
-          content: "Sales data content...",
-        },
-        outputVariable: {
-          name: "data_summary",
-        },
-        output: `Based on the data provided in the source, the average sales and units sold per product are as follows:
-Product, Average Units Sold, Average Sales
-Printer, 4,800
-Laptop, 1.5, 1800
-Monitor,3,900
-Desk,2.5, 1125
-Chair, 5.5,825`,
-      },
-      {
-        id: "block2",
-        type: "agent",
-        blockNumber: 2,
-        userPrompt: "summarize {{data_summary}} into 1-2 concise sentences",
-        outputVariable: {
-          name: "written_summary",
-        },
-        output:
-          "Among the analyzed products, Printers had the highest average sales at $800 with 4 units sold on average, while Chairs showed strong unit sales (5.5 units) but lower average revenue ($825), indicating varying price points and demand patterns across the product line.",
-      },
-      {
-        id: "block3",
-        type: "excelagent",
-        blockNumber: 3,
-        userPrompt:
-          "Make a spreadsheet showing the analysis of sales data - make the font calibri everywhere. Make a table with {{sales_data_summary}} - bold the headers. Also make a bar chart, with {{written_summary}} as the label.",
-        output:
-          "https://docs.google.com/spreadsheets/d/1Tcavez45sR1cyE-F4iH1STz0yQJeRpqD/edit?usp=sharing&ouid=101486709579123358134&rtpof=true&sd=true",
-      },
-    ],
-  },
-  {
     id: "meeting-follow-up-tasks",
     name: "Meeting Follow Up With Tasks",
     description:
@@ -1246,72 +1805,12 @@ Chair, 5.5,825`,
     ],
   },
   {
-    id: "weather-api-agent",
-    name: "Weather API Agent",
-    description: "Get real-time weather information for any city",
-    agentDescription:
-      "Benefit Metrics: saves time by automatically fetching and formatting weather data from any city in the world.",
-    tags: ["Data", "API"],
-    blocks: [
-      {
-        id: "block1",
-        type: "agent",
-        blockNumber: 1,
-        userPrompt:
-          'Below is a question a user has asked via an API, about the weather in a given city. Only respond with the city name. User question: {\n\n"What\'s the weather like in Auckland right now?"}',
-        outputVariable: {
-          name: "city",
-        },
-        output: "Auckland, New Zealand",
-      },
-      {
-        id: "block2",
-        type: "codeblock",
-        blockNumber: 2,
-        language: "python",
-        code: `import requests
-
-def get_weather(city):
-    # In a real implementation, this would call a weather API
-    # For this example, we're returning a mock response
-    return {
-        "temperature": 21,
-        "unit": "C"
-    }
-
-weather_data = get_weather("{{city}}")
-print(weather_data)`,
-        outputVariable: {
-          name: "weather_data",
-        },
-        output: `{
-        city: "Auckland",
-        country: "New Zealand",
-        temperature: 21,
-        unit: "C"
-}`,
-      },
-      {
-        id: "block3",
-        type: "agent",
-        blockNumber: 3,
-        userPrompt:
-          "Using the weather data, create a friendly response about the current weather in {{city}}",
-        outputVariable: {
-          name: "weather_response",
-        },
-        output:
-          "The current temperature in Auckland, New Zealand is 21°C. It's a pleasant day with mild temperatures perfect for outdoor activities!",
-      },
-    ],
-  },
-  {
     id: "instagram-profile-watcher",
     name: "Instagram Profile Watcher",
     description: "Monitor and analyze Instagram profiles for insights",
     agentDescription:
       "Benefit Metrics: Automatically track Instagram profile changes and analyze engagement patterns, saving hours of manual monitoring.",
-    tags: ["Social Media", "Analytics"],
+    tags: ["Social Media", "Data Analysis"],
     blocks: [
       {
         id: "block1",
@@ -1407,143 +1906,12 @@ print(weather_data)`,
     ],
   },
   {
-    id: "powerpoint-agent",
-    name: "Data to Powerpoint Agent",
-    description:
-      "Create professional PowerPoint presentations with AI assistance",
-    agentDescription:
-      "Benefit Metrics: saves ~2-3 hours per presentation by automating slide creation and formatting. This agent helps create professional presentations quickly.",
-    tags: ["Content", "Marketing"],
-    blocks: [
-      {
-        id: "block1",
-        type: "agent",
-        blockNumber: 1,
-        userPrompt:
-          "@sales.csv represents raw sales data from our last 1 month of sales. Give me the average dollars and units sold per product, and per region.",
-        attachedFile: {
-          name: "april_sales.csv",
-          type: "csv",
-          url: "https://drive.google.com/file/d/1IzrBjZfEZqV5ol55BfDpdAQZo-ZP2hzZ/view?usp=sharing",
-          content: "Raw sales data for April 2025",
-        },
-        outputVariable: {
-          name: "analysis",
-        },
-        output: `Model Response:
-Group,Avg Units Sold,Avg Dollars Sold
-Product: Headphones,36.375,5456.25
-Product: Keyboard,63.857143,6385.714286
-Product: Laptop,42.25,42250.0
-Product: Monitor,46.857143,14057.142857
-Product: Mouse,47.0,2350.0
-Product: Smartphone,55.625,44550.0
-Product: Tablet,55.9,30000.0
-City: Chicago,32.0,15400.0
-City: Houston,46.25,6806.25
-City: Los Angeles,58.4,23690.0
-City: New York,61.2,33400.0
-City: Philadelphia,46.375,24087.5
-City: Phoenix,36.6,20510.0
-City: San Antonio,50.625,35775.0
-`,
-      },
-      {
-        id: "block2",
-        type: "codeblock",
-        blockNumber: 2,
-        language: "python",
-        code: `
-import pandas as pd
-import geopandas as gpd
-import matplotlib.pyplot as plt
-import requests
-from io import BytesIO
-
-# Step 1: Load CSV
-df = pd.read_csv("sales_data_demo.csv")
-
-# Step 2: Map cities to states
-city_to_state = {
-    'New York': 'New York',
-    'Houston': 'Texas',
-    'San Antonio': 'Texas',
-    'Phoenix': 'Arizona',
-    'Philadelphia': 'Pennsylvania'
-}
-df['State'] = df['City'].map(city_to_state)
-
-# Step 3: Group by state
-units_per_state = df.groupby('State')['Units Sold'].sum().reset_index()
-
-# Step 4: Load US states geometry
-geojson_url = "https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json"
-response = requests.get(geojson_url)
-states = gpd.read_file(BytesIO(response.content))
-
-# Step 5: Merge sales data into map
-choropleth_data = states.merge(units_per_state, how='left', left_on='name', right_on='State')
-choropleth_data['Units Sold'] = choropleth_data['Units Sold'].fillna(0)
-
-# Step 6: Plot
-fig, ax = plt.subplots(figsize=(15, 10))
-choropleth_data.plot(column='Units Sold', ax=ax, cmap='Blues', edgecolor='black', legend=True)
-ax.set_title("Units Sold by State", fontsize=18)
-ax.axis("off")
-
-plt.tight_layout()
-plt.savefig("units_sold_map.png")
-plt.show()
-`,
-        outputVariable: {
-          name: "data_viz",
-        },
-        output:
-          "✅ code run successfully! Find the image at this link: https://drive.google.com/file/d/1XvdMrgtK9NOjHbRXmWc9TuM3i4jNRN90/view?usp=sharing",
-      },
-      {
-        id: "block3",
-        type: "agent",
-        // output: `https://www.usesolari.ai/`,
-        blockNumber: 3,
-        userPrompt:
-          "take {{analysis}}, and create 2-3 sentence summaries, summarizing each point. these will go in a powerpoint presnting the data, alongside a chart. speak in a professional and concise manner.",
-        // slides: 3,
-        outputVariable: {
-          name: "analysis_summary",
-        },
-        output: `
-Per Product Insights
-	•	Smartphones had the highest average dollar value per sale at $44,550, with an average of 55 units sold per entry — making it your top high-ticket item.
-	•	Laptops followed closely with $42,250 average revenue, though with fewer units sold (42 avg) — indicating fewer but larger transactions.
-	•	Monitors and Tablets had solid performance too, averaging $14,057 and $30,000 respectively.
-	•	Headphones, Keyboards, and Mice had much lower revenue per transaction (around $2K–$6K), suggesting they're lower-cost, higher-volume items.
-Per City Insights
-	•	New York leads in both units sold (61.2 avg) and revenue per entry ($33,400), indicating it's your strongest performing region.
-	•	San Antonio and Los Angeles also perform well, averaging over $23K–$35K in sales.
-	•	Philadelphia shows moderate volume but strong revenue, suggesting balanced performance.
-	•	Phoenix and Chicago trail in both units and revenue, potentially signaling underperforming regions or opportunities for growth.
-          `,
-      },
-      {
-        id: "block4",
-        type: "powerpoint",
-        blockNumber: 4,
-        prompt:
-          "create a 3-slide presentation about the sales data. Include {{analysis_summary}} in the first slide, and {{data_viz}} in the second slide.",
-        slides: 3,
-        output:
-          "https://docs.google.com/presentation/d/1L8-goD0L-okVxsrZe5NvOKXUmOVl_Wse_HBQlRTBlf8/edit?usp=sharing",
-      },
-    ],
-  },
-  {
     id: "data-viz-excel-agent",
     name: "Data to Spreadsheet + Data Viz Agent",
     description: "Create professional Excel spreadsheets with AI assistance",
     agentDescription:
       "Benefit Metrics: saves ~2-3 hours per presentation by automating spreadsheet creation and formatting. This agent helps create professional spreadsheets quickly.",
-    tags: ["Content", "Marketing"],
+    tags: ["Content", "Marketing", "Data Analysis"],
     blocks: [
       {
         id: "block1",
@@ -1673,7 +2041,7 @@ Per City Insights
       "Analyzes Instagram posts and performs Google Image Search to find similar products",
     agentDescription:
       "This agent first fetches Instagram posts and then uses Google Image Search to find similar products and analyze market trends.",
-    tags: ["instagram", "image-search", "market-analysis"],
+    tags: ["instagram", "image search", "sales"],
     blocks: [
       {
         id: "block1",
@@ -1865,7 +2233,7 @@ Per City Insights
     description: "Extract and annotate key information from documents",
     agentDescription:
       "Benefit Metrics: Automatically identifies and extracts relevant information from documents",
-    tags: ["Document", "Analysis"],
+    tags: ["Document Handling", "Analysis"],
     blocks: [
       {
         id: "block1",
@@ -1896,6 +2264,344 @@ Per City Insights
           name: "summary",
         },
         output: `Summary of Mergers & Acquisitions Discussion: The company is actively pursuing strategic mergers and acquisitions to enhance its product offerings. For Flow, they are exploring opportunities in the document summarization space. Beacon may see an expansion through early-stage discussions with a European data modeling startup. Most notably, Nexus has finalized the acquisition of OpsBot, a lightweight SRE monitoring tool, which will be integrated by Q3. These moves reflect a targeted approach to expanding capabilities across all core products.`,
+      },
+    ],
+  },
+  {
+    id: "email-lead-qualifier",
+    name: "Qualify leads via Email",
+    description:
+      "This agent goes back and forth with a prospective lead, to assess if this is a legitimate lead or not. ",
+    // description:
+    //   "This agent goes back and forth with a prospective lead, asking the right questions to qualify if this is a legitimate lead or not. It then makes a judgement on if this is a valid lead, and passes it onto the sales associate.",
+    agentDescription:
+      "Benefit Metrics: 100% of leads that your sales associates work with are qualified leads. Hours saved per day asking useless questions.",
+    tags: ["Sales"],
+    start_method: "email",
+    blocks: [
+      {
+        id: "block1",
+        type: "simulatedemail",
+        blockNumber: 1,
+        from: "jack@jacksapplecider.com",
+        subject: "inquiry",
+        body: "hey there! I’m jack, im the founder of Jacks Apple Cider. I saw your website come up while looking for a packaging and distributions partner to help with our US shipments. ",
+        attachments: [],
+      },
+      {
+        id: "block2",
+        type: "agent",
+        blockNumber: 2,
+        output: `
+- What we know:
+	•	The sender is based in the U.S. and is looking for help with U.S. shipments (✅ no international shipping).
+	•	They are in the beverage industry (Jack’s Apple Cider), which may imply glass bottles, cans, or liquid-safe packaging — but no explicit mention of specialty packaging yet.
+
+- Questions to ask:
+	•	What is your monthly order volume (we require a minimum of 10,000 units/month)?
+	•	Does your packaging require anything specialty (e.g. biodegradable, temperature-sensitive, etc.)?
+
+⸻
+
+Email Response:
+
+⸻
+
+Subject: Quick Follow-Up on Your Packaging Inquiry
+
+Hi Jack,
+
+Thanks for reaching out — great to hear from you, and Jack’s Apple Cider sounds awesome!
+
+To make sure we’re the right fit, I just have a couple quick questions:
+	•	What’s your estimated monthly order volume?
+	•	Does your packaging require anything specialty (e.g. biodegradable, temperature-sensitive, etc.)?
+
+Once I have that, I can point you in the right direction or connect you with someone on our team.
+
+Looking forward to hearing from you!
+
+Best,
+Alan the Lead Qualifier Agent
+        `,
+        outputVariable: {
+          name: "lead_qualification",
+          value: "",
+        },
+        userPrompt: `
+        You qualify leads for a packaging and distribution company. Your job is to determine whether a prospective customer is a good fit for the business.
+
+You do this by:
+	1.	Reading the contents of inbound emails from prospective customers.
+	2.	Identifying what information is already provided.
+	3.	Identifying what additional information you need to determine fit.
+	4.	Sending a clear and polite email requesting only the missing details.
+
+You are evaluating leads based on the following criteria:
+	•	Order Volume: Must be at least 10,000 units per month
+	•	Packaging Type: Must not require specialty packaging (e.g. biodegradable, temperature-sensitive, medical-grade, etc.)
+	•	Shipping Requirements: Must not require international shipping
+
+When responding, structure your internal assessment using this format:
+
+⸻
+
+What we know:
+[List the information the sender has already provided that maps to the qualification criteria.]
+
+Questions to ask:
+[List any remaining questions you need to determine if the lead is a good fit.]
+
+Then, draft an email that politely and professionally asks for just the missing information.
+
+Keep the tone friendly, efficient, and professional.
+        `,
+      },
+      {
+        id: "block3",
+        type: "agent",
+        blockNumber: 3,
+        userPrompt: `
+        {{lead_qualification}} represents a summary of what information we have and what we need, to determine if this lead would be a good fit for our business. take the ‘questions to ask’, and create an email that asks those questions. this will go directly to the user, so stay in keeping with our content guidelines. No fluff or filler language before or after the email. `,
+        output: `
+Subject: Quick Follow-Up on Your Packaging Inquiry
+
+Hi Jack,
+
+Thanks for reaching out — great to hear from you, and Jack’s Apple Cider sounds awesome!
+
+To make sure we’re the right fit, I just have a couple quick questions:
+	•	What’s your estimated monthly order volume?
+	•	Does your packaging require anything specialty (e.g. biodegradable, temperature-sensitive, etc.)?
+
+Once I have that, I can point you in the right direction or connect you with someone on our team.
+
+Looking forward to hearing from you!
+
+Best,
+Alan the Lead Qualifier Agent
+        `,
+        outputVariable: {
+          name: "lead_qualification_email",
+          value: "",
+        },
+      },
+      {
+        id: "email_response_block",
+        type: "contact",
+        blockNumber: 4,
+        to: "jack@jacksapplecider.com",
+        subject: "Quick Follow-Up on Your Packaging Inquiry",
+        body: "{{lead_qualification_email}}",
+        outputVariable: {
+          name: "email_sent",
+          value: "",
+        },
+        output: "📨 email sent!",
+      },
+    ],
+  },
+
+  {
+    id: "job-description-agent",
+    name: "Create Job Description",
+    description:
+      "Interactive job description creation assistant for internal teams",
+    agentDescription:
+      "This agent facilitates the job description creation process by engaging with internal team members, validating hiring needs, and crafting appropriate job descriptions. It ensures external hiring is justified and produces well-structured job descriptions aligned with team requirements. Benefit Metrics: Reduces JD creation time by 70%, ensures consistency in hiring requirements, and validates hiring needs before posting.",
+    tags: ["HR", "Admin", "Content"],
+    start_method: "email",
+    blocks: [
+      {
+        id: "initial_request_block",
+        type: "simulatedemail",
+        blockNumber: 1,
+        from: "priya@usesolari.ai",
+        subject: "Need Help Creating Job Posting",
+        body: "Hey,\n\nWe're looking to hire a new data engineer and need help putting together a job description and posting. Can you help us draft something we can use for the listing?\n\nThanks!\n[Your Name]\nData Engineering Team",
+        attachments: [],
+      },
+      {
+        id: "initial_response_block",
+        type: "contact",
+        blockNumber: 2,
+        to: "{{requester_email}}",
+        subject: "Re: Need Help Creating Job Posting",
+        body: "Great! Happy to help.\n\nCan you share a bit more detail so I can get started? Specifically:\n\t•\tWhat's the rough job description or what will this person be working on?\n\t•\tWhat are the most critical skills or tools they should have experience with?\n\t•\tDo you have a sense of how many years of experience you're looking for?\n\nOnce I have that, I can put together a draft for you.\n\nBest,\n[Agent Name]",
+        outputVariable: {
+          name: "initial_response_sent",
+          value: "",
+        },
+        output: "Response 200: 📨 email sent!",
+      },
+      {
+        id: "requirements_response_block",
+        type: "simulatedemail",
+        blockNumber: 3,
+        from: "priya@usesolari.ai",
+        subject: "Re: Need Help Creating Job Posting",
+        body: "1. they will be a data engineer- building reliable ETL pipelines based on requirements from product and data\n2. python, sql - bonus points for any direct machine learning, data engineering or software engineering roles\n3. not sure how many years of experience",
+        attachments: [],
+      },
+      {
+        id: "experience_clarification_block",
+        type: "contact",
+        blockNumber: 4,
+        to: "{{requester_email}}",
+        subject: "Re: Need Help Creating Job Posting",
+        body: "got it! thanks for that. For years of experience - our default is 2 years of work experience after an undergradate degree. Can i put that as an optional requirement?",
+        outputVariable: {
+          name: "experience_clarification_sent",
+          value: "",
+        },
+        output: "Response 200: 📨 email sent!",
+      },
+      {
+        id: "experience_confirmation_block",
+        type: "simulatedemail",
+        blockNumber: 5,
+        from: "priya@usesolari.ai",
+        subject: "Re: Need Help Creating Job Posting",
+        body: "sounds good!",
+        attachments: [],
+      },
+      {
+        id: "internal_review_block",
+        type: "agent",
+        blockNumber: 6,
+        userPrompt:
+          "review the job requirements, and identify any team members that may be good fits for internal transfers",
+        outputVariable: {
+          name: "potential_internal_teams",
+          value: "data (matt)",
+        },
+        output: "data (matt) ",
+      },
+      {
+        id: "internal_check_email_block",
+        type: "agent",
+        blockNumber: 7,
+        userPrompt:
+          "create an email asking the team member if they have asked the members in {{potential_internal_teams}} for any potential internal migrations.",
+        outputVariable: {
+          name: "confirmation_email",
+          value:
+            "great! and can i confirm that you've smoke with matt from our analyst team to confirm no members of his team would be elivible for/open to an internal transfer? These can be more efficient than looking online, as these team members already know everything about our company and processes etc..",
+        },
+        output:
+          "great! and can i confirm that you've smoke with matt from our analyst team to confirm no members of his team would be elivible for/open to an internal transfer? These can be more efficient than looking online, as these team members already know everything about our company and processes etc..",
+      },
+      {
+        id: "internal_check_send_block",
+        type: "contact",
+        blockNumber: 8,
+        to: "{{requester_email}}",
+        subject: "Re: Need Help Creating Job Posting",
+        body: "{{confirmation_email}}",
+        outputVariable: {
+          name: "internal_check_sent",
+          value: "",
+        },
+        output: "Response 200: 📨 email sent!",
+      },
+      {
+        id: "internal_check_response_block",
+        type: "simulatedemail",
+        blockNumber: 9,
+        from: "priya@usesolari.ai",
+        subject: "Re: Need Help Creating Job Posting",
+        body: "yes! i spoke with matt, but unfortunately soonest someone could offboard from their current projects and join the data eng team is q3 which is a bit late for us!",
+        attachments: [],
+      },
+
+      {
+        id: "deadline_check_block",
+        type: "contact",
+        blockNumber: 10,
+        to: "{{requester_email}}",
+        subject: "Re: Need Help Creating Job Posting",
+        body: "Got it! So i gather you have a deadline of when you'd need a new person by?",
+        outputVariable: {
+          name: "deadline_check_sent",
+          value: "",
+        },
+        output: "Response 200: 📨 email sent!",
+      },
+      {
+        id: "deadline_response_block",
+        type: "simulatedemail",
+        blockNumber: 11,
+        from: "priya@usesolari.ai",
+        subject: "Re: Need Help Creating Job Posting",
+        body: "yes! good catch. I'll need them in by the end of next month at the latest.",
+        attachments: [],
+      },
+      {
+        id: "jd_creation_block",
+        type: "agent",
+        blockNumber: 12,
+        userPrompt:
+          "agent - summarize all the information into a jd, matching this source @marketing operations job description",
+        attachedFile: {
+          name: "marketing operations",
+          type: "PDF",
+          url: "https://docs.google.com/document/d/1TjIGxVHc-uEBgh58K3nZjyboCjW5jM6HdGQPOPoGq0s/edit?usp=sharing",
+          content: "@marketing operations",
+        },
+        outputVariable: {
+          name: "draft_jd",
+          value: "",
+        },
+        output: `got it! here's the JD we have made.
+Job Title: Data Engineer
+
+Location: [Insert Location or “Remote”]
+Team: Data & Infrastructure
+Reports To: [Insert Manager Title or Name]
+
+⸻
+
+About the Role
+
+We’re looking for a Data Engineer to join our team and help build reliable, scalable ETL pipelines that serve critical data needs across product and analytics. You’ll work closely with our Product and Data teams to turn business requirements into clean, production-grade data workflows.
+
+⸻
+
+What You’ll Do
+	•	Design, build, and maintain robust ETL pipelines
+	•	Collaborate with Product and Data teams to define data requirements
+	•	Ensure high data quality and integrity across systems
+	•	Optimize data infrastructure for scalability and performance
+	•	Contribute to data modeling and tooling efforts across the organization
+
+⸻
+
+What We’re Looking For
+	•	Strong proficiency in Python and SQL
+	•	Bonus: experience with machine learning, data engineering, or software engineering projects
+	•	Experience working with modern data stacks (e.g. Airflow, dbt, Snowflake, etc.) is a plus
+	•	Ability to work cross-functionally with both technical and non-technical teams
+
+⸻
+
+Preferred Qualifications
+	•	2+ years of professional experience after an undergraduate degree (preferred but not required)
+	•	Bachelor’s degree in Computer Science, Engineering, or a related technical field
+        
+        `,
+      },
+      {
+        id: "final_jd_send_block",
+        type: "contact",
+        blockNumber: 13,
+        to: "{{requester_email}}",
+        subject: "Re: Need Help Creating Job Posting - Draft JD",
+        body: "{{draft_jd}}",
+        outputVariable: {
+          name: "final_jd_sent",
+          value: "",
+        },
+        output: "Response 200: 📨 email sent!",
       },
     ],
   },
@@ -1932,12 +2638,121 @@ export default function SharedAgentPage() {
   );
   const [displaySwitchState, setDisplaySwitchState] = useState(false);
 
-  // Add effect to start processing when entering edit mode
-  // useEffect(() => {
-  //   if (isEditMode && agentData) {
-  //     processBlocks();
-  //   }
-  // }, [isEditMode, agentData]);
+  const EmailStartMethod = () => {
+    return (
+      <div className="bg-gray-950 p-3 rounded-lg mb-6 border border-white/10">
+        <div className="flex items-center gap-2 mb-2">
+          <MdOutlineEmail className="h-5 w-5 text-white" />
+          <h3 className="text-white font-medium">Start Method: Email</h3>
+        </div>
+        <p className="text-gray-400 mb-3">
+          This agent is triggered via receiving an email to the agent inbox.
+          This simulates an agent run, that is kicked off upon receiving an
+          email.
+        </p>
+        {/* gap-3 controls spacing between flex items (the text and button) */}
+        <p className="text-gray-400 flex items-center gap-3">
+          Tap
+          {/* mx-1 adds margin on both sides of the button */}
+          <button
+            onClick={handleRunAgent}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors inline-flex items-center gap-2 mx-1"
+          >
+            <span className="text-lg">▶</span>
+            <span>Simulate Run</span>
+            <span className="text-xs opacity-75 ml-1">⌘↵</span>
+          </button>
+          to kick off the agent.
+        </p>
+      </div>
+    );
+  };
+
+  const APIStartMethod = () => {
+    return (
+      <div className="bg-gray-950 p-3 rounded-lg mb-6 border border-white/10">
+        <div className="flex items-center gap-2 mb-2">
+          <TbApi className="h-5 w-5 text-white" />
+          <h3 className="text-white font-medium">Start Method: API</h3>
+        </div>
+        <p className="text-gray-400 mb-3">
+          This agent is triggered via an API call. This simulates an agent run,
+          after receiving an API call.
+        </p>
+        {/* gap-3 controls spacing between flex items (the text and button) */}
+        <p className="text-gray-400 flex items-center gap-3">
+          Tap
+          {/* mx-1 adds margin on both sides of the button */}
+          <button
+            onClick={handleRunAgent}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors inline-flex items-center gap-2 mx-1"
+          >
+            <span className="text-lg">▶</span>
+            <span>Simulate Run</span>
+            <span className="text-xs opacity-75 ml-1">⌘↵</span>
+          </button>
+          to kick off the agent.
+        </p>
+      </div>
+    );
+  };
+
+  const ScheduleStartMethod = () => {
+    return (
+      <div className="bg-gray-950 p-3 rounded-lg mb-6 border border-white/10">
+        <div className="flex items-center gap-2 mb-2">
+          <Clock className="h-5 w-5 text-white" />
+          <h3 className="text-white font-medium">Start Method: Schedule</h3>
+        </div>
+        <p className="text-gray-400 mb-3">
+          This agent is triggered on a schedule. This simulates an agent run,
+          that is kicked off on a schedule.
+        </p>
+        {/* gap-3 controls spacing between flex items (the text and button) */}
+        <p className="text-gray-400 flex items-center gap-3">
+          Tap
+          {/* mx-1 adds margin on both sides of the button */}
+          <button
+            onClick={handleRunAgent}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors inline-flex items-center gap-2 mx-1"
+          >
+            <span className="text-lg">▶</span>
+            <span>Simulate Run</span>
+            <span className="text-xs opacity-75 ml-1">⌘↵</span>
+          </button>
+          to kick off the agent.
+        </p>
+      </div>
+    );
+  };
+
+  const ManualStartMethod = () => {
+    return (
+      <div className="bg-gray-950 p-3 rounded-lg mb-6 border border-white/10">
+        <div className="flex items-center gap-2 mb-2">
+          <PlayIcon className="h-5 w-5 text-white" />
+          <h3 className="text-white font-medium">Start Method: Manual</h3>
+        </div>
+        <p className="text-gray-400 mb-3">
+          This agent is triggered manually by clicking the run button.
+        </p>
+        {/* gap-3 controls spacing between flex items (the text and button) */}
+        <p className="text-gray-400 flex items-center gap-3">
+          Tap
+          {/* mx-1 adds margin on both sides of the button */}
+          <button
+            onClick={handleRunAgent}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors inline-flex items-center gap-2 mx-1"
+          >
+            <span className="text-lg">▶</span>
+            <span>Run</span>
+            <span className="text-xs opacity-75 ml-1">⌘↵</span>
+          </button>
+          to kick off the agent.
+        </p>
+      </div>
+    );
+  };
 
   const cycleEmoji = useCallback(() => {
     const emojis = ["🤔", "🧠", "💭"];
@@ -2036,6 +2851,12 @@ export default function SharedAgentPage() {
 
   // Dynamic footer content based on run state
   const renderFooterContent = () => {
+    const buttonText =
+      agentData?.start_method &&
+      ["api", "email", "scheduled"].includes(agentData.start_method)
+        ? "Simulate Run"
+        : "Run";
+
     switch (runState) {
       case RunState.NOT_STARTED:
         return (
@@ -2045,7 +2866,7 @@ export default function SharedAgentPage() {
               className="bg-blue-600/80 hover:bg-blue-700/90"
             >
               <PlayIcon className="h-5 w-5 mr-2" />
-              Run ⌘⏎
+              {buttonText} ⌘⏎
             </Button>
           </div>
         );
@@ -2075,7 +2896,7 @@ export default function SharedAgentPage() {
                 className="border-gray-700 hover:bg-gray-800"
               >
                 <PlayIcon className="h-5 w-5 mr-2" />
-                Re-run agent ⌘⏎
+                {buttonText} ⌘⏎
               </Button>
             </div>
             <div className="flex justify-center">
@@ -2206,6 +3027,28 @@ export default function SharedAgentPage() {
               prompt={block.prompt}
               annotatedDocLink={block.annotatedDocLink}
               extractedChunks={block.extractedChunks}
+            />
+          );
+        case "simulatedemail":
+          return (
+            <SimulatedEmailBlock
+              {...commonProps}
+              from={block.from}
+              subject={block.subject}
+              body={block.body}
+              attachments={block.attachments}
+              isRunning={runState === RunState.RUNNING}
+            />
+          );
+        case "simulatedapi":
+          return (
+            <SimulatedApiBlock
+              {...commonProps}
+              endpoint={block.endpoint}
+              method={block.method}
+              headers={block.headers}
+              body={block.body}
+              isRunning={runState === RunState.RUNNING}
             />
           );
         default:
@@ -2344,6 +3187,19 @@ export default function SharedAgentPage() {
           >
             <div className="space-y-6">
               <p className="text-gray-400 mb-6">{agentData.description}</p>
+              {(() => {
+                const startMethod = agentData.start_method || "manual";
+                switch (startMethod) {
+                  case "email":
+                    return <EmailStartMethod />;
+                  case "api":
+                    return <APIStartMethod />;
+                  case "scheduled":
+                    return <ScheduleStartMethod />;
+                  default:
+                    return <ManualStartMethod />;
+                }
+              })()}
               {isEditMode ? (
                 // In edit mode, show all blocks with their outputs
                 agentData.blocks.map((block, index) => (

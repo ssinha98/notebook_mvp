@@ -75,7 +75,7 @@ export default function ScheduledAgents() {
                   <Clock className="h-4 w-4" />
                 </TableCell>
                 <TableCell className="font-medium">{agent.name}</TableCell>
-                <TableCell>Coming soon</TableCell>
+                <TableCell>This Monday @ 10am</TableCell>
               </TableRow>
             ))}
           </TableBody>

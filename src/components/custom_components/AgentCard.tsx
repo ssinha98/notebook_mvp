@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LuBrainCircuit, LuSearchCode } from "react-icons/lu";
+import { LuBrainCircuit, LuFileDiff, LuSearchCode } from "react-icons/lu";
 import { TbMailDown } from "react-icons/tb";
 import {
   IoPlaySkipForwardCircle,
@@ -21,6 +21,7 @@ import {
 import Image from "next/image";
 import { FaRegCirclePause } from "react-icons/fa6";
 import { LiaHighlighterSolid } from "react-icons/lia";
+import { PiChartScatterLight } from "react-icons/pi";
 interface AgentCardProps {
   agentId: string;
   agentName: string;
@@ -66,6 +67,8 @@ const BLOCK_TYPE_ICONS: Record<string, React.ReactNode> = {
   searchagent: <LuSearchCode className="h-4 w-4 text-gray-300" />,
   webagent: <IoGlobeOutline className="h-4 w-4 text-gray-300" />,
   codeblock: <IoCodeSlash className="h-4 w-4 text-gray-300" />,
+  dataviz: <PiChartScatterLight className="h-4 w-4 text-gray-300" />,
+  docdiff: <LuFileDiff className="h-4 w-4 text-gray-300" />,
   make: (
     <Image
       src="https://images.ctfassets.net/un655fb9wln6/3xu9WYYJyMScG7FKnuVd1V/c4072d425c64525ea94ae9b60093fbaa/Make-Icon-Circle-Purple.svg"
@@ -120,6 +123,7 @@ const BLOCK_TYPE_TOOLTIPS: Record<string, string> = {
   simulatedapi: "Receives API Calls",
   powerpoint: "Create PowerPoint Presentations",
   docannotator: "Annotate Documents",
+  dataviz: "Create Data Visualisations",
 };
 
 export default function AgentCard({

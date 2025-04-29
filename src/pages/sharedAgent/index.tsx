@@ -37,7 +37,7 @@ import { Switch } from "@/components/ui/switch";
 import BlockTypeDisplay from "@/components/custom_components/BlockTypeDisplay";
 import RateAgentRun from "@/components/custom_components/RateAgentRun";
 import ShareablePowerpointBlock from "@/components/custom_components/shareable_blocks/ShareablePowerpointBlock";
-import ShareableDocDiffBlock from "@/components/custom_components/shareable_blocks/ShareableDocDiff";
+import { ShareableDocDiffBlock } from "@/components/custom_components/shareable_blocks/ShareableDocDiff";
 import { ShareableDocDiffBlock as ShareableDocDiffBlockType } from "../../types/shareable_blocks";
 import { ShareableDocAnnotatorBlock as ShareableDocAnnotatorBlockType } from "../../types/shareable_blocks";
 import ShareableDocAnnotatorBlock from "@/components/custom_components/shareable_blocks/ShareableDocAnnotator";
@@ -576,8 +576,11 @@ export default function SharedAgentPage() {
           return (
             <ShareableDocDiffBlock
               {...commonProps}
-              originalDoc={block.originalDoc}
-              modifiedDoc={block.modifiedDoc}
+              id={block.id}
+              type={block.type}
+              input_prompt={block.input_prompt}
+              document_diffs={block.document_diffs}
+              isProcessing={isProcessing}
             />
           );
         case "docannotator":
@@ -824,8 +827,8 @@ export default function SharedAgentPage() {
 
           {/* Side Panel - Only show if not in edit mode */}
           {isPanelOpen && !isEditMode && (
-            <div className="w-1/2 bg-white border-l border-gray-200 overflow-y-auto">
-              <div className="p-4 relative">
+            <div className="w-1/2 bg-white border-l border-gray-200 overflow-y-auto h-screen">
+              <div className="p-4 relative max-w-full">
                 <button
                   className="absolute top-4 right-4 cursor-pointer text-black hover:text-gray-700 p-2 bg-gray-100 rounded-full z-50 hover:bg-gray-200"
                   onClick={(e) => {
@@ -837,147 +840,28 @@ export default function SharedAgentPage() {
                 >
                   <MinusOutlined style={{ fontSize: "24px" }} />
                 </button>
-                <div className="mt-12">
+                <div className="mt-12 max-w-full overflow-x-auto">
                   {currentBlock ? (
-                    <div className="flex-grow flex flex-col items-center justify-center">
-                      {/* what shows in panel when run is complete */}
+                    <div className="flex-grow flex flex-col items-center justify-center max-w-full">
+                      {/* Block content container */}
+                      <div className="w-full overflow-x-auto mb-16">
+                        {renderBlock(currentBlock)}
+                      </div>
+
+                      {/* Show either loading indicator or rating component based on run state */}
                       {runState === RunState.COMPLETED ? (
-                        <>
-                          <div className="flex-grow flex flex-col items-center justify-between h-full py-12 space-y-16">
-                            {/* Component 1: How it was made */}
-                            <div className="text-center">
-                              <div className="text-black mb-4 text-center">
-                                Want to see how this agent was made? Switch to
-                                Edit mode to see how it's configured
-                              </div>
-                              <div className="inline-flex items-center justify-center gap-2 bg-gray-800 px-3 py-1.5 rounded-lg">
-                                <span
-                                  className={`text-sm ${!displaySwitchState ? "text-white" : "text-gray-400"}`}
-                                >
-                                  View
-                                </span>
-                                <Switch
-                                  checked={displaySwitchState}
-                                  className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-600 h-6 w-11 [&>span]:h-5 [&>span]:w-5 [&>span]:bg-white pointer-events-none"
-                                />
-                                <span
-                                  className={`text-sm ${displaySwitchState ? "text-white" : "text-gray-400"}`}
-                                >
-                                  Edit
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Component 2: Last Block */}
-                            {agentData?.blocks.length > 0 && (
-                              <div className="w-full space-y-4">
-                                {/* Render the block itself */}
-                                {renderBlock(
-                                  agentData.blocks[agentData.blocks.length - 1]
-                                )}
-
-                                {/* Add the output display */}
-                                {agentData.blocks[agentData.blocks.length - 1]
-                                  .output && (
-                                  <div className="mt-4 p-4 bg-gray-800 rounded-lg">
-                                    {agentData.blocks[
-                                      agentData.blocks.length - 1
-                                    ].type === "powerpoint" ? (
-                                      <div className="flex items-center gap-2 text-sm text-gray-300">
-                                        <span>
-                                          Your presentation is ready! View it
-                                          at:{" "}
-                                        </span>
-                                        <a
-                                          href={
-                                            agentData.blocks[
-                                              agentData.blocks.length - 1
-                                            ].output
-                                          }
-                                          className="text-blue-500 underline hover:text-blue-400"
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                        >
-                                          {
-                                            agentData.blocks[
-                                              agentData.blocks.length - 1
-                                            ].output
-                                          }
-                                        </a>
-                                      </div>
-                                    ) : (
-                                      <p className="text-sm text-gray-300 whitespace-pre-wrap">
-                                        {
-                                          agentData.blocks[
-                                            agentData.blocks.length - 1
-                                          ].output
-                                        }
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Component 3: Rate Agent */}
-                            <div className="text-center">
-                              <RateAgentRun onRate={handleRateAgent} />
-                            </div>
-                          </div>
-                        </>
+                        <RateAgentRun onRate={handleRateAgent} />
                       ) : (
-                        <div className="flex-grow flex flex-col h-screen">
-                          {" "}
-                          {/* Added h-screen */}
-                          {currentBlock.type === "webagent" ? (
-                            <div className="w-full h-full flex-grow">
-                              {" "}
-                              {/* Added flex-grow */}
-                              <WebAgentViewer
-                                url={(currentBlock as ShareableWebBlock).url}
-                                nickname={
-                                  (currentBlock as ShareableWebBlock).nickname
-                                }
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center text-center">
-                              <div className="text-6xl mb-6">⌛</div>
-                              <div className="text-xl text-gray-400 mb-3">
-                                Running...
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                Current block: {currentBlock.type}{" "}
-                                {currentBlock.blockNumber}
-                              </div>
-                            </div>
-                          )}
+                        <div className="flex flex-col items-center justify-center text-center mt-8">
+                          <div className="text-6xl mb-6">⌛</div>
+                          <div className="text-xl text-gray-400 mb-3">
+                            Running...
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Current block: {currentBlock.type}{" "}
+                            {currentBlock.blockNumber}
+                          </div>
                         </div>
-                        // <div className="flex-grow flex flex-col items-center justify-center min-h-[600px]">
-                        //   <div className="flex flex-col items-center text-center">
-                        //     <div className="text-6xl mb-6">⌛</div>
-                        //     <div className="text-xl text-gray-400 mb-3">
-                        //       Running...
-                        //     </div>
-                        //     {currentBlock.type === "webagent" ? (
-                        //       <WebAgentViewer
-                        //         url={(currentBlock as ShareableWebBlock).url}
-                        //         nickname={
-                        //           (currentBlock as ShareableWebBlock).nickname
-                        //         }
-                        //       />
-                        //     ) : (
-                        //       <div className="text-sm text-gray-500">
-                        //         Current block: {currentBlock.type}{" "}
-                        //         {currentBlock.blockNumber}
-                        //       </div>
-                        //     )}
-                        //     {/* <div className="text-sm text-gray-500">
-                        //       Current block: {currentBlock.type}{" "}
-                        //       {currentBlock.blockNumber}
-                        //     </div> */}
-                        //   </div>
-                        // </div>
                       )}
                     </div>
                   ) : (

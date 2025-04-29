@@ -2410,83 +2410,227 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
       },
     ],
   },
-  // {
-  //   id: "viz-agent",
-  //   name: "Data Visualization Agent",
-  //   description: "Create data visualizations from your data",
-  //   agentDescription: "This agent helps create insightful data visualizations",
-  //   tags: ["Data", "Visualization"],
-  //   start_method: "manual",
-  //   blocks: [
-  //     {
-  //       id: "block1",
-  //       type: "agent",
-  //       blockNumber: 1,
-  //       userPrompt:
-  //         "analyse @sales_data, and give me the average sales and unit sold per product",
-  //       attachedFile: {
-  //         name: "sales_data.csv",
-  //         type: "csv",
-  //         url: "https://docs.google.com/spreadsheets/d/10wb4KOm-sMQFU59pP3GlM3gZ_o4BJDh0vTOu2UD7rUM/edit?usp=sharing",
-  //         content: "Sales data content...",
-  //       },
-  //       outputVariable: {
-  //         name: "data_summary",
-  //       },
-  //       output: `Based on the data provided in the source, the average sales and units sold per product are as follows:
-  // Product, Average Units Sold, Average Sales
-  // Printer, 4,800
-  // Laptop, 1.5, 1800
-  // Monitor,3,900
-  // Desk,2.5, 1125
-  // Chair, 5.5,825`,
-  //     },
-  //     // Add the block inside a blocks array
-  //     {
-  //       id: "viz1",
-  //       type: "dataviz",
-  //       blockNumber: 2,
-  //       chosenChart: "smart",
-  //       source: "{{data_summary}}",
-  //       context: "Monthly sales data breakdown by product category",
-  //       pointers: "Please highlight the top performing category in red",
-  //       output: "Response 200: 📈 data visualization created!",
-  //     },
-  //   ],
-  // },
-  // Add this to your SHAREABLE_AGENTS array
-  // {
-  //   id: "web-analyzer",
-  //   name: "Website Analyzer",
-  //   description:
-  //     "This agent analyzes website content and extracts key information.",
-  //   agentDescription:
-  //     "Demonstrates web agent capabilities with animated visualization",
-  //   tags: ["Web", "Analysis"],
-  //   start_method: "manual",
-  //   blocks: [
-  //     {
-  //       id: "block1",
-  //       type: "agent",
-  //       blockNumber: 1,
-  //       userPrompt:
-  //         "I will help analyze the website content. First, I'll examine the homepage, then extract key information about the company.",
-  //       outputVariable: {
-  //         name: "instructions",
-  //       },
-  //       output:
-  //         "Ready to analyze the website. I'll look for company information, key features, and main value propositions.",
-  //     },
-  //     {
-  //       id: "block2",
-  //       type: "webagent",
-  //       blockNumber: 2,
-  //       url: "https://www.example.com/",
-  //       nickname: "Company Homepage",
-  //       outputVariable: {
-  //         name: "website_data",
-  //       },
-  //     },
-  //   ],
-  // },
+  {
+    id: "edit-documents-agent",
+    name: "Find and Edit Documents based on input",
+    description:
+      "This agent helps you edit multiple documents based on a single input, by finding relevant documents and showing you suggested edits for each",
+    agentDescription:
+      "This agent helps you edit multiple documents based on a single input, by finding relevant documents and showing you suggested edits for each",
+    tags: ["HR", "Admin", "Content", "Project Management"],
+    start_method: "manual",
+    blocks: [
+      {
+        id: "initial_agent_block",
+        type: "agent",
+        blockNumber: 1,
+        userPrompt:
+          "we're no longer doing email campaigns for projects below $5m in annual revenue. I need to edit documents that are relevant. Please write some SQL code that pulls a list of all projects that are making 5m or below in ARR",
+        output: `SELECT 
+    project_name,
+    annual_recurring_revenue as ARR
+  FROM projects
+  WHERE annual_recurring_revenue <= 5000000
+    AND has_email_campaigns = true
+  ORDER BY annual_recurring_revenue DESC;`,
+        outputVariable: {
+          name: "sql",
+        },
+      },
+      {
+        id: "sql_execution_block",
+        type: "codeblock",
+        blockNumber: 2,
+        language: "sql",
+        code: "{{sql}}",
+        output:
+          "Re-engagement campaign for closed-lost leads\nPartnership campaign to co-market with SaaS platforms",
+        outputVariable: {
+          name: "sql_output",
+        },
+      },
+      {
+        id: "cleanup_agent_block",
+        type: "agent",
+        blockNumber: 3,
+        userPrompt:
+          "{{sql_output}} is a list of projects. please clean the response so it is a comma separated list",
+        output:
+          "Re-engagement campaign for closed-lost leads, Partnership campaign to co-market with SaaS platforms",
+        outputVariable: {
+          name: "output_cleaned",
+        },
+      },
+
+      {
+        id: "docdiff_block",
+        type: "docdiff",
+        blockNumber: 3,
+        input_prompt:
+          "We're no longer doing cold email campaigns for projects below 5m ARR. {{output_cleaned}} is a list of projects that are below 5m ARR. Please edit documents related to those projects, and any other related documents",
+        document_diffs: [
+          {
+            document_name: "Cold Email Marketing Campaigns for Q4 2025",
+            original: `Cold Email Marketing Campaigns for Q4 2025
+Projects:
+- Cold outreach to freemium users who haven't upgraded
+- Re-engagement campaign for closed-lost leads
+- Partnership campaign to co-market with SaaS platforms
+- Personalized demos for top 100 MQLs
+- Industry-specific campaigns (finance, health, retail)
+
+Timeline:
+All campaigns scheduled between October 15th and December 20th.
+`,
+            modified: `Cold Email Marketing Campaigns for Q4 2025
+
+Projects:
+- Cold outreach to freemium users who haven't upgraded
+- Personalized demos for top 100 MQLs
+- Industry-specific campaigns (finance, health, retail)
+
+Timeline:
+All campaigns scheduled between October 15th and December 20th.
+`,
+          },
+          {
+            document_name: "Marketing Team 2025 Roadmap",
+            original: `Q1 Initiatives:
+- Launch freemium user cold outreach program
+- Launch re-engagement campaign for closed-lost leads
+- Develop co-marketing partnerships with SaaS platforms
+- Execute personalized demo initiative for MQLs
+- Build industry-specific targeted campaigns
+- Launch content refresh initiative for SEO
+
+Q2 Initiatives:
+- Host quarterly customer webinars
+- Expand social media paid advertising
+- Optimize website conversion funnel
+`,
+            modified: `Q1 Initiatives:
+- Launch freemium user cold outreach program
+- Execute personalized demo initiative for MQLs
+- Build industry-specific targeted campaigns
+- Launch content refresh initiative for SEO
+
+Q2 Initiatives:
+- Host quarterly customer webinars
+- Expand social media paid advertising
+- Optimize website conversion funnel
+`,
+          },
+          {
+            document_name: "Cold Email Marketing Campaign Guide",
+            original: `Purpose: This document outlines the strategy and guidelines for cold email campaigns used by the marketing team to drive pipeline and engage qualified leads.
+
+Campaign Scope:
+All projects get cold email marketing campaigns, but have to stay within their overall growth budget. Campaigns are expected to align with each project's ICP (ideal customer profile), timing, and available sales support.
+
+Execution Process:
+1. Campaign brief submitted to demand gen team
+2. Copy and targeting reviewed by legal and brand
+3. Launch approval by marketing operations
+4. Live reporting shared weekly in the campaign dashboard
+
+Metrics:
+- Open Rate ≥ 30%
+- Reply Rate ≥ 5%
+- Qualified meeting rate ≥ 3%
+`,
+            modified: `Purpose: This document outlines the strategy and guidelines for cold email campaigns used by the marketing team to drive pipeline and engage qualified leads.
+
+Campaign Scope:
+Only projects with above $5M in ARR get cold email campaigns. Campaigns are expected to align with each project's ICP (ideal customer profile), timing, and available sales support.
+
+Execution Process:
+1. Campaign brief submitted to demand gen team
+2. Copy and targeting reviewed by legal and brand
+3. Launch approval by marketing operations
+4. Live reporting shared weekly in the campaign dashboard
+
+Metrics:
+- Open Rate ≥ 30%
+- Reply Rate ≥ 5%
+- Qualified meeting rate ≥ 3%
+`,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "edit-maintain-org-chart",
+    name: "Maintain a Live Org Chart of your company",
+    description:
+      "This agent helps you maintain a live picture of your company's structure. You can keep it up to date by passing in a change, and the document will update accordingly.",
+    agentDescription:
+      "This agent helps you maintain a live picture of your company's structure. You can keep it up to date by passing in a change, and the document will update accordingly.",
+    tools: ["docdiff"],
+    tags: ["HR", "Admin", "Content"],
+    start_method: "manual",
+    blocks: [
+      {
+        id: "docdiff_block",
+        type: "docdiff",
+        blockNumber: 1,
+        input_prompt: "Data moved from product to eng",
+        document_diffs: [
+          {
+            document_name: "Company Organization Structure – 2025",
+            original: `
+Executive Leadership:
+- CEO: Jamie Patel
+- CFO: Morgan Lee
+- CTO: Alex Kim
+- CMO: Priya Desai
+
+Product Division:
+- VP of Product: Sophia Nguyen
+- Product Management Team
+- User Research Team
+- Analytics Team
+
+Engineering Division:
+- VP of Engineering: Daniel Rivera
+- Frontend Engineering Team
+- Backend Engineering Team
+- Infrastructure Team
+
+Marketing Division:
+- VP of Marketing: Arjun Mehta
+- Content Marketing Team
+- Performance Marketing Team
+- Brand and Communications Team
+`,
+            modified: `
+            Executive Leadership:
+- CEO: Jamie Patel
+- CFO: Morgan Lee
+- CTO: Alex Kim
+- CMO: Priya Desai
+
+Product Division:
+- VP of Product: Sophia Nguyen
+- Product Management Team
+- User Research Team
+
+Engineering Division:
+- VP of Engineering: Daniel Rivera
+- Frontend Engineering Team
+- Backend Engineering Team
+- Infrastructure Team
+- Analytics Team
+
+Marketing Division:
+- VP of Marketing: Arjun Mehta
+- Content Marketing Team
+- Performance Marketing Team
+- Brand and Communications Team
+`,
+          },
+        ],
+      },
+    ],
+  },
 ];

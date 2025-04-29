@@ -88,8 +88,14 @@ export interface ShareableExcelBlock extends BaseShareableBlock {
 
 export interface ShareableDocDiffBlock extends BaseShareableBlock {
   type: "docdiff";
-  originalDoc: string;
-  modifiedDoc: string;
+  input_prompt: string;
+  // found_documents: string[];
+  document_diffs: Array<{
+    document_name: string;
+    original: string;
+    modified: string;
+    
+  }>;
 }
 
 export interface ShareableDocAnnotatorBlock extends BaseShareableBlock {

@@ -16,8 +16,8 @@ export interface ShareableAgentBlock extends BaseShareableBlock {
   attachedFile?: {
     name: string;
     type: string;
-    url?: string;
-    content?: string;
+    url: string;
+    content: string;
   };
 }
 
@@ -40,12 +40,15 @@ export interface ShareableCheckinBlock extends BaseShareableBlock {
 
 export interface ShareableSearchBlock extends BaseShareableBlock {
   type: "searchagent";
+  engine: "search" | "news" | "finance" | "markets" | "image";
   query: string;
-  engine: string;
   limit: number;
   topic?: string;
   section?: string;
   timeWindow?: string;
+  trend?: string;
+  prompt?: string;
+  region?: string;
   imageResults?: {
     url: string;
     title: string;
@@ -67,18 +70,20 @@ export interface ShareableInstagramBlock extends BaseShareableBlock {
 }
 
 export interface ShareableCodeBlock extends BaseShareableBlock {
-  type: "code";
+  type: "codeblock";
+  language: string;
   code: string;
 }
 
 export interface ShareableMakeBlock extends BaseShareableBlock {
   type: "make";
-  // Add any necessary properties for the make block
+  webhookUrl: string;
+  parameters: { key: string; value: string }[];
 }
 
 export interface ShareableExcelBlock extends BaseShareableBlock {
-  type: "excel";
-  // Add any necessary properties for the excel block
+  type: "excelagent";
+  userPrompt: string;
 }
 
 export interface ShareableDocDiffBlock extends BaseShareableBlock {
@@ -120,7 +125,19 @@ export interface SimulatedEmailBlockType extends BaseShareableBlock {
 
 export interface ShareablePowerpointBlock extends BaseShareableBlock {
   type: "powerpoint";
-  // Add any necessary properties for the powerpoint block
+  prompt: string;
+  slides: number;
+}
+
+export interface ShareableDataVizBlock extends BaseShareableBlock {
+  type: "dataviz";
+  chosenChart: string;
+  source: string;
+  context?: string;
+  pointers?: string;
+  isProcessing?: boolean;
+  isCompleted?: boolean;
+  thinkingEmoji?: string;
 }
 
 export type ShareableBlock =
@@ -137,7 +154,8 @@ export type ShareableBlock =
   | ShareableDocDiffBlock
   | ShareableDocAnnotatorBlock
   | SimulatedApiBlockType
-  | SimulatedEmailBlockType;
+  | SimulatedEmailBlockType
+  | ShareableDataVizBlock;
 
 export interface ShareableAgent {
   id: string;

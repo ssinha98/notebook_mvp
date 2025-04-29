@@ -124,6 +124,7 @@ const BLOCK_TYPE_TOOLTIPS: Record<string, string> = {
   powerpoint: "Create PowerPoint Presentations",
   docannotator: "Annotate Documents",
   dataviz: "Create Data Visualisations",
+  docdiff: "Finds and Edits Documents according to some input",
 };
 
 export default function AgentCard({

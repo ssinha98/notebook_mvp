@@ -49,7 +49,7 @@ import SimulatedApiBlock from "@/components/custom_components/shareable_blocks/S
 import type { ShareableDataVizBlock as ShareableDataVizBlockType } from "@/types/shareable_blocks";
 import ShareableDataVizBlock from "@/components/ShareableDataVizBlock";
 import WebAgentViewer from "@/components/custom_components/WebAgentViewer";
-import { SHAREABLE_AGENTS } from "./shared_agents";
+import { SHAREABLE_AGENTS } from "../../data/shared_agents";
 
 // Enum for run states
 enum RunState {
@@ -168,8 +168,6 @@ interface ShareableAgent {
   start_method?: string;
   tools?: string[];
 }
-
-
 
 // Helper function within the same file
 function getShareableAgentById(id: string): ShareableAgent | undefined {

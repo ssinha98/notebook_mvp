@@ -3,7 +3,7 @@ import AgentCard from "@/components/custom_components/AgentCard";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import ComingSoonCard from "@/components/custom_components/ComingSoonCard";
-import { SHAREABLE_AGENTS } from "../sharedAgent/shared_agents";
+import { SHAREABLE_AGENTS } from "../../data/shared_agents";
 import {
   FiSettings, // Admin
   FiFileText, // Content

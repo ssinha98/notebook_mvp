@@ -844,9 +844,35 @@ export default function SharedAgentPage() {
                   {currentBlock ? (
                     <div className="flex-grow flex flex-col items-center justify-center max-w-full">
                       {/* Block content container */}
-                      <div className="w-full overflow-x-auto mb-16">
+                      <div className="w-full overflow-x-auto mb-8">
                         {renderBlock(currentBlock)}
                       </div>
+
+                      {/* Show output if block is completed */}
+                      {completedBlocks.includes(currentBlock.blockNumber - 1) &&
+                        currentBlock.output && (
+                          <div className="w-full mb-16 p-4 bg-gray-100 rounded-lg border border-gray-200">
+                            {currentBlock.type === "powerpoint" ? (
+                              <div className="flex items-center gap-2 text-sm text-gray-700">
+                                <span>
+                                  Your presentation is ready! View it at:{" "}
+                                </span>
+                                <a
+                                  href={currentBlock.output}
+                                  className="text-blue-600 underline hover:text-blue-500"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  {currentBlock.output}
+                                </a>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                                {currentBlock.output}
+                              </p>
+                            )}
+                          </div>
+                        )}
 
                       {/* Show either loading indicator or rating component based on run state */}
                       {runState === RunState.COMPLETED ? (

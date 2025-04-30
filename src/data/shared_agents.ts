@@ -393,7 +393,7 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
   },
   {
     id: "powerpoint-agent",
-    name: "Data to Powerpoint + Data Vizualation Agent",
+    name: "Data to Powerpoint + Data Visualization Agent",
     description:
       "Turn raw data into insights, a formatted presentation, and even complex data visualizations",
     agentDescription:

@@ -2633,4 +2633,408 @@ Marketing Division:
       },
     ],
   },
+  {
+    id: "web-agent-1",
+    name: "Automated Job Posting Agent",
+    description:
+      "This agent takes a job description, and programmatically posts it to different job boards",
+    agentDescription:
+      "This agent takes a job description, and programmatically posts it to different job boards",
+    tools: ["webscraper", "agent"],
+    tags: ["HR", "Admin", "Content"],
+    start_method: "manual",
+    blocks: [
+      {
+        id: "block1",
+        type: "webscraper",
+        blockNumber: 1,
+        prompt: "Post the job on wellfound",
+        usableInputs: [
+          { key: "username", value: "sahil@lytix.co" },
+          { key: "password", value: "password123" },
+          { key: "job_title", value: "Data Analyst" },
+          {
+            key: "job_description",
+            value: `We are looking for a Data Analyst to join our team. The ideal candidate will have strong SQL and Python skills, a Bachelor's degree in a quantitative field (such as statistics, math, or computer science), and at least 2 years of relevant industry experience.
+      
+      Responsibilities:
+      - Analyze data and generate insights to inform business decisions
+      - Build dashboards and reports
+      - Work cross-functionally with product and engineering teams
+      - Ensure data quality and integrity
+      
+      Requirements:
+      - Proficiency in SQL and Python
+      - Bachelor's degree in a quantitative field
+      - 2+ years of experience in data analysis or related roles
+      - Strong communication and visualization skills`,
+          },
+          {
+            key: "job_description_pdf",
+            value:
+              "https://example.com/downloads/data-analyst-job-description.pdf",
+          },
+        ],
+        startingUrl: "https://wellfound.com/",
+        webBlocks: [
+          {
+            url: "https://wellfound.com/",
+            dom: `<body>
+  <header>
+    <nav>
+      <a href="/recruit">For Companies</a>
+      <a href="/login">Log In</a>
+      <a href="/signup">Sign Up</a>
+    </nav>
+  </header>
+  <main>
+    <!-- Main content -->
+  </main>
+</body>`,
+            suggestedNextAgentAction: "Navigate to /recruit",
+          },
+          {
+            url: "https://wellfound.com/recruit",
+            dom: `<body>
+            <header>
+              <nav>
+                <a href="/recruit/all-features/post-a-job">Post a Job</a>
+                <a href="/recruit/overview">Overview</a>
+              </nav>
+            </header>
+            <main>
+              <!-- Recruiter-specific content -->
+            </main>
+          </body>`,
+            suggestedNextAgentAction:
+              "Click on the “Post a Job” link to initiate the job posting process.",
+          },
+          {
+            url: "https://wellfound.com/recruit/all-features/post-a-job",
+            dom: `<body>
+            <header>
+              <nav>
+                <a href="/recruit/all-features/post-a-job">Post a Job</a>
+                <a href="/recruit/overview">Overview</a>
+              </nav>
+            </header>
+            <main>
+              <!-- Recruiter-specific content -->
+            </main>
+          </body>`,
+
+            suggestedNextAgentAction:
+              "Fill in the form fields with the job details:",
+          },
+        ],
+        outputVariable: {
+          name: "scraped_data",
+        },
+        output: "Job posted!",
+      },
+      {
+        id: "block2",
+        type: "webscraper",
+        blockNumber: 2,
+        prompt: "Post the job on LinkedIn",
+        startingUrl: "https://www.linkedin.com/",
+        usableInputs: [
+          { key: "job_title", value: "Data Analyst" },
+          {
+            key: "job_description",
+            value:
+              "We are looking for a Data Analyst to join our team. The ideal candidate will have strong SQL and Python skills, a Bachelor's degree in a quantitative field, and at least 2 years of relevant industry experience.\n\nResponsibilities:\n- Analyze data and generate insights to inform business decisions\n- Build dashboards and reports\n- Work cross-functionally with product and engineering teams\n- Ensure data quality and integrity\n\nRequirements:\n- Proficiency in SQL and Python\n- Bachelor's degree in a quantitative field\n- 2+ years of experience in data analysis or related roles\n- Strong communication and visualization skills",
+          },
+          { key: "location", value: "New York, NY" },
+          { key: "employment_type", value: "FULL_TIME" },
+          { key: "company_name", value: "Lytix" },
+          { key: "poster_email", value: "sahil@lytix.co" },
+        ],
+        webBlocks: [
+          {
+            url: "https://www.linkedin.com/",
+            dom: '<body><header><nav><a href="/login">Sign In</a><a href="/jobs">Jobs</a></nav></header><main><!-- Main content --></main></body>',
+
+            suggestedNextAgentAction:
+              "Click on 'Sign In' and log in with provided credentials.",
+          },
+          {
+            url: "https://www.linkedin.com/jobs/",
+            dom: '<body><header><nav><a href="/jobs/post">Post a Job</a></nav></header><main><!-- Jobs content --></main></body>',
+            suggestedNextAgentAction:
+              "Navigate to '/jobs/post' to start the job posting process.",
+          },
+          {
+            url: "https://www.linkedin.com/jobs/post",
+            dom: '<body><main><form id="job-post-form"><input name="job_title" /><textarea name="job_description"></textarea><input name="location" /><select name="employment_type"><option value="FULL_TIME">Full-time</option><option value="PART_TIME">Part-time</option></select><input name="company_name" /><input name="poster_email" /><button type="submit">Post Job</button></form></main></body>',
+
+            suggestedNextAgentAction:
+              "Fill in the form fields with the job details and submit the form to post the job.",
+          },
+        ],
+        outputVariable: {
+          name: "scraped_data",
+        },
+        output: "Job posted on LinkedIn!",
+      },
+    ],
+  },
+  {
+    id: "web-agent-2",
+    name: "Search a company's LinkedIn for Relevant Leaders",
+    description:
+      "This agent looks through a given comapny's LinkedIn, for members that match a specific profile, and returns a list of results",
+    agentDescription:
+      "This agent looks through a given comapny's LinkedIn, for members that match a specific profile, and returns a list of results",
+    tools: ["web", "agent"],
+    tags: ["Sales"],
+    start_method: "manual",
+    blocks: [
+      {
+        id: "block1",
+        type: "webscraper",
+        blockNumber: 1,
+        prompt:
+          "Look for directors, managers and leaders in Ops, procurement and contracts",
+        usableInputs: [
+          { key: "username", value: "sahil@lytix.co" },
+          { key: "password", value: "password123" },
+          { key: "company_name", value: "Acme Corp" },
+        ],
+        startingUrl: "https://www.linkedin.com/",
+        webBlocks: [
+          {
+            url: "https://www.linkedin.com/",
+            dom: `<body>
+              <header>
+                <nav>
+                  <a href="/login">Sign in</a>
+                </nav>
+              </header>
+              <main><!-- Landing content --></main>
+            </body>`,
+            suggestedNextAgentAction:
+              "Click on 'Sign in' and log in using provided credentials.",
+          },
+          {
+            url: "https://www.linkedin.com/login",
+            dom: `<body>
+              <main>
+                <form id="login-form">
+                  <input name="session_key" />
+                  <input name="session_password" />
+                  <button type="submit">Sign in</button>
+                </form>
+              </main>
+            </body>`,
+            suggestedNextAgentAction:
+              "Submit the login form using username and password from usableInputs.",
+          },
+          {
+            url: "https://www.linkedin.com/feed/",
+            dom: `<body>
+              <header>
+                <form id="global-search-bar">
+                  <input name="q" placeholder="Search" />
+                </form>
+              </header>
+              <main><!-- Feed content --></main>
+            </body>`,
+            suggestedNextAgentAction:
+              "Enter {{company_name}} into the search bar and submit search.",
+          },
+          {
+            url: "https://www.linkedin.com/company/{{company_name_slug}}",
+            dom: `<body>
+              <main>
+                <nav>
+                  <a href="/company/{{company_name_slug}}/people">People</a>
+                </nav>
+              </main>
+            </body>`,
+            suggestedNextAgentAction:
+              "Click the 'People' tab to view employees of the company.",
+          },
+          {
+            url: "https://www.linkedin.com/company/{{company_name_slug}}/people",
+            dom: `<body>
+              <main>
+                <div class="search-filters">
+                  <input name="keywords" placeholder="Search employees" />
+                  <button type="search">Search</button>
+                </div>
+                <section class="employee-results">
+                  <!-- List of employees -->
+                </section>
+                <footer class="pagination">
+                  <a href="?page=2">Next</a>
+                </footer>
+              </main>
+            </body>`,
+            suggestedNextAgentAction:
+              "Search for 'director OR manager OR head' AND ('operations' OR 'procurement' OR 'contracts'), then paginate through the next 2 pages to collect results.",
+          },
+        ],
+        outputVariable: {
+          name: "employee_matches",
+        },
+        output: `
+        [
+  {
+    "name": "Sarah Kim",
+    "title": "Director of Procurement",
+    "linkedin": "https://www.linkedin.com/in/sarah-kim-acme"
+  },
+  {
+    "name": "Jared Singh",
+    "title": "Head of Operations",
+    "linkedin": "https://www.linkedin.com/in/jared-singh-acme"
+  },
+  {
+    "name": "Lena Moore",
+    "title": "Senior Contracts Manager",
+    "linkedin": "https://www.linkedin.com/in/lena-moore-acme"
+  },
+  {
+    "name": "Daniel Brooks",
+    "title": "Global Supply Chain Manager",
+    "linkedin": "https://www.linkedin.com/in/daniel-brooks-acme"
+  },
+  {
+    "name": "Emily Zhao",
+    "title": "VP, Strategic Sourcing & Procurement",
+    "linkedin": "https://www.linkedin.com/in/emily-zhao-acme"
+  },
+  {
+    "name": "Carlos Ortega",
+    "title": "Operations Program Manager",
+    "linkedin": "https://www.linkedin.com/in/carlos-ortega-acme"
+  }
+]`,
+      },
+    ],
+  },
+  {
+    id: "web-agent-3",
+    name: "Daily Product Listing Check",
+    description:
+      "This agent visits a website, and checks it against a set of requirements. It runs on a daily schedule, and emails the owner a summary of the analysis.",
+    agentDescription:
+      "This agent visits a website, and checks it against a set of requirements. It runs on a daily schedule, and emails the owner a summary of the analysis.",
+    tools: ["web", "agent", "contact"],
+    tags: ["HR", "Admin", "Content"],
+    start_method: "schedule",
+    blocks: [
+      {
+        id: "block1",
+        type: "webagent",
+        blockNumber: 1,
+        url: "https://www.amazon.com/Natures-Sunshine-Developed-Respiratory-Challenged/dp/B000MPSK78?_encoding=UTF8&fpw=new&fpl=fresh&ref_=eemb_m_d_3_3_i&pf_rd_p=041b5b8a-2a42-4880-9e35-94c805e4fa3d&pf_rd_r=MH9D2Z9FYB8GMWSM0F35",
+        nickname: "@amazon",
+        outputVariable: {
+          name: "amazon_summary",
+        },
+        output: "Website processed!",
+      },
+      {
+        id: "amazon_description_analysis_block",
+        type: "agent",
+        blockNumber: 2,
+        userPrompt: `analyse @amazon, and tell me if the description includes these phrases: 
+      Helps soothe irritated tissues
+      Encourages the entire respiratory tract to gently cleanse itself
+      Supports healthy lung function
+      Assists the body in neutralizing allergens by nutritional means
+      Provides effective respiratory system support
+      Promotes clear and comfortable breathing with soothing botanical support.`,
+        outputVariable: {
+          name: "description_analysis",
+          value: `
+      ✅ Helps soothe irritated tissues
+      ✅ Encourages the entire respiratory tract to gently cleanse itself
+      ✅ Supports healthy lung function
+      ✅ Assists the body in neutralizing allergens by nutritional means
+      ✅ Provides effective respiratory system support
+      ❌ Promotes clear and comfortable breathing with soothing botanical support.`,
+        },
+        output: `
+      ✅ Helps soothe irritated tissues
+      ✅ Encourages the entire respiratory tract to gently cleanse itself
+      ✅ Supports healthy lung function
+      ✅ Assists the body in neutralizing allergens by nutritional means
+      ✅ Provides effective respiratory system support
+      ❌ Promotes clear and comfortable breathing with soothing botanical support.`,
+      },
+      {
+        id: "amazon_price_analysis_block",
+        type: "agent",
+        blockNumber: 3,
+        userPrompt: `analyse @amazon, and tell me if the price is below $25`,
+        outputVariable: {
+          name: "price_analysis",
+          value: `✅ Price is below $21.96`,
+        },
+        output: `✅ Price is below $21.96`,
+      },
+      {
+        id: "amazon_price_analysis_block",
+        type: "agent",
+        blockNumber: 4,
+        userPrompt: `analyse @amazon, and tell me what SKUS are available for this product (I should see 3 for small, medium and large sizes)`,
+        outputVariable: {
+          name: "sku_analysis",
+          value: `❌ There are no SKUs attached`,
+        },
+        output: `❌ There are no SKUs attached`,
+      },
+      {
+        id: "final_summary",
+        type: "agent",
+        blockNumber: 5,
+        userPrompt: `{{amazon_summary}} {{description_analysis}} {{price_analysis}} {{sku_analysis}} are all the results of analysing an Amazon link, and comparing it to a set of requirements. Compile the results into a single checklist, with any issues at the top. `,
+        outputVariable: {
+          name: "final_summary",
+          value: `
+          SKUs - 
+            ❌ There are no SKUs attached
+            Desscription - 
+            ❌ Promotes clear and comfortable breathing with soothing botanical support.
+            ✅ Helps soothe irritated tissues
+            ✅ Encourages the entire respiratory tract to gently cleanse itself
+            ✅ Supports healthy lung function
+            ✅ Assists the body in neutralizing allergens by nutritional means
+            ✅ Provides effective respiratory system support
+            Price - 
+            ✅ Price is below $21.96
+            `,
+        },
+        output: `
+        SKUs - 
+            ❌ There are no SKUs attached
+            Desscription - 
+            ❌ Promotes clear and comfortable breathing with soothing botanical support.
+            ✅ Helps soothe irritated tissues
+            ✅ Encourages the entire respiratory tract to gently cleanse itself
+            ✅ Supports healthy lung function
+            ✅ Assists the body in neutralizing allergens by nutritional means
+            ✅ Provides effective respiratory system support
+            Price - 
+            ✅ Price is below $21.96
+            `,
+      },
+      {
+        id: "email-block",
+        type: "contact",
+        blockNumber: 6,
+        to: "sahil@solari.ai",
+        subject: "Daily Amazon Check",
+        body: "{{final_summary}}",
+        outputVariable: {
+          name: "nina_email_sent",
+          value: "",
+        },
+        output: "Response 200: 📨 email sent!",
+      },
+    ],
+  },
 ];

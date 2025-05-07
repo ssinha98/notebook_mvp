@@ -94,7 +94,6 @@ export interface ShareableDocDiffBlock extends BaseShareableBlock {
     document_name: string;
     original: string;
     modified: string;
-    
   }>;
 }
 
@@ -146,6 +145,33 @@ export interface ShareableDataVizBlock extends BaseShareableBlock {
   thinkingEmoji?: string;
 }
 
+export interface WebScraperBlockObject {
+  url: string;
+  dom: string;
+  suggestedNextAgentAction: string;
+}
+
+export interface ShareableWebScraperBlock extends BaseShareableBlock {
+  type: "webscraper";
+  startingUrl: string;
+  prompt: string;
+  usableInputs: { key: string; value: string }[];
+  webBlocks: WebScraperBlockObject[];
+}
+
+export interface ShareableWebScraperBlockProps {
+  blockNumber: number;
+  startingUrl: string;
+  prompt: string;
+  usableInputs: { key: string; value: string }[];
+  webBlocks: WebScraperBlockObject[];
+  outputVariable?: {
+    name: string;
+    value?: string;
+  };
+  isRunning?: boolean;
+}
+
 export type ShareableBlock =
   | ShareableAgentBlock
   | ShareableContactBlock
@@ -161,7 +187,8 @@ export type ShareableBlock =
   | ShareableDocAnnotatorBlock
   | SimulatedApiBlockType
   | SimulatedEmailBlockType
-  | ShareableDataVizBlock;
+  | ShareableDataVizBlock
+  | ShareableWebScraperBlock;
 
 export interface ShareableAgent {
   id: string;

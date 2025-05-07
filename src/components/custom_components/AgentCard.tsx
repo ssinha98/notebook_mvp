@@ -105,6 +105,14 @@ const BLOCK_TYPE_ICONS: Record<string, React.ReactNode> = {
     />
   ),
   docannotator: <LiaHighlighterSolid className="h-4 w-4 text-gray-300" />,
+  webscraper: (
+    <Image
+      src="https://cdn-icons-png.flaticon.com/512/2282/2282278.png"
+      alt="Excel"
+      width={16}
+      height={16}
+    />
+  ),
 };
 
 // Add a mapping for tooltip content
@@ -125,6 +133,8 @@ const BLOCK_TYPE_TOOLTIPS: Record<string, string> = {
   docannotator: "Annotate Documents",
   dataviz: "Create Data Visualisations",
   docdiff: "Finds and Edits Documents according to some input",
+  webscraper:
+    "Scrapes and strategicially navigates websites to achieve a given goal",
 };
 
 export default function AgentCard({

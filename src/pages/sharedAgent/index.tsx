@@ -50,6 +50,8 @@ import type { ShareableDataVizBlock as ShareableDataVizBlockType } from "@/types
 import ShareableDataVizBlock from "@/components/ShareableDataVizBlock";
 import WebAgentViewer from "@/components/custom_components/WebAgentViewer";
 import { SHAREABLE_AGENTS } from "../../data/shared_agents";
+import ShareableWebScraperBlock from "@/components/custom_components/shareable_blocks/ShareableWebScraperBlock";
+import type { ShareableWebScraperBlock as ShareableWebScraperBlockType } from "@/types/shareable_blocks";
 
 // Enum for run states
 enum RunState {
@@ -156,7 +158,8 @@ export type ShareableBlock =
   | ShareableDocAnnotatorBlockType
   | SimulatedApiBlockType
   | SimulatedEmailBlockType
-  | ShareableDataVizBlockType;
+  | ShareableDataVizBlockType
+  | ShareableWebScraperBlockType;
 
 interface ShareableAgent {
   id: string;
@@ -336,8 +339,14 @@ export default function SharedAgentPage() {
       // Start emoji cycling
       const emojiInterval = setInterval(cycleEmoji, 500);
 
-      // Wait 3 seconds
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Custom wait time for webscraper blocks
+      let waitTime = 3000; // default 3 seconds
+      const block = agentData!.blocks[i];
+      if (block.type === "webscraper" && Array.isArray(block.webBlocks)) {
+        waitTime = block.webBlocks.length * 4000; // 4 seconds per web block
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
 
       // Stop emoji cycling and show output
       clearInterval(emojiInterval);
@@ -415,7 +424,7 @@ export default function SharedAgentPage() {
   const renderFooterContent = () => {
     const buttonText =
       agentData?.start_method &&
-      ["api", "email", "scheduled"].includes(agentData.start_method)
+      ["api", "email", "schedule"].includes(agentData.start_method)
         ? "Simulate Run"
         : "Run";
 
@@ -632,6 +641,18 @@ export default function SharedAgentPage() {
               output={isCompleted ? block.output : undefined}
             />
           );
+        case "webscraper":
+          return (
+            <ShareableWebScraperBlock
+              {...commonProps}
+              webBlocks={block.webBlocks}
+              isRunning={isProcessing}
+              usableInputs={block.usableInputs}
+              // isRunning={runState === RunState.RUNNING}
+              startingUrl={block.startingUrl}
+              prompt={block.prompt}
+            />
+          );
         default:
           return null;
       }
@@ -775,7 +796,7 @@ export default function SharedAgentPage() {
                     return <EmailStartMethod />;
                   case "api":
                     return <APIStartMethod />;
-                  case "scheduled":
+                  case "schedule":
                     return <ScheduleStartMethod />;
                   default:
                     return <ManualStartMethod />;

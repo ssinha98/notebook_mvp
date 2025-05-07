@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    domains: ['upload.wikimedia.org']
+    domains: ["upload.wikimedia.org", "cdn-icons-png.flaticon.com"],
   },
 };
 

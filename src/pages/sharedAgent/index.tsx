@@ -17,7 +17,6 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Agent, getAgentById } from "@/data/agents";
 import ShareableAgentBlock from "@/components/custom_components/shareable_blocks/ShareableAgentBlock";
 import ShareableWebBlock from "@/components/custom_components/shareable_blocks/ShareableWebBlock";
 import ShareableContactBlock from "@/components/custom_components/shareable_blocks/ShareableContactBlock";

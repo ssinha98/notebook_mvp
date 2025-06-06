@@ -7,6 +7,7 @@ export interface BaseShareableBlock {
     name: string;
     value?: string;
   };
+  checkin?: boolean;
 }
 
 export interface ShareableAgentBlock extends BaseShareableBlock {
@@ -228,4 +229,26 @@ export interface SimulatedEmailBlockProps {
     type: string;
     content: string;
   }[];
+}
+
+interface ShareableAgentBlockProps {
+  blockNumber: number;
+  userPrompt: string;
+  attachedFile?: {
+    name: string;
+    type: string;
+    url: string;
+  };
+  outputVariable?: {
+    name: string;
+    value?: string;
+  };
+  isCompleted?: boolean;
+  output?: string;
+  isProcessing?: boolean;
+  thinkingEmoji?: string;
+  checkin?: boolean;
+  isPaused?: boolean;
+  onPause?: () => void;
+  onResume?: () => void;
 }

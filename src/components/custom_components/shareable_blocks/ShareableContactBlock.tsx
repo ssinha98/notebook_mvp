@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,6 +11,8 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface ShareableContactBlockProps {
   blockNumber: number;
@@ -20,6 +23,10 @@ interface ShareableContactBlockProps {
   thinkingEmoji?: string;
   isCompleted?: boolean;
   output?: string;
+  checkin?: boolean;
+  isPaused?: boolean;
+  onPause?: () => void;
+  onResume?: () => void;
 }
 
 const CONTACT_BLOCK_DESCRIPTION =
@@ -34,7 +41,20 @@ export default function ShareableContactBlock({
   thinkingEmoji,
   isCompleted,
   output,
+  checkin,
+  isPaused,
+  onPause,
+  onResume,
 }: ShareableContactBlockProps) {
+  const [showDialog, setShowDialog] = useState(false);
+  const [dialogFields, setDialogFields] = useState([
+    { title: "To", value: "jack@jacksapplecider.com" },
+    { title: "Bcc", value: "" },
+    { title: "Subject", value: subject },
+    { title: "Body", value: body },
+
+  ]);
+
   return (
     <div className="bg-gray-900 rounded-lg p-6 border border-gray-700 mb-4">
       <div className="flex items-center mb-4">
@@ -94,8 +114,76 @@ export default function ShareableContactBlock({
             <span className="text-2xl">{thinkingEmoji}</span>
           </div>
         )}
-
       </div>
+      {checkin && (
+        <div className="flex gap-4 mt-6">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowDialog(true);
+              onPause && onPause();
+            }}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => {
+              onResume && onResume();
+            }}
+            disabled={!isPaused}
+          >
+            Confirm & Next
+          </Button>
+          <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
+            <AlertDialogContent className="bg-black">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Edit Contact Block</AlertDialogTitle>
+              </AlertDialogHeader>
+              <div className="space-y-4">
+                {dialogFields.map((field, idx) => (
+                  <div key={field.title}>
+                    <label className="block text-white mb-1">
+                      {field.title}
+                    </label>
+                    <textarea
+                      className="bg-gray-900 text-white border-gray-700 rounded w-full p-2 resize-none"
+                      value={field.value}
+                      onChange={(e) => {
+                        const updatedFields = [...dialogFields];
+                        updatedFields[idx] = {
+                          ...field,
+                          value: e.target.value,
+                        };
+                        setDialogFields(updatedFields);
+                      }}
+                      rows={5}
+                      style={{
+                        minHeight: "6em",
+                        maxHeight: "20vh",
+                        overflowY: "auto",
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogAction onClick={() => setShowDialog(false)}>
+                  Discard
+                </AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => {
+                    setShowDialog(false);
+                    onResume && onResume();
+                  }}
+                >
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
     </div>
   );
 }

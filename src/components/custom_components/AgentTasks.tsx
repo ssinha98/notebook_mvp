@@ -15,6 +15,14 @@ interface AgentTasksProps {
   agentNames: Record<string, string>;
 }
 
+// const demoTask = {
+//   id: "demo-task-2",
+//   title: "Respond to incoming lead",
+//   agentId: "email-lead-qualifier",
+//   date: new Date().toLocaleDateString(),
+//   completed: false, // checkbox is unchecked
+// };
+
 export default function AgentTasks({ agentNames }: AgentTasksProps) {
   const router = useRouter();
   const { tasks, loadTasks, updateTask } = useTaskStore();
@@ -31,7 +39,9 @@ export default function AgentTasks({ agentNames }: AgentTasksProps) {
     await updateTask(taskId, { completed });
   };
 
-  if (tasks.length === 0) {
+  const allTasks = tasks;
+
+  if (allTasks.length === 0) {
     return (
       <div>
         <h2 className="text-xl font-bold text-white mb-4">Your Tasks</h2>
@@ -72,14 +82,15 @@ export default function AgentTasks({ agentNames }: AgentTasksProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tasks.map((task) => (
+            {allTasks.map((task) => (
               <TableRow
                 key={task.id}
                 className="cursor-pointer hover:bg-gray-800"
                 onClick={() => handleTaskClick(task.agentId)}
               >
                 <TableCell
-                  className="flex items-center justify-center"
+                  className="flex items-center justify-center h-full"
+                  style={{ verticalAlign: "middle" }}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Checkbox
@@ -90,12 +101,16 @@ export default function AgentTasks({ agentNames }: AgentTasksProps) {
                     className="border-white data-[state=checked]:bg-white data-[state=checked]:text-black"
                   />
                 </TableCell>
-                <TableCell className="font-medium">{task.title}</TableCell>
-                <TableCell>
+                <TableCell
+                  className={`font-medium ${task.completed ? "line-through text-gray-400" : ""}`}
+                >
+                  {task.title}
+                </TableCell>
+                <TableCell className="align-top">
                   <div>
-                    <div className="font-medium">
-                      {agentNames[task.agentId]}
-                    </div>
+                    {/* <div className="font-medium">
+                      {agentNames[task.agentId] || "email-lead-qualifier"}
+                    </div> */}
                     <div className="text-sm text-gray-400">{task.agentId}</div>
                   </div>
                 </TableCell>

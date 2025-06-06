@@ -81,6 +81,7 @@ interface ShareableAgentBlock extends BaseShareableBlock {
     url: string;
     content: string;
   };
+  checkin?: boolean;
 }
 
 interface ShareableContactBlock extends BaseShareableBlock {
@@ -88,33 +89,39 @@ interface ShareableContactBlock extends BaseShareableBlock {
   to: string;
   subject: string;
   body: string;
+  checkin?: boolean;
 }
 
 interface ShareableWebBlock extends BaseShareableBlock {
   type: "webagent";
   url: string;
   nickname: string;
+  checkin?: boolean;
 }
 
 interface ShareableCheckinBlock extends BaseShareableBlock {
   type: "checkin";
+  checkin?: boolean;
 }
 
 interface ShareableCodeBlock extends BaseShareableBlock {
   type: "codeblock";
   language: string;
   code: string;
+  checkin?: boolean;
 }
 
 interface ShareableMakeBlock extends BaseShareableBlock {
   type: "make";
   webhookUrl: string;
   parameters: { key: string; value: string }[];
+  checkin?: boolean;
 }
 
 interface ShareableExcelBlock extends BaseShareableBlock {
   type: "excelagent";
   userPrompt: string;
+  checkin?: boolean;
 }
 
 interface ShareableSearchBlock extends BaseShareableBlock {
@@ -133,12 +140,14 @@ interface ShareableSearchBlock extends BaseShareableBlock {
     title: string;
     analysisResult?: string;
   }[];
+  checkin?: boolean;
 }
 
 interface ShareablePowerpointBlock extends BaseShareableBlock {
   type: "powerpoint";
   prompt: string;
   slides: number;
+  checkin?: boolean;
 }
 
 // Update the ShareableBlock type
@@ -201,6 +210,10 @@ export default function SharedAgentPage() {
     null
   );
   const [displaySwitchState, setDisplaySwitchState] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [resumeCallback, setResumeCallback] = useState<null | (() => void)>(
+    null
+  );
 
   const EmailStartMethod = () => {
     return (
@@ -216,7 +229,7 @@ export default function SharedAgentPage() {
         </p>
         {/* gap-3 controls spacing between flex items (the text and button) */}
         <p className="text-gray-400 flex items-center gap-3">
-          Tap
+          {/* Tap */}
           {/* mx-1 adds margin on both sides of the button */}
           <button
             onClick={handleRunAgent}
@@ -226,7 +239,7 @@ export default function SharedAgentPage() {
             <span>Simulate Run</span>
             <span className="text-xs opacity-75 ml-1">⌘↵</span>
           </button>
-          to kick off the agent.
+          {/* to kick off the agent. */}
         </p>
       </div>
     );
@@ -274,7 +287,7 @@ export default function SharedAgentPage() {
         </p>
         {/* gap-3 controls spacing between flex items (the text and button) */}
         <p className="text-gray-400 flex items-center gap-3">
-          Tap
+          {/* Tap */}
           {/* mx-1 adds margin on both sides of the button */}
           <button
             onClick={handleRunAgent}
@@ -284,7 +297,7 @@ export default function SharedAgentPage() {
             <span>Simulate Run</span>
             <span className="text-xs opacity-75 ml-1">⌘↵</span>
           </button>
-          to kick off the agent.
+          {/* to kick off the agent. */}
         </p>
       </div>
     );
@@ -345,7 +358,18 @@ export default function SharedAgentPage() {
         waitTime = block.webBlocks.length * 4000; // 4 seconds per web block
       }
 
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
+      // PAUSE if checkin is true
+      if (block.checkin) {
+        await new Promise<void>((resolve) => {
+          setIsPaused(true);
+          setResumeCallback(() => () => {
+            setIsPaused(false);
+            resolve();
+          });
+        });
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      }
 
       // Stop emoji cycling and show output
       clearInterval(emojiInterval);
@@ -504,6 +528,12 @@ export default function SharedAgentPage() {
               {...commonProps}
               userPrompt={block.userPrompt}
               attachedFile={block.attachedFile}
+              checkin={block.checkin}
+              isPaused={isPaused}
+              onPause={() => setIsPaused(true)}
+              onResume={() => {
+                if (resumeCallback) resumeCallback();
+              }}
             />
           );
         case "webagent":
@@ -521,6 +551,12 @@ export default function SharedAgentPage() {
               to={block.to}
               subject={block.subject}
               body={block.body}
+              checkin={block.checkin}
+              isPaused={isPaused}
+              onPause={() => setIsPaused(true)}
+              onResume={() => {
+                if (resumeCallback) resumeCallback();
+              }}
             />
           );
         case "checkin":
@@ -671,6 +707,12 @@ export default function SharedAgentPage() {
     }
   }, [agentId]);
 
+  useEffect(() => {
+    if (agentData && agentId === "email-lead-qualifier") {
+      handleRunAgent();
+    }
+  }, [agentData, agentId]);
+
   const handleRateAgent = (isPositive: boolean) => {
     console.log("Agent rated:", isPositive);
   };
@@ -759,7 +801,7 @@ export default function SharedAgentPage() {
         </div>
 
         {/* Add our new edit mode box here */}
-        {isEditMode && (
+        {/* {isEditMode && (
           <div className="fixed right-4 top-32 bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-64 z-20">
             <div className="flex flex-col items-center text-center">
               <LockClosedIcon className="h-6 w-6 text-gray-800 mb-2" />
@@ -776,7 +818,7 @@ export default function SharedAgentPage() {
               </a>
             </div>
           </div>
-        )}
+        )} */}
 
         {/* Main container with flex layout */}
         <div className="flex flex-grow">
@@ -794,7 +836,7 @@ export default function SharedAgentPage() {
                   case "email":
                     return <EmailStartMethod />;
                   case "api":
-                    return <APIStartMethod />;
+                    // return <APIStartMethod />;
                   case "schedule":
                     return <ScheduleStartMethod />;
                   default:

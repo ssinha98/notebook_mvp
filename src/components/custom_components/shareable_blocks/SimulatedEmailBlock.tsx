@@ -55,7 +55,7 @@ export default function SimulatedEmailBlock({
           Block {blockNumber}
         </h3>
         <span className="bg-blue-900 text-blue-200 px-2 py-1 rounded text-sm">
-          Simulated Email
+          Email Received (hello@yourco.com)
         </span>
       </div>
       <div className="space-y-3">

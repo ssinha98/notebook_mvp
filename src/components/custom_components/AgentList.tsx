@@ -209,7 +209,7 @@ export default function AgentsList({
                   className={
                     currentAgent?.id === agent.id ? "bg-blue-500/10" : ""
                   }
-                  // onClick={() => onAgentSelect(agent.id)}
+                  onClick={() => onAgentSelect(agent.id)}
                 >
                   <TableCell>
                     <TooltipProvider>

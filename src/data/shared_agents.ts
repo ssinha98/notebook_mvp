@@ -395,7 +395,7 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
     id: "powerpoint-agent",
     name: "Data to Powerpoint + Data Visualization Agent",
     description:
-      "Turn raw data into insights, a formatted presentation, and even complex data visualizations",
+      "Turn raw data into insights, a formatted presentation that matches a template, and even complex data visualizations",
     agentDescription:
       "Benefit Metrics: saves ~2-3 hours per presentation by automating slide creation and formatting. This agent helps create professional presentations quickly.",
     tags: ["Data Analysis", "Marketing"],
@@ -471,13 +471,93 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
       },
       {
         id: "block4",
-        type: "powerpoint",
+        type: "agent",
         blockNumber: 4,
+        userPrompt:
+          "@template.pptx is an example of how we format our presentations. Please analyse the template, and extract all the instructions you would need to create a similar presentation. Include the colours, fonts, different page templates etc... ",
+        attachedFile: {
+          name: "template.pptx",
+          type: "pptx",
+          url: "https://drive.google.com/file/d/1L8-goD0L-okVxsrZe5NvOKXUmOVl_Wse_HBQlRTBlf8/view?usp=sharing",
+          content: "Template for sales presentation",
+        },
+        outputVariable: {
+          name: "design_guidelines",
+        },
+        output: `
+Colors (Hex Codes):
+	•	Primary (Accent): #E2632C
+	•	Background: #FFFFFF
+	•	Text/Divider: #00000
+Fonts:
+	•	Title font: Raleway (bold)
+	•	Body font: Lato (regular)
+
+Slide Types & Format Rules:
+	1.	Title Slide
+	•	Background color: #E2632C
+	•	Title:
+	•	Centered vertically and horizontally
+	•	Font: Lato
+	•	Size: 42–52 pt (adjust based on title length)
+	•	Weight: Bold
+	•	Color: White
+	•	Subheading:
+	•	Placed below the title
+	•	Format: “Presenter Name – Date”
+	•	Font: Lato, white
+	•	Divider lines:
+	•	One above the title box and one below the subheading box
+	•	Color: White
+	•	Thickness: 2–3 pt
+
+	2.	Main Point Delivery Slide
+	•	Layout: Split background
+	•	Left half: White
+	•	Right half: #E2632C
+	•	Title:
+	•	Centered on the left (white) side
+	•	Font: Raleway
+	•	Size: 32–42 pt
+	•	Weight: Bold
+	•	Color: #E2632C
+	•	Subpoints:
+	•	On the right (orange) side
+	•	Font: Lato
+	•	Size: 18–22 pt
+	•	Weight: Regular
+	•	Color: White
+	•	Bulleted list
+
+	3.	Visual Slide
+	•	Title:
+	•	Font: Raleway
+	•	Size: 36 pt
+	•	Color: #E2632C
+	•	Layout:
+	•	Left side: Bullet points
+	•	Font: Lato
+	•	Size: 12–18 pt (adjust for text length)
+	•	Color: Black
+	•	Right side: Visual (image or chart)
+	•	Divider lines:
+	•	One above the title
+	•	One below the content area (visual and bullets)
+	•	Color: Black
+	•	Thickness: 5 pt
+
+When generating slides, structure them as dictionaries or objects where each slide has a type, content, layout, and style section for easy conversion to code or rendering.
+        `,
+      },
+      {
+        id: "block4",
+        type: "powerpoint",
+        blockNumber: 5,
         prompt:
-          "create a 3-slide presentation about the sales data. Include {{analysis_summary}} in the first slide, and {{data_viz}} in the second slide.",
+          "create a 3-slide presentation about the sales data. Include {{analysis_summary}} in the first slide, and {{data_viz}} in the second slide. Use {{design_guidelines}} as a guideline for creating the powerpoints. ",
         slides: 3,
         output:
-          "https://docs.google.com/presentation/d/1L8-goD0L-okVxsrZe5NvOKXUmOVl_Wse_HBQlRTBlf8/edit?usp=sharing",
+          "https://docs.google.com/presentation/d/15D9YXFuiL2yEqkq4NdmAKR9WtCtpBA0Gg8rQbHxZ6YM/edit?usp=sharing",
       },
     ],
   },
@@ -1568,7 +1648,7 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
           "read these meeting notes. respond with a json object of the summary of the meeting, and the tasks (each tasks hould have the task itself who is responsible, and the dud deate).",
         attachedFile: {
           name: "Meeting Transcript",
-          type: "pdf",
+          type: "pptx",
           url: "https://docs.google.com/document/d/1gojUbH-FU4Nqz6mSSOIPCg3a5b3ibGiBHJXliE9_XpU/edit?usp=sharing",
           content: "Meeting notes content...",
         },
@@ -2081,7 +2161,7 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
     //   "This agent goes back and forth with a prospective lead, asking the right questions to qualify if this is a legitimate lead or not. It then makes a judgement on if this is a valid lead, and passes it onto the sales associate.",
     agentDescription:
       "Benefit Metrics: 100% of leads that your sales associates work with are qualified leads. Hours saved per day asking useless questions.",
-    tags: ["Sales"],
+    tags: ["Sales", "Receive Emails"],
     start_method: "email",
     blocks: [
       {
@@ -2097,6 +2177,7 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
         id: "block2",
         type: "agent",
         blockNumber: 2,
+        checkin: true,
         output: `
   - What we know:
       •	The sender is based in the U.S. and is looking for help with U.S. shipments (✅ no international shipping).
@@ -2166,6 +2247,7 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
         id: "block3",
         type: "agent",
         blockNumber: 3,
+        checkin: true,
         userPrompt: `
           {{lead_qualification}} represents a summary of what information we have and what we need, to determine if this lead would be a good fit for our business. take the 'questions to ask', and create an email that asks those questions. this will go directly to the user, so stay in keeping with our content guidelines. No fluff or filler language before or after the email. `,
         output: `
@@ -2194,6 +2276,7 @@ export const SHAREABLE_AGENTS: ShareableAgent[] = [
       {
         id: "email_response_block",
         type: "contact",
+        checkin: true,
         blockNumber: 4,
         to: "jack@jacksapplecider.com",
         subject: "Quick Follow-Up on Your Packaging Inquiry",
@@ -3034,6 +3117,27 @@ Marketing Division:
           value: "",
         },
         output: "Response 200: 📨 email sent!",
+      },
+    ],
+  },
+  {
+    id: "autonomous-agent",
+    name: "Lead Qualification Agent",
+    description:
+      "Respond to incoming leads, and ask the necessary questions to qualify them and determine if they are viable leads",
+    agentDescription:
+      "Benefit Metrics: Automatically track Instagram profile changes and analyze engagement patterns, saving hours of manual monitoring.",
+    tags: ["Sales", "Receive Emails"],
+    start_method: "email",
+    blocks: [
+      {
+        id: "block1",
+        type: "simulatedemail",
+        blockNumber: 1,
+        from: "jack@jacksapplecider.com",
+        subject: "inquiry",
+        body: "hey there! I'm jack, im the founder of Jacks Apple Cider. I saw your website come up while looking for a packaging and distributions partner to help with our US shipments. ",
+        attachments: [],
       },
     ],
   },

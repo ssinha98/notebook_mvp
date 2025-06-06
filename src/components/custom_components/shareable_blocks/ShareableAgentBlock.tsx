@@ -1,6 +1,7 @@
 import { FileText, FileSpreadsheet, Globe, Eye, Info, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FaFilePowerpoint } from "react-icons/fa";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -11,6 +12,8 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
 
 interface ShareableAgentBlockProps {
   blockNumber: number;
@@ -28,6 +31,10 @@ interface ShareableAgentBlockProps {
   output?: string;
   isProcessing?: boolean;
   thinkingEmoji?: string;
+  checkin?: boolean;
+  isPaused?: boolean;
+  onPause?: () => void;
+  onResume?: () => void;
 }
 
 const AGENT_BLOCK_DESCRIPTION =
@@ -42,7 +49,16 @@ export default function ShareableAgentBlock({
   output,
   isProcessing,
   thinkingEmoji,
+  checkin,
+  isPaused,
+  onPause,
+  onResume,
 }: ShareableAgentBlockProps) {
+  const [showDialog, setShowDialog] = useState(false);
+  const [dialogFields, setDialogFields] = useState<
+    { title: string; value: string }[]
+  >([]);
+
   const getFileIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case "pdf":
@@ -51,6 +67,8 @@ export default function ShareableAgentBlock({
         return <FileSpreadsheet className="h-5 w-5 text-green-400" />;
       case "website":
         return <Globe className="h-5 w-5 text-purple-400" />;
+      case "pptx":
+        return <FaFilePowerpoint className="h-5 w-5 text-red-400" />;
       default:
         return <FileText className="h-5 w-5 text-gray-400" />;
     }
@@ -60,6 +78,35 @@ export default function ShareableAgentBlock({
     if (attachedFile?.url) {
       window.open(attachedFile.url, "_blank");
     }
+  };
+
+  const handleEditClick = () => {
+    setDialogFields([
+      {
+        title: "Draft Subject",
+        value: "Quick Follow-Up on Your Packaging Inquiry",
+      },
+      {
+        title: "Draft Body",
+        value: `Sure! Here's the draft body:
+Hi Jack,
+  
+  Thanks for reaching out — great to hear from you, and Jack's Apple Cider sounds awesome!
+  
+  To make sure we're the right fit, I just have a couple quick questions:
+      •	What's your estimated monthly order volume?
+      •	Does your packaging require anything specialty (e.g. biodegradable, temperature-sensitive, etc.)?
+  
+  Once I have that, I can point you in the right direction or connect you with someone on our team.
+  
+  Looking forward to hearing from you!
+  
+  Best,
+  Alan the Lead Qualifier Agent
+        `,
+      },
+    ]);
+    setShowDialog(true);
   };
 
   return (
@@ -127,6 +174,82 @@ export default function ShareableAgentBlock({
           <div className="text-2xl mb-4 animate-pulse">{thinkingEmoji}</div>
         )}
       </div>
+      {checkin && (
+        <div className="flex gap-4 mt-6">
+          <Button variant="outline" onClick={handleEditClick}>
+            Pause & edit
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => {
+              onResume && onResume();
+            }}
+            disabled={!isPaused}
+          >
+            Confirm & Next
+          </Button>
+          <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
+            <AlertDialogContent className="bg-black">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Edit Block</AlertDialogTitle>
+              </AlertDialogHeader>
+              <div className="space-y-4">
+                {dialogFields.map((field, idx) => (
+                  <div key={field.title}>
+                    <label className="block text-white mb-1">
+                      {field.title}
+                    </label>
+                    <textarea
+                      className="bg-gray-900 text-white border-gray-700 rounded w-full p-2 resize-none"
+                      value={field.value}
+                      onChange={(e) => {
+                        const updatedFields = [...dialogFields];
+                        updatedFields[idx] = {
+                          ...field,
+                          value: e.target.value,
+                        };
+                        setDialogFields(updatedFields);
+                      }}
+                      rows={5}
+                      style={{
+                        minHeight: "6em",
+                        maxHeight: "20vh",
+                        overflowY: "auto",
+                      }}
+                    />
+                  </div>
+                ))}
+                {/* {dialogFields.map((field, idx) => (
+                  <div key={field.title}>
+                    <label className="block text-white mb-1">
+                      {field.title}
+                    </label>
+                    <textarea
+                      className="bg-gray-900 text-white border-gray-700 rounded w-full p-2 resize-none"
+                      value={field.value}
+                      // readOnly
+                      rows={5}
+                      style={{
+                        minHeight: "6em",
+                        maxHeight: "20vh",
+                        overflowY: "auto",
+                      }}
+                    />
+                  </div>
+                ))} */}
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogAction onClick={() => setShowDialog(false)}>
+                  Discard
+                </AlertDialogAction>
+                <AlertDialogAction onClick={() => setShowDialog(false)}>
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
     </div>
   );
 }

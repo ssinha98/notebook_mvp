@@ -39,6 +39,27 @@ import { doc, setDoc, collection } from "firebase/firestore";
 import { db } from "@/tools/firebase";
 import { SiMakerbot } from "react-icons/si";
 import Image from "next/image";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  AlertDialogFooter,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Copy } from "lucide-react";
+import { toast } from "sonner";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import router from "next/router";
 
 const footerStyle: CSSProperties = {
   position: "sticky",
@@ -68,6 +89,42 @@ const buttonStyle: CSSProperties = {
   borderRadius: "4px",
   cursor: "pointer",
   fontSize: "14px",
+};
+
+const recurrencePresets = [
+  { label: "Does not repeat", value: "none" },
+  { label: "Every day", value: "every_day" },
+  { label: "Every week on Friday", value: "every_week_on_friday" },
+  { label: "Every weekday (Monday to Friday)", value: "every_weekday" },
+  { label: "Custom", value: "custom" },
+];
+
+const daysOfWeek = [
+  { label: "S", value: "S" },
+  { label: "M", value: "M" },
+  { label: "T", value: "T" },
+  { label: "W", value: "W" },
+  { label: "T", value: "Th" },
+  { label: "F", value: "F" },
+  { label: "S", value: "Sa" },
+];
+
+type RecurrenceRule = {
+  type: "preset" | "custom";
+  preset?: string;
+  interval?: number;
+  unit?: "day" | "week" | "month" | "year";
+  daysOfWeek?: string[];
+  ends?: {
+    type: "never" | "on" | "after";
+    date?: Date | null;
+    occurrences?: number;
+  };
+};
+
+const defaultRecurrence: RecurrenceRule = {
+  type: "preset",
+  preset: "none",
 };
 
 // const runButtonStyle: CSSProperties = {
@@ -184,6 +241,11 @@ export default function Footer({
   const [isShareAlertOpen, setIsShareAlertOpen] = useState(false);
   const [isDeployAlertOpen, setIsDeployAlertOpen] = useState(false);
   const [isToolsSheetOpen, setIsToolsSheetOpen] = useState(false);
+  const [deployType, setDeployType] = useState<string>("");
+  const [isDeployed, setIsDeployed] = useState(false);
+  const [isApiConfigOpen, setIsApiConfigOpen] = useState(false);
+  const [isEmailConfigOpen, setIsEmailConfigOpen] = useState(false);
+  const [isScheduleConfigOpen, setIsScheduleConfigOpen] = useState(false);
 
   // Add these from the store
   const addBlockToNotebook = useSourceStore(
@@ -437,6 +499,25 @@ export default function Footer({
         });
       },
     },
+    {
+      id: "deepresearchagent",
+      icon: <div className="text-2xl">🔍</div>,
+      label: "Deep Research Agent",
+      tooltip: "Add a deep research block...",
+      onClick: () => {
+        addBlockToNotebook({
+          type: "deepresearchagent",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Deep Research ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          topic: "",
+        });
+      },
+    },
   ];
 
   const { getBlockList } = useSourceStore();
@@ -494,6 +575,365 @@ export default function Footer({
   //   }
   // };
 
+  const ApiConfigAlert = () => {
+    const currentAgent = useAgentStore((state) => state.currentAgent);
+    const endpoint = `POST https://usesolari.ai/api/agents/${currentAgent?.id}`;
+
+    const handleCopyEndpoint = () => {
+      navigator.clipboard.writeText(endpoint);
+      toast("API endpoint copied to clipboard", {
+        action: {
+          label: "Close",
+          onClick: () => toast.dismiss(),
+        },
+      });
+    };
+
+    return (
+      <AlertDialog open={isApiConfigOpen} onOpenChange={setIsApiConfigOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>API Configuration</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="py-4 space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                API Endpoint
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  value={endpoint}
+                  readOnly
+                  className="font-mono text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopyEndpoint}
+                  className="shrink-0"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <Button
+              variant="destructive"
+              onClick={() => setIsApiConfigOpen(false)}
+            >
+              Close
+            </Button>
+            {/* <Button
+              onClick={() => {
+                setIsApiConfigOpen(false);
+                setIsDeployed(true);
+              }}
+            >
+              Save and Close
+            </Button> */}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  };
+
+  const EmailConfigAlert = () => (
+    <AlertDialog open={isEmailConfigOpen} onOpenChange={setIsEmailConfigOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Email Configuration</AlertDialogTitle>
+        </AlertDialogHeader>
+        <div className="py-4">
+          <Button
+            onClick={() => router.push("/settings")}
+            variant="outline"
+            className="border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white"
+          >
+            Connect agent to inbox
+          </Button>
+        </div>
+        <AlertDialogFooter>
+          <Button
+            variant="destructive"
+            onClick={() => setIsEmailConfigOpen(false)}
+          >
+            Close
+          </Button>
+          <Button
+            onClick={() => {
+              setIsEmailConfigOpen(false);
+              setIsDeployed(true);
+            }}
+          >
+            Save and Close
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  const ScheduleConfigAlert = () => {
+    const [step, setStep] = useState<1 | 2>(1);
+    const [recurrence, setRecurrence] =
+      useState<RecurrenceRule>(defaultRecurrence);
+
+    // Custom builder state
+    const [interval, setInterval] = useState(1);
+    const [unit, setUnit] = useState<"day" | "week" | "month" | "year">("week");
+    const [selectedDays, setSelectedDays] = useState<string[]>(["F"]);
+    const [endsType, setEndsType] = useState<"never" | "on" | "after">("never");
+    const [endsDate, setEndsDate] = useState<Date | null>(null);
+    const [endsOccurrences, setEndsOccurrences] = useState(1);
+
+    // Handle preset selection
+    const handlePresetSelect = (preset: string) => {
+      if (preset === "custom") {
+        setStep(2);
+        setRecurrence({
+          type: "custom",
+          interval,
+          unit,
+          daysOfWeek: selectedDays,
+          ends: {
+            type: endsType,
+            date: endsDate,
+            occurrences: endsOccurrences,
+          },
+        });
+      } else {
+        setRecurrence({ type: "preset", preset });
+        // Save immediately for non-custom, or you can require hitting Save
+      }
+    };
+
+    // Handle custom save
+    const handleCustomSave = () => {
+      const rule: RecurrenceRule = {
+        type: "custom",
+        interval,
+        unit,
+        daysOfWeek: selectedDays,
+        ends: { type: endsType, date: endsDate, occurrences: endsOccurrences },
+      };
+      setRecurrence(rule);
+      console.log("Saved recurrence rule:", rule);
+      setIsScheduleConfigOpen(false);
+      setStep(1);
+    };
+
+    // Handle preset save
+    const handlePresetSave = () => {
+      console.log("Saved recurrence rule:", recurrence);
+      setIsScheduleConfigOpen(false);
+      setStep(1);
+    };
+
+    // Day selection toggle
+    const toggleDay = (day: string) => {
+      setSelectedDays((prev) =>
+        prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+      );
+    };
+
+    return (
+      <AlertDialog
+        open={isScheduleConfigOpen}
+        onOpenChange={setIsScheduleConfigOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Select Event Repeat</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="py-4 space-y-4">
+            {step === 1 ? (
+              <div>
+                <div className="flex flex-col gap-2">
+                  {recurrencePresets.map((preset) => (
+                    <Button
+                      key={preset.value}
+                      variant={
+                        recurrence.preset === preset.value
+                          ? "default"
+                          : "outline"
+                      }
+                      className="w-full justify-start"
+                      onClick={() => handlePresetSelect(preset.value)}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex justify-end mt-4">
+                  <Button
+                    onClick={handlePresetSave}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {/* Repeat every [n] [unit] */}
+                <div className="flex items-center gap-2 mb-4">
+                  <span>Repeat every</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={interval}
+                    onChange={(e) => setInterval(Number(e.target.value))}
+                    className="w-16"
+                  />
+                  <select
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value as any)}
+                    className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white"
+                  >
+                    <option value="day">days</option>
+                    <option value="week">weeks</option>
+                    <option value="month">months</option>
+                    <option value="year">years</option>
+                  </select>
+                </div>
+                {/* Repeat on */}
+                {unit === "week" && (
+                  <div className="mb-4">
+                    <span className="block mb-2">Repeat on</span>
+                    <div className="flex gap-2">
+                      {["S", "M", "T", "W", "T", "F", "S"].map((d, idx) => (
+                        <Button
+                          key={d + idx}
+                          variant={
+                            selectedDays.includes(d) ? "default" : "outline"
+                          }
+                          className={`rounded-full w-8 h-8 p-0 ${selectedDays.includes(d) ? "bg-blue-600 text-white" : ""}`}
+                          onClick={() => toggleDay(d)}
+                        >
+                          {d}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Ends */}
+                <div className="mb-4">
+                  <span className="block mb-2">Ends</span>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={endsType === "never"}
+                        onChange={() => setEndsType("never")}
+                      />
+                      Never
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={endsType === "on"}
+                        onChange={() => setEndsType("on")}
+                      />
+                      On
+                      {endsType === "on" && (
+                        <Calendar
+                          required
+                          mode="single"
+                          selected={endsDate || undefined}
+                          onSelect={setEndsDate}
+                          className="ml-2"
+                        />
+                      )}
+                      {endsType === "on" && endsDate && (
+                        <span className="ml-2 text-sm text-gray-400">
+                          {format(endsDate, "PPP")}
+                        </span>
+                      )}
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={endsType === "after"}
+                        onChange={() => setEndsType("after")}
+                      />
+                      After
+                      {endsType === "after" && (
+                        <Input
+                          type="number"
+                          min={1}
+                          value={endsOccurrences}
+                          onChange={(e) =>
+                            setEndsOccurrences(Number(e.target.value))
+                          }
+                          className="w-16 ml-2"
+                        />
+                      )}
+                      {endsType === "after" && <span>occurrence(s)</span>}
+                    </label>
+                  </div>
+                </div>
+                <div className="flex justify-between mt-4">
+                  <Button variant="outline" onClick={() => setStep(1)}>
+                    Back
+                  </Button>
+                  <Button
+                    onClick={handleCustomSave}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setIsScheduleConfigOpen(false);
+                setStep(1);
+              }}
+            >
+              Close
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  };
+
+  // const ScheduleConfigAlert = () => (
+  //   <AlertDialog
+  //     open={isScheduleConfigOpen}
+  //     onOpenChange={setIsScheduleConfigOpen}
+  //   >
+  //     <AlertDialogContent>
+  //       <AlertDialogHeader>
+  //         <AlertDialogTitle>Schedule Configuration</AlertDialogTitle>
+  //       </AlertDialogHeader>
+  //       <div className="py-4">
+  //         <p>Schedule configuration settings will go here</p>
+  //       </div>
+  //       <AlertDialogFooter>
+  //         <Button
+  //           variant="destructive"
+  //           onClick={() => setIsScheduleConfigOpen(false)}
+  //         >
+  //           Close
+  //         </Button>
+  //         <Button
+  //           onClick={() => {
+  //             setIsScheduleConfigOpen(false);
+  //             setIsDeployed(true);
+  //           }}
+  //         >
+  //           Save and Close
+  //         </Button>
+  //       </AlertDialogFooter>
+  //     </AlertDialogContent>
+  //   </AlertDialog>
+  // );
+
   return (
     <>
       <ToolsPanel
@@ -535,7 +975,58 @@ export default function Footer({
                 ⌘↵
               </span>
             </Button>
-
+            <div className="flex items-center gap-2">
+              <Select
+                value={deployType}
+                onValueChange={(value) => {
+                  setDeployType(value);
+                  setIsDeployed(false); // Reset deployed state when type changes
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select deploy type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="api">API</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                style={{ backgroundColor: "#09CE6B", color: "white" }}
+                disabled={isProcessing || !deployType}
+                onClick={() => {
+                  console.log("Deploying agent with type:", deployType);
+                  switch (deployType) {
+                    case "api":
+                      setIsApiConfigOpen(true);
+                      break;
+                    case "email":
+                      setIsEmailConfigOpen(true);
+                      break;
+                    case "scheduled":
+                      setIsScheduleConfigOpen(true);
+                      break;
+                    case "manual":
+                      setIsDeployed(true);
+                      break;
+                  }
+                }}
+              >
+                {isDeployed ? (
+                  <>
+                    <span>✓</span>
+                    Deployed as {deployType} agent
+                  </>
+                ) : (
+                  <>
+                    <CloudUploadOutlined />
+                    Deploy Agent
+                  </>
+                )}
+              </Button>
+            </div>
             {/* Add the test button */}
             {/* <Button variant="outline" onClick={getBlockList}>
               Test
@@ -563,7 +1054,7 @@ export default function Footer({
               Email
             </Button>
             */}
-            <Button
+            {/* <Button
               variant="outline"
               onClick={() => setIsShareAlertOpen(true)}
               onMouseEnter={(e) =>
@@ -575,8 +1066,8 @@ export default function Footer({
             >
               <ShareAltOutlined />
               Share
-            </Button>
-            <Button
+            </Button> */}
+            {/* <Button
               variant="outline"
               onClick={() => setIsDeployAlertOpen(true)}
               onMouseEnter={(e) =>
@@ -588,7 +1079,7 @@ export default function Footer({
             >
               <CloudUploadOutlined />
               Deploy
-            </Button>
+            </Button> */}
             {/* <Button
               variant="outline"
               onClick={testFirebase}
@@ -615,6 +1106,9 @@ export default function Footer({
         // variables={variables}
         onAddVariable={onAddVariable}
       />
+      <ApiConfigAlert />
+      <EmailConfigAlert />
+      <ScheduleConfigAlert />
     </>
   );
 }

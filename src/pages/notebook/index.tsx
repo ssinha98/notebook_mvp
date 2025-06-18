@@ -45,6 +45,7 @@ import MakeBlock from "@/components/custom_components/MakeBlock";
 import ExcelAgent from "@/components/custom_components/ExcelAgent";
 import InstagramAgent from "@/components/custom_components/InstagramAgent";
 import RateAgentRun from "@/components/custom_components/RateAgentRun";
+import DeepResearchAgent from "@/components/custom_components/DeepResearchAgent";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -340,6 +341,24 @@ export default function Notebook() {
             initialSheetName={block.sheetName}
             initialRange={block.range}
             initialOperations={block.operations}
+            isProcessing={
+              isProcessing && currentBlockIndex === block.blockNumber
+            }
+          />
+        );
+      case "deepresearchagent":
+        return (
+          <DeepResearchAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
+            initialTopic={block.topic}
             isProcessing={
               isProcessing && currentBlockIndex === block.blockNumber
             }
@@ -686,6 +705,36 @@ export default function Notebook() {
                 }
               } catch (error) {
                 console.error("Error processing Instagram agent block:", error);
+                return;
+              }
+              break;
+            case "deepresearchagent":
+              console.log(
+                "Processing deep research agent block",
+                block.blockNumber
+              );
+              const deepResearchRef = blockRefs.current[block.blockNumber];
+              if (!deepResearchRef) {
+                console.error(
+                  "Deep research agent ref not found for block",
+                  block.blockNumber
+                );
+                return;
+              }
+              try {
+                const deepResearchSuccess =
+                  await deepResearchRef.processBlock();
+                if (!deepResearchSuccess) {
+                  console.error(
+                    "Deep research agent block failed, stopping execution"
+                  );
+                  return;
+                }
+              } catch (error) {
+                console.error(
+                  "Error processing deep research agent block:",
+                  error
+                );
                 return;
               }
               break;

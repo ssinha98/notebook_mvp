@@ -26,6 +26,7 @@ import InstagramAgent from "./InstagramAgent";
 import { Button } from "@/components/ui/button";
 import BlockTypeDisplay from "./BlockTypeDisplay";
 import RateAgentRun from "./RateAgentRun";
+import DeepResearchAgent from "./DeepResearchAgent";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -79,7 +80,13 @@ const CollapsibleBox = forwardRef<
   const [hasRated, setHasRated] = useState(false);
 
   const addNewBlock = (
-    blockType: "agent" | "checkin" | "searchagent" | "codeblock" | "make"
+    blockType:
+      | "agent"
+      | "checkin"
+      | "searchagent"
+      | "codeblock"
+      | "make"
+      | "deepresearchagent"
   ) => {
     const baseBlock = {
       blockNumber: nextBlockNumber,
@@ -429,6 +436,24 @@ const CollapsibleBox = forwardRef<
             }
             initialUrl={block.url}
             initialPostCount={block.postCount}
+          />
+        );
+      case "deepresearchagent":
+        return (
+          <DeepResearchAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            initialTopic={block.topic}
+            isProcessing={processingBlocks[block.blockNumber] || false}
           />
         );
       default:

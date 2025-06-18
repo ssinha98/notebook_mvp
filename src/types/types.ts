@@ -90,7 +90,8 @@ export type BlockType =
   | "codeblock"
   | "make"
   | "excelagent"
-  | "instagramagent";
+  | "instagramagent"
+  | "deepresearchagent";
 
 /* OLD Block interface
 export interface Block {
@@ -135,6 +136,17 @@ export interface AgentBlock extends BaseBlock {
     type: "input" | "intermediate";
   } | null;
   sourceInfo?: SourceInfo;
+}
+
+// Add new interface for DeepResearchAgent
+export interface DeepResearchAgentBlock extends BaseBlock {
+  type: "deepresearchagent";
+  topic: string;
+  outputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate";
+  } | null;
 }
 
 /* OLD SearchAgentBlock interface
@@ -241,7 +253,8 @@ export type Block =
   | CodeBlock
   | MakeBlock
   | ExcelAgentBlock
-  | InstagramAgentBlock;
+  | InstagramAgentBlock
+  | DeepResearchAgentBlock;
 
 export interface Agent {
   id: string;

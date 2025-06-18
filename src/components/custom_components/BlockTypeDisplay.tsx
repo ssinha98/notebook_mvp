@@ -72,6 +72,13 @@ const BLOCK_TYPE_CONFIGS = {
       { emoji: "📊", text: "Processing" },
     ],
   },
+  deepresearchagent: {
+    displays: [
+      { emoji: "🔍", text: "Researching..." },
+      { emoji: "📚", text: "Analyzing sources" },
+      { emoji: "📝", text: "Summarizing results" },
+    ],
+  },
 };
 
 interface BlockTypeDisplayProps {

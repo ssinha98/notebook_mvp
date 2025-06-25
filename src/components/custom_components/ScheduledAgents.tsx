@@ -9,6 +9,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { useAgentStore } from "@/lib/agentStore";
 
 export default function ScheduledAgents() {
@@ -16,7 +21,7 @@ export default function ScheduledAgents() {
   const { agents } = useAgentStore();
 
   const scheduledAgents = agents.filter(
-    (agent) => agent.start_method === "schedule"
+    (agent) => agent.start_method === "scheduled"
   );
 
   const handleAgentClick = (agentId: string) => {
@@ -76,7 +81,34 @@ export default function ScheduledAgents() {
                 </TableCell>
                 <TableCell className="font-medium">{agent.name}</TableCell>
                 <TableCell>
-                  {/* {agent.start_date} @ {agent.start_time} */}
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <span
+                        className={`cursor-help ${
+                          (agent as any).variables_pending
+                            ? "text-red-400"
+                            : "text-white"
+                        }`}
+                      >
+                        {(agent as any).next_run || "No next run scheduled"}
+                      </span>
+                    </HoverCardTrigger>
+                    {(agent as any).variables_pending && (
+                      <HoverCardContent className="w-80">
+                        <div className="flex justify-between space-x-4">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-semibold">
+                              Input Variables Required
+                            </h4>
+                            <p className="text-sm">
+                              Set the values for input variables before the next
+                              run
+                            </p>
+                          </div>
+                        </div>
+                      </HoverCardContent>
+                    )}
+                  </HoverCard>
                 </TableCell>
               </TableRow>
             ))}

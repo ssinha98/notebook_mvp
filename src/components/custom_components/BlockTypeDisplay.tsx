@@ -79,6 +79,37 @@ const BLOCK_TYPE_CONFIGS = {
       { emoji: "📝", text: "Summarizing results" },
     ],
   },
+  pipedriveagent: {
+    displays: [
+      { emoji: "📊", text: "Processing CRM data" },
+      { emoji: "🔍", text: "Analyzing leads" },
+      { emoji: "📝", text: "Generating insights" },
+      { emoji: "🔍", text: "Analyzing leads" },
+    ],
+  },
+  datavizagent: {
+    displays: [
+      { emoji: "📊", text: "Generating visualization..." },
+      { emoji: "🎨", text: "Creating chart" },
+      { emoji: "📈", text: "Processing data" },
+    ],
+  },
+  clickupagent: {
+    displays: [
+      {
+        emoji: "📋",
+        text: "ClickUp Agent",
+      },
+    ],
+  },
+  googledriveagent: {
+    displays: [
+      {
+        emoji: "📁", // Drive folder emoji
+        text: "Google Drive Agent",
+      },
+    ],
+  },
 };
 
 interface BlockTypeDisplayProps {

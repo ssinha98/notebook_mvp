@@ -1,7 +1,7 @@
 import React, { forwardRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FiSettings, FiInfo } from "react-icons/fi";
-import { DeepResearchAgentBlock } from "@/types/types";
+import { PipedriveAgentBlock } from "@/types/types";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -19,58 +19,74 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { api } from "@/tools/api";
-import ReactMarkdown from "react-markdown";
 import VariableDropdown from "./VariableDropdown";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
-import { Badge } from "@/components/ui/badge";
 
-interface SearchResult {
-  date: string | null;
-  title: string;
-  url: string;
-}
+// Define the available Pipedrive operations
+const PIPEDRIVE_OPERATIONS = [
+  {
+    value: "list_all_deals",
+    label: "List All Deals",
+    description: "Retrieve all deals from Pipedrive",
+    disabled: false,
+  },
+  // Easy to add more operations here:
+  {
+    value: "create_deal",
+    label: "Create New Deal",
+    description: "Create a new deal in Pipedrive",
+    disabled: true,
+  },
+  {
+    value: "update_deal",
+    label: "Update Deal - coming soon",
+    description: "Update an existing deal",
+    disabled: true, // This would be disabled
+  },
+];
 
-export interface ResearchResponse {
-  message: string;
-  search_results: SearchResult[];
-}
-
-interface DeepResearchAgentProps {
+interface PipedriveAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
   onUpdateBlock: (
     blockNumber: number,
-    updates: Partial<DeepResearchAgentBlock>
+    updates: Partial<PipedriveAgentBlock>
   ) => void;
-  initialTopic?: string;
+  initialPrompt?: string;
   isProcessing?: boolean;
 }
 
-interface DeepResearchAgentRef {
+interface PipedriveAgentRef {
   processBlock: () => Promise<boolean>;
 }
 
-const DeepResearchAgent = forwardRef<
-  DeepResearchAgentRef,
-  DeepResearchAgentProps
->(
+const PipedriveAgent = forwardRef<PipedriveAgentRef, PipedriveAgentProps>(
   (
     {
       blockNumber,
       onDeleteBlock,
       onUpdateBlock,
-      initialTopic = "",
+      initialPrompt = "",
       isProcessing = false,
     },
     ref
   ) => {
-    const [topic, setTopic] = useState(initialTopic);
+    const [selectedOperation, setSelectedOperation] = useState(
+      initialPrompt || ""
+    );
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string>("");
-    const [researchResults, setResearchResults] =
-      useState<ResearchResponse | null>(null);
+    const [result, setResult] = useState<string>("");
     const [selectedVariableId, setSelectedVariableId] = useState<string>("");
 
     const variables = useVariableStore((state) => state.variables);
@@ -80,41 +96,75 @@ const DeepResearchAgent = forwardRef<
       setSelectedVariableId(value);
     };
 
-    // Save topic with debounce
+    const handleOperationSelect = (value: string) => {
+      setSelectedOperation(value);
+    };
+
+    // Save selected operation with debounce
     React.useEffect(() => {
       const timeoutId = setTimeout(() => {
-        if (topic !== initialTopic) {
-          onUpdateBlock(blockNumber, { topic });
+        if (selectedOperation !== initialPrompt) {
+          onUpdateBlock(blockNumber, { prompt: selectedOperation });
         }
       }, 500);
 
       return () => clearTimeout(timeoutId);
-    }, [topic, blockNumber, onUpdateBlock, initialTopic]);
+    }, [selectedOperation, blockNumber, onUpdateBlock, initialPrompt]);
 
     const processBlock = async () => {
       try {
         setError("");
-        setResearchResults(null);
+        setResult("");
         setIsLoading(true);
 
-        if (!topic.trim()) {
-          setError("Please enter a research topic");
+        if (!selectedOperation) {
+          setError("Please select an operation");
           return false;
         }
 
-        console.log("Sending request to /ask with prompt:", topic.trim());
-        const response = await api.post("/ask", {
-          prompt: topic.trim(),
-        });
+        console.log(
+          "Sending request to Make.com webhook with operation:",
+          selectedOperation
+        );
 
-        console.log("Full API response:", response);
+        const response = await fetch(
+          "https://hook.us2.make.com/x1ft9u233yqbtrnu19cleglmrpgquhuc",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              operation: selectedOperation,
+            }),
+          }
+        );
 
-        if (
-          response &&
-          response.message &&
-          Array.isArray(response.search_results)
-        ) {
-          setResearchResults(response);
+        let responseData;
+        const contentType = response.headers.get("content-type");
+
+        if (contentType && contentType.includes("application/json")) {
+          responseData = await response.json();
+        } else {
+          // Handle plain text response (like "Accepted")
+          const textResponse = await response.text();
+          responseData = { message: textResponse };
+        }
+
+        console.log("Full Make.com webhook response:", responseData);
+
+        if (response.ok && responseData) {
+          // Format the response for display
+          let displayMessage;
+          if (typeof responseData === "object") {
+            // If it's an object, format it nicely
+            displayMessage = JSON.stringify(responseData, null, 2);
+          } else {
+            displayMessage =
+              responseData.message || "Operation completed successfully";
+          }
+
+          setResult(displayMessage);
 
           if (selectedVariableId) {
             const selectedVariable = Object.values(variables).find(
@@ -123,20 +173,23 @@ const DeepResearchAgent = forwardRef<
             if (selectedVariable) {
               await useVariableStore
                 .getState()
-                .updateVariable(selectedVariableId, response.message);
+                .updateVariable(selectedVariableId, displayMessage);
             }
           }
 
           return true;
         } else {
-          console.error("Unexpected response structure:", response);
-          throw new Error("Unexpected response format from server");
+          console.error("Unexpected response structure:", responseData);
+          throw new Error(
+            responseData?.message || "Unexpected response format from server"
+          );
         }
       } catch (err: any) {
-        console.error("Error processing research:", err);
+        console.error("Error processing Pipedrive request:", err);
         console.error("Full error object:", err);
         setError(
-          err.message || "An error occurred while processing the research"
+          err.message ||
+            "An error occurred while processing the Pipedrive request"
         );
         return false;
       } finally {
@@ -153,13 +206,13 @@ const DeepResearchAgent = forwardRef<
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <div className="flex items-center gap-2">
             <img
-              src="https://registry.npmmirror.com/@lobehub/icons-static-png/1.49.0/files/dark/perplexity-color.png"
-              alt="Perplexity"
+              src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQMiaXM3Qt8jYH_v3BxmqK7HNwEeADjKmVI6w&s"
+              alt="Pipedrive"
               className="w-8 h-8 rounded"
             />
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-semibold text-gray-100">
-                Deep Research Agent {blockNumber}
+                Pipedrive Agent {blockNumber}
               </h3>
               <Badge
                 variant="secondary"
@@ -181,12 +234,11 @@ const DeepResearchAgent = forwardRef<
               <AlertDialogContent className="bg-gray-900 border-gray-700">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="text-gray-100">
-                    Deep Research Agent
+                    Pipedrive Agent
                   </AlertDialogTitle>
                   <AlertDialogDescription className="text-gray-300">
-                    This agent performs in-depth research on a given topic,
-                    analyzing multiple sources and providing comprehensive
-                    insights.
+                    This agent integrates with Pipedrive CRM to manage contacts,
+                    deals, and activities.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -221,14 +273,35 @@ const DeepResearchAgent = forwardRef<
         <div className="p-4 space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">
-              Research Topic
+              Pipedrive Operation
             </label>
-            <Textarea
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-gray-100"
-              placeholder="Enter the topic you want the agent to research"
-            />
+            <Select
+              value={selectedOperation}
+              onValueChange={handleOperationSelect}
+            >
+              <SelectTrigger className="bg-gray-800 border-gray-700 text-gray-100">
+                <SelectValue placeholder="Select an operation" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-700">
+                {PIPEDRIVE_OPERATIONS.map((operation) => (
+                  <SelectItem
+                    key={operation.value}
+                    value={operation.value}
+                    disabled={operation.disabled}
+                    className="text-gray-100 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div>
+                      <div className="font-medium">{operation.label}</div>
+                      {operation.description && (
+                        <div className="text-sm text-gray-400">
+                          {operation.description}
+                        </div>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-center gap-2 text-gray-300">
@@ -242,57 +315,20 @@ const DeepResearchAgent = forwardRef<
 
           {error && <div className="text-red-500 text-sm">{error}</div>}
 
-          {researchResults && (
-            <div className="space-y-6">
-              {/* Summary Section */}
-              <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-                <h4 className="text-sm font-medium mb-2 text-gray-300">
-                  Summary
-                </h4>
-                <div className="prose prose-invert max-w-none">
-                  <ReactMarkdown>{researchResults.message}</ReactMarkdown>
+          {result && (
+            <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+              <h4 className="text-sm font-medium mb-2 text-gray-300">Result</h4>
+              <div className="text-gray-200 whitespace-pre-wrap">{result}</div>
+              {selectedVariableId && (
+                <div className="mt-2 text-sm text-green-400">
+                  Saved as{" "}
+                  {
+                    Object.values(variables).find(
+                      (v) => v.id === selectedVariableId
+                    )?.name
+                  }
                 </div>
-                {selectedVariableId && (
-                  <div className="mt-2 text-sm text-green-400">
-                    Saved as{" "}
-                    {
-                      Object.values(variables).find(
-                        (v) => v.id === selectedVariableId
-                      )?.name
-                    }
-                  </div>
-                )}
-              </div>
-
-              {/* Search Results Section */}
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-gray-300">Sources</h4>
-                <div className="flex gap-4 overflow-x-auto pb-4">
-                  {researchResults.search_results.map((result, index) => (
-                    <a
-                      key={index}
-                      href={result.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-shrink-0 w-72 p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors"
-                    >
-                      <div className="space-y-2">
-                        {result.date && (
-                          <div className="text-xs text-gray-400">
-                            {new Date(result.date).toLocaleDateString()}
-                          </div>
-                        )}
-                        <h5 className="text-sm font-medium text-gray-200 line-clamp-2">
-                          {result.title}
-                        </h5>
-                        <div className="text-xs text-gray-400 truncate">
-                          {result.url}
-                        </div>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -306,10 +342,10 @@ const DeepResearchAgent = forwardRef<
             {isLoading ? (
               <>
                 <span className="animate-spin mr-2">⟳</span>
-                Researching...
+                Processing...
               </>
             ) : (
-              "Run Research"
+              "Run Pipedrive"
             )}
           </Button>
         </div>
@@ -318,6 +354,6 @@ const DeepResearchAgent = forwardRef<
   }
 );
 
-DeepResearchAgent.displayName = "DeepResearchAgent";
+PipedriveAgent.displayName = "PipedriveAgent";
 
-export default DeepResearchAgent;
+export default PipedriveAgent;

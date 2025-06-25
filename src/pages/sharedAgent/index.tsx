@@ -51,6 +51,8 @@ import WebAgentViewer from "@/components/custom_components/WebAgentViewer";
 import { SHAREABLE_AGENTS } from "../../data/shared_agents";
 import ShareableWebScraperBlock from "@/components/custom_components/shareable_blocks/ShareableWebScraperBlock";
 import type { ShareableWebScraperBlock as ShareableWebScraperBlockType } from "@/types/shareable_blocks";
+import ShareableConversingAgentBlock from "@/components/custom_components/shareable_blocks/ShareableConversingAgentBlock";
+import type { ShareableConversingAgentBlock as ShareableConversingAgentBlockType } from "@/types/shareable_blocks";
 
 // Enum for run states
 enum RunState {
@@ -167,7 +169,8 @@ export type ShareableBlock =
   | SimulatedApiBlockType
   | SimulatedEmailBlockType
   | ShareableDataVizBlockType
-  | ShareableWebScraperBlockType;
+  | ShareableWebScraperBlockType
+  | ShareableConversingAgentBlockType;
 
 interface ShareableAgent {
   id: string;
@@ -688,6 +691,18 @@ export default function SharedAgentPage() {
               prompt={block.prompt}
             />
           );
+        case "conversingagent":
+          return (
+            <ShareableConversingAgentBlock
+              {...commonProps}
+              systemPrompt={block.systemPrompt}
+              channel={block.channel}
+              sources={block.sources}
+              objective={block.objective}
+              messages={block.messages}
+              outputVariable={block.outputVariable}
+            />
+          );
         default:
           return null;
       }
@@ -836,7 +851,7 @@ export default function SharedAgentPage() {
                   case "email":
                     return <EmailStartMethod />;
                   case "api":
-                    // return <APIStartMethod />;
+                  // return <APIStartMethod />;
                   case "schedule":
                     return <ScheduleStartMethod />;
                   default:

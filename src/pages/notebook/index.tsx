@@ -46,6 +46,15 @@ import ExcelAgent from "@/components/custom_components/ExcelAgent";
 import InstagramAgent from "@/components/custom_components/InstagramAgent";
 import RateAgentRun from "@/components/custom_components/RateAgentRun";
 import DeepResearchAgent from "@/components/custom_components/DeepResearchAgent";
+import PipedriveAgent from "@/components/custom_components/PipedriveAgent";
+import { Info } from "lucide-react";
+import InputVariablesSheet from "@/components/custom_components/InputVariablesSheet";
+import { ChevronDown } from "lucide-react";
+import DataVizAgent, {
+  DataVizAgentRef,
+} from "@/components/custom_components/DataVizAgent";
+import ClickUpAgent from "@/components/custom_components/ClickUpAgent";
+import GoogleDriveAgent from "@/components/custom_components/GoogleDriveAgent";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -78,7 +87,9 @@ export default function Notebook() {
   const [apiCallCount, setApiCallCount] = useState<number>(0);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const blockRefs = useRef<{ [key: number]: AgentBlockRef }>({});
+  const blockRefs = useRef<{ [key: number]: AgentBlockRef | DataVizAgentRef }>(
+    {}
+  );
 
   const router = useRouter();
   const { agentId } = router.query;
@@ -176,7 +187,10 @@ export default function Notebook() {
   );
   const [isRunPaused, setIsRunPaused] = useState(false);
 
-  const renderBlock = (block: Block) => {
+  const [isInputVariablesSheetOpen, setIsInputVariablesSheetOpen] =
+    useState(false);
+
+  const renderBlock = (block: Block, index: number) => {
     switch (block.type) {
       case "agent":
         return (
@@ -385,6 +399,80 @@ export default function Notebook() {
             onProcessingChange={setIsProcessing}
             initialUrl={block.url}
             initialPostCount={block.postCount}
+          />
+        );
+      case "pipedriveagent":
+        return (
+          <PipedriveAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
+            initialPrompt={block.prompt}
+            isProcessing={
+              isProcessing && currentBlockIndex === block.blockNumber
+            }
+          />
+        );
+      case "datavizagent":
+        return (
+          <DataVizAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
+            initialPrompt={block.prompt}
+            initialChartType={block.chartType}
+            isProcessing={
+              isProcessing && currentBlockIndex === block.blockNumber
+            }
+            onProcessingChange={setIsProcessing}
+          />
+        );
+      case "clickupagent":
+        return (
+          <ClickUpAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
+            initialPrompt={block.prompt}
+            isProcessing={
+              isProcessing && currentBlockIndex === block.blockNumber
+            }
+          />
+        );
+      case "googledriveagent":
+        return (
+          <GoogleDriveAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
+            initialPrompt={block.prompt}
+            isProcessing={
+              isProcessing && currentBlockIndex === block.blockNumber
+            }
           />
         );
       default:
@@ -738,6 +826,96 @@ export default function Notebook() {
                 return;
               }
               break;
+            case "pipedriveagent":
+              console.log(
+                "Processing Pipedrive agent block",
+                block.blockNumber
+              );
+              const pipedriveRef = blockRefs.current[block.blockNumber];
+              if (!pipedriveRef) {
+                console.error(
+                  "Pipedrive agent ref not found for block",
+                  block.blockNumber
+                );
+                return;
+              }
+              try {
+                const pipedriveSuccess = await pipedriveRef.processBlock();
+                if (!pipedriveSuccess) {
+                  console.error(
+                    "Pipedrive agent block failed, stopping execution"
+                  );
+                  return;
+                }
+              } catch (error) {
+                console.error("Error processing Pipedrive agent block:", error);
+                return;
+              }
+              break;
+            case "datavizagent":
+              console.log("Processing DataViz agent block", block.blockNumber);
+              const datavizRef = blockRefs.current[block.blockNumber];
+              if (!datavizRef) {
+                console.error(
+                  "DataViz agent ref not found for block",
+                  block.blockNumber
+                );
+                return;
+              }
+              try {
+                const datavizSuccess = await datavizRef.processBlock();
+                if (!datavizSuccess) {
+                  console.error(
+                    "DataViz agent block failed, stopping execution"
+                  );
+                  return;
+                }
+              } catch (error) {
+                console.error("Error processing DataViz agent block:", error);
+                return;
+              }
+              break;
+            case "clickupagent":
+              const clickupRef = blockRefs.current[block.blockNumber];
+              if (clickupRef) {
+                const clickupSuccess = await clickupRef.processBlock();
+                if (!clickupSuccess) {
+                  console.error(
+                    "ClickUp agent block failed, stopping execution"
+                  );
+                  return;
+                }
+              }
+              break;
+            case "googledriveagent":
+              console.log(
+                "Processing Google Drive agent block",
+                block.blockNumber
+              );
+              const googleDriveRef = blockRefs.current[block.blockNumber];
+              if (!googleDriveRef) {
+                console.error(
+                  "Google Drive agent ref not found for block",
+                  block.blockNumber
+                );
+                return;
+              }
+              try {
+                const googleDriveSuccess = await googleDriveRef.processBlock();
+                if (!googleDriveSuccess) {
+                  console.error(
+                    "Google Drive agent block failed, stopping execution"
+                  );
+                  return;
+                }
+              } catch (error) {
+                console.error(
+                  "Error processing Google Drive agent block:",
+                  error
+                );
+                return;
+              }
+              break;
           }
         } catch (error) {
           console.error(`Error processing block ${block.blockNumber}:`, error);
@@ -823,29 +1001,44 @@ export default function Notebook() {
           </div>
         )}
         <main style={mainStyle}>
-          {/* DEBUG BUTTON - REMOVE BEFORE PRODUCTION */}
-          {/* <div className="flex justify-start mb-4">
-            <Button
-              onClick={() => {
-                setIsProcessing(false);
-                if (currentBlock) {
-                  setCurrentBlock({
-                    ...currentBlock,
-                    type: "agent" as Block["type"],
-                    systemPrompt: currentBlock.systemPrompt || "",
-                    userPrompt: currentBlock.userPrompt || "",
-                    saveAsCsv: currentBlock.saveAsCsv || false,
-                    modelResponse: "Test response for rating flow",
-                  });
-                  // Set isRunComplete to true to show the rating UI
-                  setIsRunComplete(true);
-                }
-              }}
-              className="bg-yellow-500 hover:bg-yellow-600 text-white"
-            >
-              Debug: Mark Agent Done
-            </Button>
-          </div> */}
+          {/* Updated Input Variables Section */}
+          <div
+            style={{
+              borderRadius: "10px",
+              backgroundColor: "transparent",
+              color: "black",
+              padding: "10px",
+              border: "1px solid white",
+            }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <h3
+                  className="text-lg font-semibold"
+                  style={{ color: "white" }}
+                >
+                  Input variables
+                </h3>
+                <button
+                  className="text-gray-400 hover:text-gray-100"
+                  onClick={() =>
+                    alert(
+                      "Input variables let you configure agent flows using placeholders, which are replaced with actual values when the agent runs."
+                    )
+                  }
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </div>
+              <button
+                className="text-gray-400 hover:text-gray-100 flex items-center gap-1"
+                onClick={() => setIsInputVariablesSheetOpen(true)}
+              >
+                <span>Set input variables</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
           <CollapsibleBox
             title="Agent Flow"
             variables={variables}
@@ -861,8 +1054,8 @@ export default function Notebook() {
             isRunComplete={isRunComplete}
           >
             {isEditMode
-              ? blocks.map((block) => renderBlock(block))
-              : blocks.length > 0 && renderBlock(blocks[0])}
+              ? blocks.map((block, index) => renderBlock(block, index))
+              : blocks.length > 0 && renderBlock(blocks[0], 0)}
             {currentBlock && currentBlock.modelResponse && (
               <RateAgentRun onRate={handleRateAgent} />
             )}
@@ -883,7 +1076,11 @@ export default function Notebook() {
         <ToolsSheet
           open={isToolsSheetOpen}
           onOpenChange={setIsToolsSheetOpen}
-          // variables={variables}
+          onAddVariable={handleAddVariable}
+        />
+        <InputVariablesSheet
+          open={isInputVariablesSheetOpen}
+          onOpenChange={setIsInputVariablesSheetOpen}
           onAddVariable={handleAddVariable}
         />
         <div className="w-full max-w-xl mx-auto mt-4">

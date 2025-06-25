@@ -91,7 +91,11 @@ export type BlockType =
   | "make"
   | "excelagent"
   | "instagramagent"
-  | "deepresearchagent";
+  | "deepresearchagent"
+  | "pipedriveagent"
+  | "datavizagent"
+  | "clickupagent"
+  | "googledriveagent";
 
 /* OLD Block interface
 export interface Block {
@@ -242,6 +246,35 @@ export interface MakeBlock extends BaseBlock {
   }>;
 }
 
+// Add new interface for PipedriveAgent
+export interface PipedriveAgentBlock extends BaseBlock {
+  type: "pipedriveagent";
+  prompt: string;
+  outputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate";
+  } | null;
+}
+
+// Add new interface for DataVizAgent
+export interface DataVizAgentBlock extends BaseBlock {
+  type: "datavizagent";
+  prompt: string;
+  chartType: string;
+  outputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate";
+  } | null;
+}
+
+// Add the new interface
+export interface ClickUpAgentBlock extends BaseBlock {
+  type: "clickupagent";
+  prompt?: string;
+}
+
 // Update Block union type
 export type Block =
   | AgentBlock
@@ -254,7 +287,11 @@ export type Block =
   | MakeBlock
   | ExcelAgentBlock
   | InstagramAgentBlock
-  | DeepResearchAgentBlock;
+  | DeepResearchAgentBlock
+  | PipedriveAgentBlock
+  | DataVizAgentBlock
+  | ClickUpAgentBlock
+  | GoogleDriveAgentBlock;
 
 export interface Agent {
   id: string;
@@ -266,6 +303,9 @@ export interface Agent {
   agent_rating_thumbs_up?: number;
   agent_rating_thumbs_down?: number;
   start_method?: string;
+  deploymentType?: "api" | "scheduled" | "manual" | "email";
+  start_date?: string;
+  start_time?: string;
   sourceInfo?: {
     nickname: string;
     downloadUrl: string;
@@ -357,4 +397,9 @@ export interface AgentTask {
   agentId: string;
   date: string;
   completed: boolean;
+}
+
+export interface GoogleDriveAgentBlock extends BaseBlock {
+  type: "googledriveagent";
+  prompt?: string;
 }

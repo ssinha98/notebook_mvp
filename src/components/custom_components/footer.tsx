@@ -20,7 +20,7 @@ import DeployAlert from "./DeployAlert";
 import { useAgentStore } from "@/lib/agentStore";
 import { useSourceStore } from "@/lib/store";
 import { LuBrainCircuit } from "react-icons/lu";
-import { FaDatabase } from "react-icons/fa";
+import { FaDatabase, FaListAlt, FaGoogleDrive } from "react-icons/fa";
 import { SiMinutemailer } from "react-icons/si";
 import {
   IoPlaySkipForwardCircle,
@@ -60,6 +60,8 @@ import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import router from "next/router";
+import InputVariablesSheet from "@/components/custom_components/InputVariablesSheet";
+import { PiChartScatterDuotone } from "react-icons/pi";
 
 const footerStyle: CSSProperties = {
   position: "sticky",
@@ -517,6 +519,88 @@ export default function Footer({
           topic: "",
         });
       },
+    },
+    {
+      id: "pipedriveagent",
+      icon: (
+        <img
+          src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQMiaXM3Qt8jYH_v3BxmqK7HNwEeADjKmVI6w&s"
+          alt="Pipedrive"
+          className="w-8 h-8 rounded"
+        />
+      ),
+      label: "Pipedrive Agent",
+      tooltip: "Add a Pipedrive CRM integration block...",
+      onClick: () => {
+        addBlockToNotebook({
+          type: "pipedriveagent",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Pipedrive ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          prompt: "",
+        });
+      },
+    },
+    {
+      id: "datavizagent",
+      icon: <PiChartScatterDuotone className="text-2xl" />,
+      label: "Data Visualization",
+      tooltip: "Create charts and visualizations...",
+      onClick: () => {
+        addBlockToNotebook({
+          type: "datavizagent",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `DataViz ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          prompt: "",
+          chartType: "smart",
+          outputVariable: null,
+        });
+      },
+    },
+    {
+      id: "clickupagent",
+      icon: <FaListAlt className="w-5 h-5" />,
+      label: "ClickUp Agent",
+      tooltip: "Add ClickUp Agent block",
+      onClick: () =>
+        addBlockToNotebook({
+          type: "clickupagent",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `ClickUp ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          prompt: "",
+        }),
+    },
+    {
+      id: "googledriveagent",
+      icon: <FaGoogleDrive className="w-5 h-5" />,
+      label: "Google Drive Agent",
+      tooltip: "Add Google Drive Agent block",
+      onClick: () =>
+        addBlockToNotebook({
+          type: "googledriveagent",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Google Drive ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          prompt: "",
+        }),
     },
   ];
 
@@ -984,7 +1068,7 @@ export default function Footer({
                 }}
               >
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select deploy type" />
+                  <SelectValue placeholder="Select deployment type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="api">API</SelectItem>
@@ -1103,7 +1187,6 @@ export default function Footer({
       <ToolsSheet
         open={isToolsSheetOpen}
         onOpenChange={setIsToolsSheetOpen}
-        // variables={variables}
         onAddVariable={onAddVariable}
       />
       <ApiConfigAlert />

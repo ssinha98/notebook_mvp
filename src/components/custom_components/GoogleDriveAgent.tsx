@@ -1,0 +1,308 @@
+import React, { forwardRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { FiSettings, FiInfo } from "react-icons/fi";
+import { GoogleDriveAgentBlock } from "@/types/types";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import VariableDropdown from "./VariableDropdown";
+import { useVariableStore } from "@/lib/variableStore";
+import { useAgentStore } from "@/lib/agentStore";
+
+const GOOGLE_DRIVE_OPERATIONS = [
+  {
+    value: "add_document",
+    label: "Add Document",
+    description: "Create a new Google Doc",
+    disabled: true,
+  },
+  {
+    value: "read_documents",
+    label: "Read Documents",
+    description: "Read content from Google Docs",
+    disabled: true,
+  },
+  {
+    value: "add_sheet",
+    label: "Add Sheet",
+    description: "Create a new Google Sheet",
+    disabled: true,
+  },
+  {
+    value: "read_sheets",
+    label: "Read Sheets",
+    description: "Read data from Google Sheets",
+    disabled: true,
+  },
+];
+
+interface GoogleDriveAgentProps {
+  blockNumber: number;
+  onDeleteBlock: (blockNumber: number) => void;
+  onUpdateBlock: (
+    blockNumber: number,
+    updates: Partial<GoogleDriveAgentBlock>
+  ) => void;
+  initialPrompt?: string;
+  isProcessing?: boolean;
+}
+
+interface GoogleDriveAgentRef {
+  processBlock: () => Promise<boolean>;
+}
+
+const GoogleDriveAgent = forwardRef<GoogleDriveAgentRef, GoogleDriveAgentProps>(
+  (
+    {
+      blockNumber,
+      onDeleteBlock,
+      onUpdateBlock,
+      initialPrompt = "",
+      isProcessing = false,
+    },
+    ref
+  ) => {
+    const [selectedOperation, setSelectedOperation] = useState(
+      initialPrompt || ""
+    );
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string>("");
+    const [result, setResult] = useState<string>("");
+    const [selectedVariableId, setSelectedVariableId] = useState<string>("");
+
+    const variables = useVariableStore((state) => state.variables);
+    const currentAgent = useAgentStore((state) => state.currentAgent);
+
+    const handleVariableSelect = (value: string) => {
+      setSelectedVariableId(value);
+    };
+
+    const handleOperationSelect = (value: string) => {
+      setSelectedOperation(value);
+    };
+
+    React.useEffect(() => {
+      const timeoutId = setTimeout(() => {
+        if (selectedOperation !== initialPrompt) {
+          onUpdateBlock(blockNumber, { prompt: selectedOperation });
+        }
+      }, 500);
+
+      return () => clearTimeout(timeoutId);
+    }, [selectedOperation, blockNumber, onUpdateBlock, initialPrompt]);
+
+    const processBlock = async () => {
+      try {
+        setError("");
+        setResult("");
+        setIsLoading(true);
+
+        if (!selectedOperation) {
+          setError("Please select an operation");
+          return false;
+        }
+
+        setError("Google Drive integration not yet configured");
+        return false;
+      } catch (err: any) {
+        console.error("Error processing Google Drive request:", err);
+        setError(
+          err.message ||
+            "An error occurred while processing the Google Drive request"
+        );
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    React.useImperativeHandle(ref, () => ({
+      processBlock,
+    }));
+
+    return (
+      <div className="bg-gray-900 rounded-lg border border-gray-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <div className="flex items-center gap-2">
+            <img
+              src="https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png"
+              alt="Google Drive"
+              className="w-8 h-8"
+            />
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-100">
+                Google Drive Agent {blockNumber}
+              </h3>
+              <Badge
+                variant="secondary"
+                className="text-xs bg-blue-600 text-white"
+              >
+                beta
+              </Badge>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-400 hover:text-gray-100"
+                >
+                  <FiInfo className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-gray-900 border-gray-700">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-gray-100">
+                    Google Drive Agent
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-300">
+                    This agent integrates with Google Drive to manage documents
+                    and spreadsheets.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-gray-800 text-gray-100 hover:bg-gray-700 border-gray-700">
+                    Close
+                  </AlertDialogCancel>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+          <Popover>
+            <PopoverTrigger>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-gray-100"
+              >
+                <FiSettings className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-40 p-0 bg-black border border-red-500">
+              <button
+                className="w-full px-4 py-2 text-red-500 hover:bg-red-950 text-left transition-colors"
+                onClick={() => onDeleteBlock(blockNumber)}
+              >
+                Delete Block
+              </button>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">
+              Google Drive Operation
+            </label>
+            <Select
+              value={selectedOperation}
+              onValueChange={handleOperationSelect}
+            >
+              <SelectTrigger className="bg-gray-800 border-gray-700 text-gray-100">
+                <SelectValue placeholder="Select an operation" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-700">
+                {GOOGLE_DRIVE_OPERATIONS.map((operation) => (
+                  <SelectItem
+                    key={operation.value}
+                    value={operation.value}
+                    disabled={operation.disabled}
+                    className="text-gray-100 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <div className="font-medium">{operation.label}</div>
+                        {operation.description && (
+                          <div className="text-sm text-gray-400">
+                            {operation.description}
+                          </div>
+                        )}
+                      </div>
+                      {operation.disabled && (
+                        <Badge
+                          variant="secondary"
+                          className="text-xs bg-orange-600"
+                        >
+                          Connect to Google Drive
+                        </Badge>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2 text-gray-300">
+            <span>Set output as:</span>
+            <VariableDropdown
+              value={selectedVariableId}
+              onValueChange={handleVariableSelect}
+              agentId={currentAgent?.id || null}
+            />
+          </div>
+
+          {error && <div className="text-red-500 text-sm">{error}</div>}
+
+          {result && (
+            <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+              <h4 className="text-sm font-medium mb-2 text-gray-300">Result</h4>
+              <div className="text-gray-200 whitespace-pre-wrap">{result}</div>
+              {selectedVariableId && (
+                <div className="mt-2 text-sm text-green-400">
+                  Saved as{" "}
+                  {
+                    Object.values(variables).find(
+                      (v) => v.id === selectedVariableId
+                    )?.name
+                  }
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 p-4 border-t border-gray-700">
+          <Button
+            onClick={processBlock}
+            disabled={isLoading || isProcessing}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {isLoading ? (
+              <>
+                <span className="animate-spin mr-2">⟳</span>
+                Processing...
+              </>
+            ) : (
+              "Run Google Drive"
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+);
+
+GoogleDriveAgent.displayName = "GoogleDriveAgent";
+
+export default GoogleDriveAgent;

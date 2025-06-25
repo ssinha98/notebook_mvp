@@ -7,6 +7,7 @@ import {
   SimulatedApiBlockType,
   SimulatedEmailBlockType,
   ShareableDataVizBlock,
+  ShareableConversingAgentBlock,
 } from "@/types/shareable_blocks";
 
 // Add export to the constant declaration
@@ -3138,6 +3139,323 @@ Marketing Division:
         subject: "inquiry",
         body: "hey there! I'm jack, im the founder of Jacks Apple Cider. I saw your website come up while looking for a packaging and distributions partner to help with our US shipments. ",
         attachments: [],
+      },
+    ],
+  },
+  {
+    id: "pawlicy-clinic-router",
+    name: "Pawlicy Clinic Router",
+    description: "Routes clinic inquiries and manages responses",
+    agentDescription: "Handles clinic routing and communication workflow",
+    tags: ["Admin", "Sales"],
+    blocks: [
+      {
+        id: "make-block-1",
+        type: "make",
+        blockNumber: 1,
+        webhookUrl: "https://api.pipedrive.com/v1/deals?status=open",
+        parameters: [
+          {
+            key: "url",
+            value: "https://api.pipedrive.com/v1/deals?status=open",
+          },
+        ],
+        outputVariable: {
+          name: "pipedrive_data",
+          value: `[
+            {
+              "company": "Clinic A",
+              "stage": "Prospecting",
+              "status": "Open"
+            },
+            {
+              "company": "Clinic B",
+              "stage": "Qualification",
+              "status": "In Progress"
+            },
+            {
+              "company": "Clinic C",
+              "stage": "Proposal",
+              "status": "Won"
+            },
+            {
+              "company": "Clinic D",
+              "stage": "Negotiation",
+              "status": "Lost"
+            }
+          ]`,
+        },
+        output: `[
+            {
+              "company": "Clinic A",
+              "stage": "Prospecting",
+              "status": "Open"
+            },
+            {
+              "company": "Clinic B",
+              "stage": "Qualification",
+              "status": "In Progress"
+            },
+            {
+              "company": "Clinic C",
+              "stage": "Proposal",
+              "status": "Won"
+            },
+            {
+              "company": "Clinic D",
+              "stage": "Negotiation",
+              "status": "Lost"
+            }
+          ]`,
+      },
+      {
+        id: "make-block-2",
+        type: "make",
+        blockNumber: 2,
+        webhookUrl: "https://api.clickup.com/api/v2/list/123456789/tasks",
+        parameters: [{ key: "Content-Type", value: "application/json" }],
+        outputVariable: {
+          name: "company_tasks",
+          value: `[
+          {
+            "company": "Clinic E",
+            "stage": "Initial Onboarding",
+            "status": "In Progress"
+          },
+          {
+            "company": "Clinic F",
+            "stage": "Data Integration",
+            "status": "Completed"
+          },
+          {
+            "company": "Clinic G",
+            "stage": "Training and Support",
+            "status": "Scheduled"
+          },
+          {
+            "company": "Clinic H",
+            "stage": "Final Check",
+            "status": "Pending"
+          }
+        ]`,
+        },
+        output: `[
+          {
+            "company": "Clinic E",
+            "stage": "Initial Onboarding",
+            "status": "In Progress"
+          },
+          {
+            "company": "Clinic F",
+            "stage": "Data Integration",
+            "status": "Completed"
+          },
+          {
+            "company": "Clinic G",
+            "stage": "Training and Support",
+            "status": "Scheduled"
+          },
+          {
+            "company": "Clinic H",
+            "stage": "Final Check",
+            "status": "Pending"
+          }
+        ]`,
+      },
+      {
+        id: "agent-block-1",
+        type: "agent",
+        blockNumber: 3,
+        userPrompt:
+          "Combine the information in {{company_tasks}} and {{pipedrive_data}} in a single list. Save the output variable as @synced_data",
+        systemPrompt:
+          "You are an expert in combining data from two sources into a single list. You are given two lists of data, and you need to combine them into a single list.",
+        outputVariable: {
+          name: "synced_data",
+          value: `[
+            {
+              "company": "Clinic A",
+              "stage": "Prospecting",
+              "status": "Open"
+            },
+            {
+              "company": "Clinic B",
+              "stage": "Qualification",
+              "status": "In Progress"
+            },
+            {
+              "company": "Clinic C",
+              "stage": "Proposal",
+              "status": "Won"
+            },
+            {
+              "company": "Clinic D",
+              "stage": "Negotiation",
+              "status": "Lost"
+            },
+            {
+            "company": "Clinic E",
+            "stage": "Initial Onboarding",
+            "status": "In Progress"
+          },
+          {
+            "company": "Clinic F",
+            "stage": "Data Integration",
+            "status": "Completed"
+          },
+          {
+            "company": "Clinic G",
+            "stage": "Training and Support",
+            "status": "Scheduled"
+          },
+          {
+            "company": "Clinic H",
+            "stage": "Final Check",
+            "status": "Pending"
+          }
+      `,
+        },
+        output: `[
+            {
+              "company": "Clinic A",
+              "stage": "Prospecting",
+              "status": "Open"
+            },
+            {
+              "company": "Clinic B",
+              "stage": "Qualification",
+              "status": "In Progress"
+            },
+            {
+              "company": "Clinic C",
+              "stage": "Proposal",
+              "status": "Won"
+            },
+            {
+              "company": "Clinic D",
+              "stage": "Negotiation",
+              "status": "Lost"
+            },
+            {
+            "company": "Clinic E",
+            "stage": "Initial Onboarding",
+            "status": "In Progress"
+          },
+          {
+            "company": "Clinic F",
+            "stage": "Data Integration",
+            "status": "Completed"
+          },
+          {
+            "company": "Clinic G",
+            "stage": "Training and Support",
+            "status": "Scheduled"
+          },
+          {
+            "company": "Clinic H",
+            "stage": "Final Check",
+            "status": "Pending"
+          }
+      `,
+      },
+      {
+        id: "converse-block",
+        type: "conversingagent",
+        blockNumber: 4,
+        channel: "email", // Add this
+        sources: ["@synced_data"], // Add this
+        objective:
+          "Use @synced_data to route the user to the right team, based on their status in Pawlicy. Customers that are talking to sales but not yet purchased should speak to sales. Clinics that have purchased a membership should be routed to customer success",
+        messages: [
+          {
+            type: "incoming",
+            content:
+              "Hey there! I received a brochure from you guys - I had a few questions about Pawlicy advisor",
+          },
+          {
+            type: "outgoing",
+            content:
+              "Great! Would you mind answering a few questions to help us route you to the right team? Do you have an active membership with us or still exploring?",
+          },
+          {
+            type: "incoming",
+            content:
+              "Hmm I'm not sure, I've spoken to a sales rep but I can't remember if i signed.",
+          },
+          {
+            type: "outgoing",
+            content:
+              "No worries, checking our data it looks like you haven't signed yet. We'll route you to the right team accordingly",
+          },
+        ],
+        systemPrompt: "Example system prompt for conversation",
+        outputVariable: {
+          name: "pawlicy_clinic_router_output",
+          value: "sales",
+        },
+        output:
+          "Based on the thread and @synced data, the user should be routed to the sales team",
+      },
+      {
+        id: "agent-block-2",
+        type: "agent",
+        blockNumber: 5,
+        userPrompt:
+          "Based on the decision in @pawlicy_clinic_router_output, create the necessary API call to update ClickUp accordingly",
+        systemPrompt:
+          "You are an expert in ClickUp, and you are given a task to update the status of a task in ClickUp based on the decision in @pawlicy_clinic_router_output",
+        outputVariable: {
+          name: "clickup_api_call",
+          value:
+            "{team: sales, status: new, description: 'Speak to incoming clinic request'}",
+        },
+        output:
+          "{team: sales, status: new, description: 'Speak to incoming clinic request'}",
+      },
+      {
+        id: "curl_request_block",
+        type: "codeblock",
+        blockNumber: 6,
+        language: "bash",
+        code: `curl -X POST \
+      https://api.clickup.com/api/v2/list/123/task \
+      -H 'Authorization: your_clickup_api_key' \
+      -H 'Content-Type: application/json' \
+      -d '{{clickup_api_call}}'`,
+        outputVariable: {
+          name: "curl_response",
+          value: "Response from ClickUp API",
+        },
+        output: "Task updated in ClickUp",
+      },
+      {
+        id: "team_notification_block",
+        type: "agent",
+        blockNumber: 7,
+        userPrompt:
+          "Draft a message to the team in {{pawlicy_clinic_router_output}} to let them know they have this task {{clickup_api_call}}",
+        systemPrompt:
+          "You are an expert in team communication, and you are given a task to draft a message to the team in {{pawlicy_clinic_router_output}} about the new task {{clickup_api_call}}",
+        outputVariable: {
+          name: "team_notification_message",
+          value:
+            "Hello {{pawlicy_clinic_router_output}},\n\nWe have a new task assigned to the team: {{clickup_api_call}}.\n\nPlease review and take necessary actions.\n\nBest, [Your Name]",
+        },
+        output:
+          "Hello {{pawlicy_clinic_router_output}},\n\nWe have a new task assigned to the team: {{clickup_api_call}}.\n\nPlease review and take necessary actions.\n\nBest, [Your Name]",
+      },
+      {
+        id: "slack_notification_block",
+        type: "contact",
+        blockNumber: 8,
+        to: "slack_channel",
+        subject: "New Task Notification",
+        body: "{{team_notification_message}}",
+        outputVariable: {
+          name: "slack_notification_response",
+          value: "Notification sent to Slack channel",
+        },
+        output: "Notification sent to Slack channel",
       },
     ],
   },

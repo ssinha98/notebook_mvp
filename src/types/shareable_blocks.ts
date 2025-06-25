@@ -1,7 +1,24 @@
 export interface BaseShareableBlock {
   id: string;
   blockNumber: number;
-  type: string;
+  type:
+    | "agent"
+    | "webagent"
+    | "contact"
+    | "checkin"
+    | "searchagent"
+    | "instagramagent"
+    | "codeblock"
+    | "make"
+    | "excelagent"
+    | "docdiff"
+    | "docannotator"
+    | "simulatedapi"
+    | "simulatedemail"
+    | "powerpoint"
+    | "dataviz"
+    | "webscraper"
+    | "conversingagent";
   output?: string;
   outputVariable?: {
     name: string;
@@ -189,7 +206,8 @@ export type ShareableBlock =
   | SimulatedApiBlockType
   | SimulatedEmailBlockType
   | ShareableDataVizBlock
-  | ShareableWebScraperBlock;
+  | ShareableWebScraperBlock
+  | ShareableConversingAgentBlock;
 
 export interface ShareableAgent {
   id: string;
@@ -251,4 +269,16 @@ interface ShareableAgentBlockProps {
   isPaused?: boolean;
   onPause?: () => void;
   onResume?: () => void;
+}
+
+export interface ShareableConversingAgentBlock extends BaseShareableBlock {
+  type: "conversingagent";
+  systemPrompt?: string;
+  channel: "email" | "slack" | "teams";
+  sources: string[];
+  objective: string;
+  messages: {
+    type: "incoming" | "outgoing";
+    content: string;
+  }[];
 }

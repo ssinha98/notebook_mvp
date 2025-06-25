@@ -8,7 +8,12 @@ import {
   PauseOutlined,
 } from "@ant-design/icons";
 import AgentBlock from "./AgentBlock";
-import { ExcelAgentBlock, Variable } from "@/types/types";
+import {
+  ExcelAgentBlock,
+  Variable,
+  ClickUpAgentBlock,
+  GoogleDriveAgentBlock,
+} from "@/types/types";
 import { AgentBlockRef } from "./AgentBlock";
 import TransformBlock from "./TransformBlock";
 import { useSourceStore } from "@/lib/store";
@@ -27,6 +32,10 @@ import { Button } from "@/components/ui/button";
 import BlockTypeDisplay from "./BlockTypeDisplay";
 import RateAgentRun from "./RateAgentRun";
 import DeepResearchAgent from "./DeepResearchAgent";
+import PipedriveAgent from "./PipedriveAgent";
+import DataVizAgent, { DataVizAgentRef } from "./DataVizAgent";
+import ClickUpAgent from "./ClickUpAgent";
+import GoogleDriveAgent from "./GoogleDriveAgent";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -52,7 +61,11 @@ interface CollapsibleBoxProps {
     } | null
   ) => void;
   blockRefs?: React.MutableRefObject<{
-    [key: number]: AgentBlockRef | SearchAgentRef | ContactBlockRef;
+    [key: number]:
+      | AgentBlockRef
+      | SearchAgentRef
+      | ContactBlockRef
+      | DataVizAgentRef;
   }>;
   onDeleteBlock?: (blockNumber: number) => void;
   onContinue?: () => void;
@@ -87,6 +100,9 @@ const CollapsibleBox = forwardRef<
       | "codeblock"
       | "make"
       | "deepresearchagent"
+      | "pipedriveagent"
+      | "datavizagent"
+      | "clickupagent"
   ) => {
     const baseBlock = {
       blockNumber: nextBlockNumber,
@@ -453,6 +469,83 @@ const CollapsibleBox = forwardRef<
               updateBlock(blockNumber, updates);
             }}
             initialTopic={block.topic}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+          />
+        );
+      case "pipedriveagent":
+        return (
+          <PipedriveAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            initialPrompt={block.prompt}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+          />
+        );
+      case "datavizagent":
+        return (
+          <DataVizAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            initialPrompt={block.prompt}
+            initialChartType={block.chartType}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+            onProcessingChange={(isProcessing) =>
+              handleProcessingChange(block.blockNumber, isProcessing)
+            }
+            onOpenTools={props.onOpenTools}
+          />
+        );
+      case "clickupagent":
+        return (
+          <ClickUpAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            initialPrompt={(block as ClickUpAgentBlock).prompt}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+          />
+        );
+      case "googledriveagent":
+        return (
+          <GoogleDriveAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlock(blockNumber, updates);
+            }}
+            initialPrompt={(block as GoogleDriveAgentBlock).prompt}
             isProcessing={processingBlocks[block.blockNumber] || false}
           />
         );

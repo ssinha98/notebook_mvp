@@ -11,14 +11,16 @@ import {
   where,
 } from "firebase/firestore";
 import { db, auth } from "@/tools/firebase";
+import { TableRow } from "@/types/types";
 
 interface Variable {
   id: string;
   name: string;
-  type: "input" | "intermediate";
-  value: string;
+  type: "input" | "intermediate" | "table";
+  value: string | TableRow[];
   updatedAt: string;
   agentId?: string;
+  columns?: string[];
 }
 
 interface VariableStore {
@@ -26,13 +28,30 @@ interface VariableStore {
   loadVariables: (agentId?: string) => Promise<void>;
   createVariable: (
     name: string,
-    type: "input" | "intermediate",
+    type: "input" | "intermediate" | "table",
     agentId: string,
-    initialValue?: string
+    initialValue?: string | TableRow[]
   ) => Promise<Variable>;
-  updateVariable: (id: string, value: string) => Promise<void>;
+  updateVariable: (id: string, value: string | TableRow[]) => Promise<void>;
   deleteVariable: (id: string) => Promise<void>;
   getVariableByName: (name: string) => Variable | undefined;
+  getTableColumn: (tableId: string, columnName: string) => any[];
+  updateTableColumn: (
+    tableId: string,
+    columnName: string,
+    value: any
+  ) => Promise<void>;
+  addTableRow: (
+    tableId: string,
+    rowData: Omit<TableRow, "id">
+  ) => Promise<string>;
+  updateTableRow: (
+    tableId: string,
+    rowId: string,
+    rowData: Partial<TableRow>
+  ) => Promise<void>;
+  deleteTableRow: (tableId: string, rowId: string) => Promise<void>;
+  addColumnToTable: (tableId: string, columnName: string) => Promise<void>;
 }
 
 export const useVariableStore = create<VariableStore>((set, get) => ({
@@ -68,9 +87,9 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
 
   createVariable: async (
     name: string,
-    type: "input" | "intermediate",
+    type: "input" | "intermediate" | "table",
     agentId: string,
-    initialValue = ""
+    initialValue = type === "table" ? [] : ""
   ) => {
     try {
       const userId = auth.currentUser?.uid;
@@ -87,11 +106,7 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
         agentId,
       };
 
-      console.log("Saving variable to path:", variableRef.path);
       await setDoc(variableRef, newVariable);
-
-      const savedDoc = await getDoc(variableRef);
-      console.log("Save verification:", savedDoc.exists(), savedDoc.data());
 
       set((state) => ({
         variables: { ...state.variables, [newVariable.id]: newVariable },
@@ -149,5 +164,231 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
   getVariableByName: (name) => {
     const { variables } = get();
     return Object.values(variables).find((v) => v.name === name);
+  },
+
+  getTableColumn: (tableId: string, columnName: string) => {
+    const variable = get().variables[tableId];
+    if (!variable || variable.type !== "table") {
+      throw new Error("Invalid table variable");
+    }
+    const rows = Array.isArray(variable.value) ? variable.value : [];
+    return rows.map((row) => row[columnName]);
+  },
+
+  updateTableColumn: async (
+    tableId: string,
+    columnName: string,
+    value: any
+  ) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const variable = get().variables[tableId];
+      if (!variable || variable.type !== "table") {
+        throw new Error("Invalid table variable");
+      }
+
+      const currentRows = Array.isArray(variable.value) ? variable.value : [];
+      let updatedRows = [...currentRows];
+
+      // Convert value to string and clean it up
+      const stringValue = String(value).trim();
+
+      // If value is a string and contains commas, treat it as a list
+      if (stringValue.includes(",")) {
+        // Split by comma, clean up each item, and remove empty/duplicate entries
+        const items = [
+          ...new Set(
+            stringValue
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean) // Remove empty strings
+          ),
+        ];
+
+        // Create a new row for each item
+        const newRows = items.map((item) => ({
+          id: crypto.randomUUID(),
+          [columnName]: item,
+        }));
+
+        updatedRows = [...currentRows, ...newRows];
+      } else if (stringValue) {
+        // Only add non-empty values
+        // Single value case
+        const newRow = {
+          id: crypto.randomUUID(),
+          [columnName]: stringValue,
+        };
+        updatedRows = [...currentRows, newRow];
+      }
+
+      // Update Firebase
+      await updateDoc(doc(db, `users/${userId}/variables`, tableId), {
+        value: updatedRows,
+        updatedAt: new Date().toISOString(),
+        columns: Array.from(new Set([...(variable.columns || []), columnName])),
+      });
+
+      // Update local state
+      set((state) => ({
+        variables: {
+          ...state.variables,
+          [tableId]: {
+            ...state.variables[tableId],
+            value: updatedRows,
+            updatedAt: new Date().toISOString(),
+            columns: Array.from(
+              new Set([...(variable.columns || []), columnName])
+            ),
+          },
+        },
+      }));
+    } catch (error) {
+      console.error("Error updating table column:", error);
+      throw error;
+    }
+  },
+
+  addTableRow: async (tableId: string, rowData: Omit<TableRow, "id">) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const variable = get().variables[tableId];
+      if (!variable || variable.type !== "table") {
+        throw new Error("Invalid table variable");
+      }
+
+      const newRow = {
+        id: crypto.randomUUID(),
+        ...rowData,
+      };
+
+      const currentRows = Array.isArray(variable.value) ? variable.value : [];
+      const updatedRows = [...currentRows, newRow];
+
+      await updateDoc(doc(db, `users/${userId}/variables`, tableId), {
+        value: updatedRows,
+        updatedAt: new Date().toISOString(),
+      });
+
+      set((state) => ({
+        variables: {
+          ...state.variables,
+          [tableId]: {
+            ...state.variables[tableId],
+            value: updatedRows,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }));
+
+      return newRow.id;
+    } catch (error) {
+      console.error("Error adding table row:", error);
+      throw error;
+    }
+  },
+
+  updateTableRow: async (
+    tableId: string,
+    rowId: string,
+    rowData: Partial<TableRow>
+  ) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const variable = get().variables[tableId];
+      if (!variable || variable.type !== "table") {
+        throw new Error("Invalid table variable");
+      }
+
+      const currentRows = Array.isArray(variable.value) ? variable.value : [];
+      const updatedRows = currentRows.map((row) =>
+        row.id === rowId ? { ...row, ...rowData } : row
+      );
+
+      await updateDoc(doc(db, `users/${userId}/variables`, tableId), {
+        value: updatedRows,
+        updatedAt: new Date().toISOString(),
+      });
+
+      set((state) => ({
+        variables: {
+          ...state.variables,
+          [tableId]: {
+            ...state.variables[tableId],
+            value: updatedRows,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }));
+    } catch (error) {
+      console.error("Error updating table row:", error);
+      throw error;
+    }
+  },
+
+  deleteTableRow: async (tableId: string, rowId: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const variable = get().variables[tableId];
+      if (!variable || variable.type !== "table") {
+        throw new Error("Invalid table variable");
+      }
+
+      const currentRows = Array.isArray(variable.value) ? variable.value : [];
+      const updatedRows = currentRows.filter((row) => row.id !== rowId);
+
+      await updateDoc(doc(db, `users/${userId}/variables`, tableId), {
+        value: updatedRows,
+        updatedAt: new Date().toISOString(),
+      });
+
+      set((state) => ({
+        variables: {
+          ...state.variables,
+          [tableId]: {
+            ...state.variables[tableId],
+            value: updatedRows,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }));
+    } catch (error) {
+      console.error("Error deleting table row:", error);
+      throw error;
+    }
+  },
+
+  addColumnToTable: async (tableId: string, columnName: string) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error("No user logged in");
+
+    const table = get().variables[tableId];
+    if (!table || table.type !== "table") return;
+
+    const columns = table.columns || [];
+    if (!columns.includes(columnName)) {
+      const updatedColumns = [...columns, columnName];
+      await updateDoc(doc(db, `users/${userId}/variables`, tableId), {
+        columns: updatedColumns,
+      });
+
+      set((state) => ({
+        variables: {
+          ...state.variables,
+          [tableId]: {
+            ...table,
+            columns: updatedColumns,
+          },
+        },
+      }));
+    }
   },
 }));

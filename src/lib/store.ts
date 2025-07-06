@@ -9,6 +9,7 @@ import {
   CodeBlock,
 } from "../types/types";
 import { fileManager } from "../tools/fileManager";
+import { arrayMove } from "@dnd-kit/sortable";
 
 interface FileNickname {
   originalName: string;
@@ -52,6 +53,7 @@ interface SourceStore {
   syncWithFirestore: (userId: string) => Promise<void>;
   clearVariables: () => void;
   clearSources: () => void;
+  reorderBlocks: (startIndex: number, endIndex: number) => void;
 }
 
 const usePromptStore = create<PromptStore>()(
@@ -194,24 +196,24 @@ export const useSourceStore = create<SourceStore>()(
         });
       },
       updateBlock: (blockNumber: number, updates: Partial<Block>) =>
-        set((state) => ({
-          blocks: state.blocks.map((block): Block => {
-            if (block.blockNumber === blockNumber) {
-              // For CodeBlock types, preserve the status field if it exists
-              if (block.type === "codeblock" && "status" in block) {
-                const codeBlock = block as CodeBlock;
-                return {
-                  ...codeBlock,
-                  ...updates,
-                  status:
-                    (updates as Partial<CodeBlock>).status || codeBlock.status,
-                } as Block;
+        set((state) => {
+          return {
+            blocks: state.blocks.map((block): Block => {
+              if (block.blockNumber === blockNumber) {
+                // For CodeBlock types, preserve the status field if it exists
+                if (block.type === "codeblock") {
+                  const updatedBlock = { ...block, ...updates };
+                  if (!updates.hasOwnProperty("status")) {
+                    updatedBlock.status = (block as any).status || "tbd";
+                  }
+                  return updatedBlock as Block;
+                }
+                return { ...block, ...updates } as Block;
               }
-              return { ...block, ...updates } as Block;
-            }
-            return block;
-          }),
-        })),
+              return block;
+            }),
+          };
+        }),
       removeBlock: (blockNumber: number) =>
         set((state) => ({
           blocks: state.blocks.filter(
@@ -296,6 +298,16 @@ export const useSourceStore = create<SourceStore>()(
           ...state,
           sources: {},
         }));
+      },
+      reorderBlocks: (startIndex: number, endIndex: number) => {
+        set((state) => {
+          const blocks = arrayMove([...state.blocks], startIndex, endIndex);
+          // Update blockNumbers to reflect new order
+          blocks.forEach((block, index) => {
+            block.blockNumber = index + 1;
+          });
+          return { blocks };
+        });
       },
     }),
     {

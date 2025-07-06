@@ -305,7 +305,7 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
             />
           </div>
 
-          <div className="flex justify-end gap-2 p-4 border-t border-gray-700">
+          <div className="flex justify-start gap-2 p-4 border-t border-gray-700">
             <Button
               onClick={handleGenerateVisualization}
               disabled={isProcessing || !prompt.trim()}

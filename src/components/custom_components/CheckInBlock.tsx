@@ -106,7 +106,17 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
         Object.values(variables)
           .filter((variable) => variable.agentId === props.agentId)
           .forEach((variable) => {
-            currentValues[variable.id] = variable.value || "";
+            // Handle both string and table values
+            let valueAsString = "";
+            if (variable.value) {
+              if (typeof variable.value === "string") {
+                valueAsString = variable.value;
+              } else if (Array.isArray(variable.value)) {
+                // Convert table data to a readable string format
+                valueAsString = `Table with ${variable.value.length} rows`;
+              }
+            }
+            currentValues[variable.id] = valueAsString;
           });
         setEditedVariables(currentValues);
       }

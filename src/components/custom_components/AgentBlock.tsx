@@ -3,6 +3,7 @@ import React, {
   useImperativeHandle,
   forwardRef,
   useEffect,
+  useCallback,
 } from "react";
 import { Variable, SourceInfo } from "@/types/types";
 import { Button } from "@/components/ui/button";
@@ -38,9 +39,35 @@ import { auth } from "@/tools/firebase";
 import { toast } from "sonner";
 import { Copy } from "lucide-react";
 import VariableDropdown from "./VariableDropdown";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+// Add debounce hook
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 interface AgentBlockProps {
   blockNumber: number;
+  variables: Variable[];
   onAddVariable: (variable: Variable) => void;
   onOpenTools?: () => void;
   onSavePrompts: (
@@ -52,7 +79,8 @@ interface AgentBlockProps {
     outputVariable?: {
       id: string;
       name: string;
-      type: "input" | "intermediate";
+      type: "input" | "intermediate" | "table";
+      columnName?: string;
     } | null
   ) => void;
   onProcessedPrompts?: (processedSystem: string, processedUser: string) => void;
@@ -69,13 +97,15 @@ interface AgentBlockProps {
   initialOutputVariable?: {
     id: string;
     name: string;
-    type: "input" | "intermediate";
+    type: "input" | "intermediate" | "table";
+    columnName?: string;
   } | null;
 }
 
 // Add this interface to define the ref methods
 export interface AgentBlockRef {
   processBlock: () => Promise<boolean>;
+  getOutput: () => any;
 }
 
 // Convert component to use forwardRef
@@ -91,7 +121,24 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [modelResponse, setModelResponse] = useState<string | null>(null);
   const variables = useVariableStore((state) => state.variables) || {}; // Provide default empty object
-  const [selectedVariableId, setSelectedVariableId] = useState<string>("");
+  const [selectedVariableId, setSelectedVariableId] = useState<string>(() => {
+    // If we have an initial output variable with a column name, construct the proper value
+    if (
+      props.initialOutputVariable?.type === "table" &&
+      props.initialOutputVariable.columnName
+    ) {
+      const value = `${props.initialOutputVariable.id}:${props.initialOutputVariable.columnName}`;
+      console.log("Initializing selectedVariableId with table column:", value);
+      return value;
+    }
+    // Otherwise use the ID directly
+    const value = props.initialOutputVariable?.id || "";
+    console.log(
+      "Initializing selectedVariableId with regular variable:",
+      value
+    );
+    return value;
+  });
   const [selectedSource, setSelectedSource] = useState<string>(
     props.initialSource?.nickname || "none"
   );
@@ -103,11 +150,18 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   // const { variables: storeVariables } = useSourceStore();
   const syncWithFirestore = useSourceStore((state) => state.syncWithFirestore);
   const currentAgent = useAgentStore((state) => state.currentAgent);
+  const [output, setOutput] = useState<any>(null);
 
+  // Debounce the prompts to avoid excessive updates
+  const debouncedSystemPrompt = useDebounce(systemPrompt, 500);
+  const debouncedUserPrompt = useDebounce(userPrompt, 500);
+
+  // Load variables when component mounts
   useEffect(() => {
-    // Load variables when component mounts
     const currentAgentId = useAgentStore.getState().currentAgent?.id;
-    useVariableStore.getState().loadVariables(currentAgentId!);
+    if (currentAgentId) {
+      useVariableStore.getState().loadVariables(currentAgentId);
+    }
   }, []);
 
   // Add useEffect to update prompts when they change
@@ -156,43 +210,95 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
 
   // Update selection when variables or initialOutputVariable changes
   useEffect(() => {
-    if (props.initialOutputVariable?.id && Object.keys(variables).length > 0) {
-      const matchingVariable = Object.values(variables).find(
-        (v) => v.id === props.initialOutputVariable?.id
-      );
-      if (matchingVariable) {
-        setSelectedVariableId(matchingVariable.id);
+    if (props.initialOutputVariable?.id) {
+      setSelectedVariableId(props.initialOutputVariable.id);
+    }
+  }, [props.initialOutputVariable]);
+
+  // Update selection when initialOutputVariable changes
+  useEffect(() => {
+    if (props.initialOutputVariable?.id) {
+      // If it's a table variable with column name, construct the proper value
+      if (
+        props.initialOutputVariable.type === "table" &&
+        props.initialOutputVariable.columnName
+      ) {
+        setSelectedVariableId(
+          `${props.initialOutputVariable.id}:${props.initialOutputVariable.columnName}`
+        );
+      } else {
+        setSelectedVariableId(props.initialOutputVariable.id);
       }
     }
-  }, [props.initialOutputVariable, variables]);
+  }, [props.initialOutputVariable]);
 
   // Update handler to work with shadcn Select
   const handleVariableSelect = (value: string) => {
+    console.log("Variable selected:", value);
     if (value === "add_new" && props.onOpenTools) {
       props.onOpenTools();
     } else {
+      // Always set the full value including column if present
       setSelectedVariableId(value);
-      const selectedVariable = Object.values(variables).find(
-        (v) => v.id === value
-      );
-      if (selectedVariable) {
-        props.onSavePrompts(
-          props.blockNumber,
-          systemPrompt,
-          userPrompt,
-          saveAsCsv,
-          selectedSource !== "none" && fileNicknames[selectedSource]
-            ? {
-                nickname: selectedSource,
-                downloadUrl: fileNicknames[selectedSource].downloadLink,
-              }
-            : undefined,
-          {
-            id: selectedVariable.id,
+      console.log("Setting selectedVariableId to:", value);
+
+      // Check if it's a table column selection
+      if (value.includes(":")) {
+        const [tableId, columnName] = value.split(":");
+        const tableVar = Object.values(variables).find((v) => v.id === tableId);
+        if (tableVar && tableVar.type === "table") {
+          console.log("Selected table column:", {
+            tableName: tableVar.name,
+            columnName: columnName,
+            fullValue: value,
+          });
+          props.onSavePrompts(
+            props.blockNumber,
+            systemPrompt,
+            userPrompt,
+            saveAsCsv,
+            selectedSource !== "none" && fileNicknames[selectedSource]
+              ? {
+                  nickname: selectedSource,
+                  downloadUrl: fileNicknames[selectedSource].downloadLink,
+                }
+              : undefined,
+            {
+              id: tableId,
+              name: `${tableVar.name}.${columnName}`,
+              type: "table" as const,
+              columnName: columnName,
+            }
+          );
+        }
+      } else {
+        // Handle regular variable selection
+        const selectedVariable = Object.values(variables).find(
+          (v) => v.id === value
+        );
+        if (selectedVariable) {
+          console.log("Selected regular variable:", {
             name: selectedVariable.name,
             type: selectedVariable.type,
-          }
-        );
+          });
+          props.onSavePrompts(
+            props.blockNumber,
+            systemPrompt,
+            userPrompt,
+            saveAsCsv,
+            selectedSource !== "none" && fileNicknames[selectedSource]
+              ? {
+                  nickname: selectedSource,
+                  downloadUrl: fileNicknames[selectedSource].downloadLink,
+                }
+              : undefined,
+            {
+              id: selectedVariable.id,
+              name: selectedVariable.name,
+              type: selectedVariable.type as "input" | "intermediate" | "table",
+            }
+          );
+        }
       }
     }
   };
@@ -254,11 +360,6 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       // Trim the sourceName and check if it exists in fileNicknames
       const trimmedSourceName = sourceName.trim();
       const sourceExists = fileNicknames[trimmedSourceName];
-      // console.log("Source check:", {
-      //   trimmedSourceName,
-      //   exists: !!sourceExists,
-      //   fileNicknames,
-      // });
       return `<source class="${sourceExists ? "valid" : "invalid"}">${match}</source>`;
     });
 
@@ -280,7 +381,6 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       } else if (segment.startsWith("<source")) {
         const isValid = segment.includes('class="valid"');
         const content = segment.match(/>(.+?)<\/source>/)?.[1] || "";
-        // console.log("Rendering source:", { content, isValid, segment });
         parts.push(
           <span
             key={index}
@@ -305,10 +405,35 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const processVariablesInText = (text: string): string => {
     const regex = /{{(.*?)}}/g;
     return text.replace(regex, (match, varName) => {
+      const trimmedName = varName.trim();
+
+      // Handle table.column references
+      if (trimmedName.includes(".")) {
+        const [tableName, columnName] = trimmedName.split(".");
+        const tableVar = useVariableStore
+          .getState()
+          .getVariableByName(tableName);
+        if (tableVar?.type === "table") {
+          const columnValues = useVariableStore
+            .getState()
+            .getTableColumn(tableVar.id, columnName);
+          return JSON.stringify(columnValues);
+        }
+      }
+
+      // Handle regular variables
       const variable = useVariableStore
         .getState()
-        .getVariableByName(varName.trim());
-      return variable?.value || `no value saved to ${varName.trim()}`;
+        .getVariableByName(trimmedName);
+      if (!variable) return match;
+
+      // Handle table variables
+      if (variable.type === "table") {
+        const rows = Array.isArray(variable.value) ? variable.value : [];
+        return JSON.stringify(rows);
+      }
+
+      return String(variable.value || match);
     });
   };
 
@@ -393,33 +518,34 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         setModelResponse(response.response);
 
         if (selectedVariableId) {
-          const selectedVariable = Object.values(variables).find(
-            (v) => v.id === selectedVariableId
-          );
-          if (selectedVariable) {
-            // Update variable in cloud storage
+          if (selectedVariableId.includes(":")) {
+            // Table variable - save to specific column
+            const [tableId, columnName] = selectedVariableId.split(":");
+            const tableVar = variables[tableId];
+
+            if (tableVar && tableVar.type === "table") {
+              const currentRows = Array.isArray(tableVar.value)
+                ? tableVar.value
+                : [];
+              const newRows = response.response
+                .split(",")
+                .map((value: string) => ({
+                  id: crypto.randomUUID(),
+                  [columnName]: value.trim(), // Use the specific column name
+                }));
+
+              // Merge with existing rows or create new ones
+              const updatedRows = [...currentRows, ...newRows];
+
+              await useVariableStore
+                .getState()
+                .updateVariable(tableId, updatedRows);
+            }
+          } else {
+            // Regular variable
             await useVariableStore
               .getState()
               .updateVariable(selectedVariableId, response.response);
-
-            // Update block's output variable reference
-            props.onSavePrompts(
-              props.blockNumber,
-              systemPrompt,
-              userPrompt,
-              saveAsCsv,
-              selectedSource !== "none" && fileNicknames[selectedSource]
-                ? {
-                    nickname: selectedSource,
-                    downloadUrl: fileNicknames[selectedSource].downloadLink,
-                  }
-                : undefined,
-              {
-                id: selectedVariable.id,
-                name: selectedVariable.name,
-                type: selectedVariable.type,
-              }
-            );
           }
         }
 
@@ -427,6 +553,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           props.onProcessedPrompts(processedSystemPrompt, processedUserPrompt);
         }
 
+        setOutput(response.response);
         return true;
       } else {
         if (response.needs_api_key) {
@@ -454,68 +581,185 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
 
   useImperativeHandle(ref, () => ({
     processBlock: handleProcessBlock,
+    getOutput: () => output,
   }));
 
-  // Update the save function to include source information
-  const handleSavePrompts = () => {
-    // Skip saving if both prompts are empty
-    if (!systemPrompt && !userPrompt) return;
+  // Immediate save function for manual save button clicks
+  const handleImmediateSave = useCallback(() => {
+    const sourceInfo =
+      selectedSource !== "none" && fileNicknames[selectedSource]
+        ? {
+            nickname: selectedSource,
+            downloadUrl: fileNicknames[selectedSource].downloadLink,
+          }
+        : undefined;
 
-    console.log("Starting handleSavePrompts with:", {
-      systemPrompt,
-      userPrompt,
-    });
+    // Find the selected variable and format it properly
+    const variables = useVariableStore.getState().variables;
+    let outputVariable;
 
-    const outputVariable = selectedVariableId
-      ? {
-          id: selectedVariableId,
-          name:
-            Object.values(variables).find((v) => v.id === selectedVariableId)
-              ?.name || "",
-          type:
-            Object.values(variables).find((v) => v.id === selectedVariableId)
-              ?.type || "input",
-        }
-      : null;
+    if (selectedVariableId.includes(":")) {
+      // Table variable with column name
+      const [tableId, columnName] = selectedVariableId.split(":");
+      const selectedVariable = Object.values(variables).find(
+        (v) => v.id === tableId
+      );
 
-    const updatedBlockData = {
-      systemPrompt,
-      userPrompt,
-      saveAsCsv,
-      sourceInfo:
-        selectedSource !== "none" && fileNicknames[selectedSource]
-          ? {
-              nickname: selectedSource,
-              downloadUrl: fileNicknames[selectedSource].downloadLink,
-            }
-          : undefined,
-      outputVariable: outputVariable || undefined,
-      status: "tbd" as const,
-    };
+      if (selectedVariable) {
+        outputVariable = {
+          id: selectedVariable.id,
+          name: `${selectedVariable.name}.${columnName}`,
+          type: "table" as const,
+          columnName: columnName,
+        };
+      }
+    } else if (selectedVariableId) {
+      // Regular variable
+      const selectedVariable = Object.values(variables).find(
+        (v) => v.id === selectedVariableId
+      );
 
-    console.log("Updating block data in store:", updatedBlockData);
+      if (selectedVariable) {
+        outputVariable = {
+          id: selectedVariable.id,
+          name: selectedVariable.name,
+          type: selectedVariable.type as "input" | "intermediate" | "table",
+        };
+      }
+    }
 
-    // Update the store
-    useSourceStore
-      .getState()
-      .updateBlockData(props.blockNumber, updatedBlockData);
-
-    // Verify the update
-    const currentBlocks = useSourceStore.getState().blocks;
-    const updatedBlock = currentBlocks.find(
-      (b) => b.blockNumber === props.blockNumber
-    );
-    console.log("Block in store after update:", updatedBlock);
-
-    // Call onSavePrompts
     props.onSavePrompts(
       props.blockNumber,
-      systemPrompt,
-      userPrompt,
+      systemPrompt, // Use current values, not debounced
+      userPrompt, // Use current values, not debounced
       saveAsCsv,
-      updatedBlockData.sourceInfo,
-      outputVariable || undefined
+      sourceInfo,
+      outputVariable || null
     );
+  }, [
+    systemPrompt,
+    userPrompt,
+    saveAsCsv,
+    selectedSource,
+    fileNicknames,
+    selectedVariableId,
+    props.onSavePrompts,
+    props.blockNumber,
+  ]);
+
+  // Debounced save function for auto-save when typing
+  const debouncedSavePrompts = useCallback(() => {
+    const sourceInfo =
+      selectedSource !== "none" && fileNicknames[selectedSource]
+        ? {
+            nickname: selectedSource,
+            downloadUrl: fileNicknames[selectedSource].downloadLink,
+          }
+        : undefined;
+
+    // Find the selected variable and format it properly
+    const variables = useVariableStore.getState().variables;
+    let outputVariable;
+
+    if (selectedVariableId.includes(":")) {
+      // Table variable with column name
+      const [tableId, columnName] = selectedVariableId.split(":");
+      const selectedVariable = Object.values(variables).find(
+        (v) => v.id === tableId
+      );
+
+      if (selectedVariable) {
+        outputVariable = {
+          id: selectedVariable.id,
+          name: `${selectedVariable.name}.${columnName}`,
+          type: "table" as const,
+          columnName: columnName,
+        };
+      }
+    } else if (selectedVariableId) {
+      // Regular variable
+      const selectedVariable = Object.values(variables).find(
+        (v) => v.id === selectedVariableId
+      );
+
+      if (selectedVariable) {
+        outputVariable = {
+          id: selectedVariable.id,
+          name: selectedVariable.name,
+          type: selectedVariable.type as "input" | "intermediate" | "table",
+        };
+      }
+    }
+
+    props.onSavePrompts(
+      props.blockNumber,
+      debouncedSystemPrompt, // Use debounced values for auto-save
+      debouncedUserPrompt, // Use debounced values for auto-save
+      saveAsCsv,
+      sourceInfo,
+      outputVariable || null
+    );
+  }, [
+    debouncedSystemPrompt,
+    debouncedUserPrompt,
+    saveAsCsv,
+    selectedSource,
+    fileNicknames,
+    selectedVariableId,
+    props.onSavePrompts,
+    props.blockNumber,
+  ]);
+
+  // Save prompts only when debounced values change
+  useEffect(() => {
+    if (
+      debouncedSystemPrompt !== props.initialSystemPrompt ||
+      debouncedUserPrompt !== props.initialUserPrompt
+    ) {
+      debouncedSavePrompts();
+    }
+  }, [
+    debouncedSystemPrompt,
+    debouncedUserPrompt,
+    props.initialSystemPrompt,
+    props.initialUserPrompt,
+    debouncedSavePrompts,
+  ]);
+
+  // Add this helper function to format the output
+  const formatOutputAsTable = (output: string) => {
+    // Split by commas and trim whitespace
+    return output.split(",").map((item) => item.trim());
+  };
+
+  const getSelectedName = () => {
+    console.log("Getting selected name for:", selectedVariableId);
+    if (!selectedVariableId) return "Select variable";
+
+    // Check if it's a table column selection (contains ':')
+    if (selectedVariableId.includes(":")) {
+      const [tableId, columnName] = selectedVariableId.split(":");
+      const tableVar = Object.values(variables).find((v) => v.id === tableId);
+      if (tableVar && tableVar.type === "table") {
+        // Add type check
+        console.log("Found table variable with column:", {
+          tableName: tableVar.name,
+          columnName: columnName,
+        });
+        return `${tableVar.name}.${columnName}`;
+      }
+    }
+
+    // For non-table variables
+    const variable = Object.values(variables).find(
+      (v) => v.id === selectedVariableId
+    );
+    if (!variable) return "Select variable";
+    console.log("Found regular variable:", {
+      name: variable.name,
+      type: variable.type,
+    });
+    return variable.name;
   };
 
   return (
@@ -593,7 +837,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                       systemPrompt
                     );
                     setIsSystemPromptOpen(false);
-                    handleSavePrompts();
+                    handleImmediateSave(); // Use immediate save instead
                   }}
                 >
                   Save Prompt
@@ -635,7 +879,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                       userPrompt
                     );
                     setIsUserPromptOpen(false);
-                    handleSavePrompts();
+                    handleImmediateSave(); // Use immediate save instead
                   }}
                 >
                   Save Prompt
@@ -671,6 +915,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             onValueChange={handleVariableSelect}
             agentId={currentAgent?.id || null}
             onAddNew={props.onOpenTools}
+            className="flex-1"
+            excludeTableVariables={true}
           />
         </div>
 
@@ -768,17 +1014,27 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           <h4 className="text-sm font-medium mb-2 text-gray-300">
             Model Response:
           </h4>
-          <div className="text-sm text-gray-300 whitespace-pre-wrap">
-            {modelResponse}
-          </div>
+          {selectedVariableId && selectedVariableId.includes(":") ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{selectedVariableId.split(":")[1]}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {formatOutputAsTable(modelResponse).map((value, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{value}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <pre className="text-sm whitespace-pre-wrap">{modelResponse}</pre>
+          )}
           {selectedVariableId && (
             <div className="mt-2 text-sm text-green-400">
-              Saved as{" "}
-              {
-                Object.values(variables).find(
-                  (v) => v.id === selectedVariableId
-                )?.name
-              }
+              Saved as {getSelectedName()}
             </div>
           )}
         </div>

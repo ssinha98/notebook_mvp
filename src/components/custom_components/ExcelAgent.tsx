@@ -3,20 +3,11 @@ import { Button } from "@/components/ui/button";
 import { FaFileExcel } from "react-icons/fa";
 import { FiSettings, FiInfo } from "react-icons/fi";
 import { ExcelAgentBlock } from "@/types/types";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useSourceStore } from "@/lib/store";
 import { Textarea } from "@/components/ui/textarea";
 import { auth } from "@/tools/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { getFirestore, collection, getDocs } from "firebase/firestore";
-import { api, API_URL } from "@/tools/api";
+import { api } from "@/tools/api";
 import {
   Popover,
   PopoverContent,
@@ -24,6 +15,8 @@ import {
 } from "@/components/ui/popover";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
+import { useSourceStore } from "@/lib/store";
+import VariableDropdown from "./VariableDropdown";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,12 +36,16 @@ interface ExcelAgentProps {
     blockNumber: number,
     updates: Partial<ExcelAgentBlock>
   ) => void;
-  initialFileUrl?: string;
-  initialSheetName?: string;
-  initialRange?: string;
-  initialOperations?: ExcelAgentBlock["operations"];
   initialPrompt?: string;
   isProcessing?: boolean;
+  onProcessingChange?: (isProcessing: boolean) => void;
+  onOpenTools?: () => void;
+  initialOutputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate" | "table";
+    columnName?: string;
+  } | null;
 }
 
 interface ExcelAgentRef {
@@ -63,22 +60,37 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
       onUpdateBlock,
       initialPrompt = "",
       isProcessing = false,
+      onProcessingChange,
+      onOpenTools,
+      initialOutputVariable = null,
     },
     ref
   ) => {
     const [userPrompt, setUserPrompt] = useState(initialPrompt);
-    const [selectedSource, setSelectedSource] = useState("none");
-    const [selectedFormatSource, setSelectedFormatSource] = useState("none");
-    const [outputFilename, setOutputFilename] = useState("");
+    const [selectedVariableId, setSelectedVariableId] = useState<string>(() => {
+      // Initialize with table column format if needed
+      if (
+        initialOutputVariable?.type === "table" &&
+        initialOutputVariable.columnName
+      ) {
+        return `${initialOutputVariable.id}:${initialOutputVariable.columnName}`;
+      }
+      return initialOutputVariable?.id || "";
+    });
     const [user] = useAuthState(auth);
     const { addFileNickname } = useSourceStore();
     const variables = useVariableStore((state) => state.variables);
     const currentAgentId = useAgentStore((state) => state.currentAgent?.id);
+    const currentAgent = useAgentStore((state) => state.currentAgent);
     const [files, setFiles] = useState<
       Array<{ name: string; url: string; nickname?: string }>
     >([]);
-    const [output, setOutput] = useState<string>("");
-    const [error, setError] = useState<string>("");
+    const [result, setResult] = useState<{
+      download_url?: string;
+      message?: string;
+      success?: boolean;
+      storage_path?: string;
+    } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
@@ -128,6 +140,23 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
       }
     }, [initialPrompt]);
 
+    // Update selection when initialOutputVariable changes
+    useEffect(() => {
+      if (initialOutputVariable?.id) {
+        // If it's a table variable with column name, construct the proper value
+        if (
+          initialOutputVariable.type === "table" &&
+          initialOutputVariable.columnName
+        ) {
+          setSelectedVariableId(
+            `${initialOutputVariable.id}:${initialOutputVariable.columnName}`
+          );
+        } else {
+          setSelectedVariableId(initialOutputVariable.id);
+        }
+      }
+    }, [initialOutputVariable]);
+
     // Save prompt with debounce
     useEffect(() => {
       const timeoutId = setTimeout(() => {
@@ -148,18 +177,105 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
         const variable = Object.values(variables)
           .filter((v) => v.agentId === currentAgentId)
           .find((v) => v.name === varName.trim());
-        return variable?.value || `no value saved to ${varName.trim()}`;
+
+        if (!variable) return `no value saved to ${varName.trim()}`;
+
+        // Handle table variables by converting to CSV
+        if (variable.type === "table") {
+          const rows = Array.isArray(variable.value) ? variable.value : [];
+          const columns = variable.columns || [];
+
+          // Filter out 'id' column as it's usually not needed in spreadsheets
+          const relevantColumns = columns.filter((col) => col !== "id");
+
+          if (relevantColumns.length === 0 || rows.length === 0) {
+            return `empty table ${varName.trim()}`;
+          }
+
+          // Create CSV header
+          const headerRow = relevantColumns.join(",");
+
+          // Create CSV data rows
+          const dataRows = rows.map((row) => {
+            return relevantColumns
+              .map((col) => {
+                const value = row[col] || "";
+                // Escape quotes and wrap in quotes if value contains comma or quote
+                if (value.includes(",") || value.includes('"')) {
+                  return `"${value.replace(/"/g, '""')}"`;
+                }
+                return value;
+              })
+              .join(",");
+          });
+
+          // Combine header and data rows
+          return [headerRow, ...dataRows].join("\n");
+        }
+
+        // Handle regular variables
+        return String(variable.value || `no value saved to ${varName.trim()}`);
       });
     };
 
-    const processBlock = async () => {
+    const handleVariableSelect = (value: string) => {
+      if (value === "add_new" && onOpenTools) {
+        onOpenTools();
+      } else {
+        setSelectedVariableId(value);
+
+        // Find the selected variable and format it properly
+        let selectedVariable;
+        let outputVariable;
+
+        if (value.includes(":")) {
+          // Table variable with column name
+          const [tableId, columnName] = value.split(":");
+          selectedVariable = Object.values(variables).find(
+            (v) => v.id === tableId
+          );
+
+          if (selectedVariable) {
+            outputVariable = {
+              id: selectedVariable.id,
+              name: `${selectedVariable.name}.${columnName}`,
+              type: "table" as const,
+              columnName: columnName,
+            };
+          }
+        } else {
+          // Regular variable
+          selectedVariable = Object.values(variables).find(
+            (v) => v.id === value
+          );
+
+          if (selectedVariable) {
+            outputVariable = {
+              id: selectedVariable.id,
+              name: selectedVariable.name,
+              type: selectedVariable.type as "input" | "intermediate" | "table",
+            };
+          }
+        }
+
+        // Update the block with the output variable
+        onUpdateBlock(blockNumber, {
+          outputVariable: outputVariable || null,
+        });
+      }
+    };
+
+    const processBlock = async (): Promise<boolean> => {
       try {
-        setError("");
-        setOutput("");
+        setResult(null);
         setIsLoading(true);
+        onProcessingChange?.(true);
 
         if (!userPrompt.trim()) {
-          setError("Please enter a prompt");
+          setResult({
+            success: false,
+            message: "Please enter a prompt",
+          });
           return false;
         }
 
@@ -170,96 +286,51 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
 
         const requestBody = {
           prompt: processedPrompt,
-          ...(selectedSource !== "none" && { source: selectedSource }),
-          ...(selectedFormatSource !== "none" && {
-            format_source: selectedFormatSource,
-          }),
-          ...(outputFilename && { output_filename: outputFilename }),
+          user_id: user?.uid || "user1234",
         };
 
-        // Get the base URL from the api module
-        const baseUrl = API_URL;
-        console.log("Excel Agent - Using base URL:", baseUrl);
         console.log("Excel Agent - Request body:", requestBody);
 
-        // Make direct fetch call instead of using api.post since we're expecting binary data
-        const response = await fetch(`${baseUrl}/api/excel_agent`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept:
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          },
-          body: JSON.stringify(requestBody),
-          credentials: "include", // Add this to handle CORS properly
-        });
+        // Use api.post instead of direct fetch
+        const response = await api.post("/api/excel_agent", requestBody);
 
-        console.log("Excel Agent - Response status:", response.status);
-        console.log(
-          "Excel Agent - Response headers:",
-          Object.fromEntries(response.headers.entries())
-        );
+        console.log("Excel Agent - Response:", response);
 
-        const contentType = response.headers.get("Content-Type");
-        console.log("Excel Agent - Content Type:", contentType);
+        // Save the result
+        setResult(response);
 
-        if (!response.ok) {
-          // If we got HTML, it's likely an error page
-          if (contentType?.includes("text/html")) {
-            console.error(
-              "Excel Agent - Received HTML error page instead of expected response"
-            );
-            throw new Error(
-              "Received unexpected HTML response. The server might be unavailable."
-            );
-          }
-
-          try {
-            // Try to parse as JSON error
-            const errorData = await response.json();
-            console.error("Excel Agent - Error response:", errorData);
-            throw new Error(errorData.error || "Failed to generate Excel file");
-          } catch (parseError) {
-            // If we can't parse as JSON, return the status text
-            console.error(
-              "Excel Agent - Could not parse error response:",
-              parseError
-            );
-            throw new Error(`Server error: ${response.statusText}`);
+        // If successful and we have a variable selected, save the download URL
+        if (response.success && response.download_url && selectedVariableId) {
+          if (selectedVariableId.includes(":")) {
+            // Table variable - save as new row
+            const [tableId, columnName] = selectedVariableId.split(":");
+            await useVariableStore
+              .getState()
+              .addTableRow(tableId, { [columnName]: response.download_url });
+          } else {
+            // Regular variable - save as value
+            await useVariableStore
+              .getState()
+              .updateVariable(selectedVariableId, response.download_url);
           }
         }
 
-        // Check if we received an Excel file
-        if (contentType && contentType.includes("spreadsheetml")) {
-          console.log(
-            "Excel Agent - Received Excel file, processing download..."
-          );
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = outputFilename || "output.xlsx";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          window.URL.revokeObjectURL(url);
+        // Update the block
+        onUpdateBlock(blockNumber, { prompt: userPrompt.trim() });
 
-          setOutput("✅ Excel file generated and downloaded successfully!");
-          return true;
-        }
-
-        // If we got here, something unexpected happened
-        console.error("Excel Agent - Unexpected response type:", contentType);
-        throw new Error("Received unexpected response format from server");
+        return response.success || false;
       } catch (err: any) {
         console.error("Excel Agent - Error processing request:", err);
         const message =
           err.message || "An error occurred while processing the Excel file";
-        setError(message);
-        setOutput("");
+        setResult({
+          success: false,
+          message,
+        });
         return false;
       } finally {
         setIsLoading(false);
+        onProcessingChange?.(false);
       }
     };
 
@@ -291,7 +362,6 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
                     the Excel Agent
                   </AlertDialogTitle>
                   <AlertDialogDescription className="text-gray-300">
-                    {/* Content can be controlled here */}
                     This agent creates spreadsheets based on your instructions.
                     Spreadsheets can include charts, editable fonts and tables.
                     Its best used with earlier blocks analysing the data, and
@@ -307,7 +377,7 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
             </AlertDialog>
           </div>
           <Popover>
-            <PopoverTrigger>
+            <PopoverTrigger asChild={true}>
               <Button
                 variant="ghost"
                 size="icon"
@@ -342,76 +412,52 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
             />
           </div>
 
-          {/* Commented out for future use
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">
-              Data to Analyse
-            </label>
-            <Select value={selectedSource} onValueChange={setSelectedSource}>
-              <SelectTrigger className="bg-gray-800 border-gray-700 text-gray-100">
-                <SelectValue placeholder="Select a source" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {files.map((file) => (
-                  <SelectItem key={file.name} value={file.name}>
-                    {file.nickname || file.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">
-              Match the formatting of
-            </label>
-            <Select
-              value={selectedFormatSource}
-              onValueChange={setSelectedFormatSource}
-            >
-              <SelectTrigger className="bg-gray-800 border-gray-700 text-gray-100">
-                <SelectValue placeholder="Select a source" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {files.map((file) => (
-                  <SelectItem key={file.name} value={file.name}>
-                    {file.nickname || file.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">
-              Output File
-            </label>
-            <Input
-              value={outputFilename}
-              onChange={(e) => setOutputFilename(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-gray-100"
-              placeholder="Name of the output file"
+          <div className="flex items-center gap-2 text-gray-300">
+            <span>Set output as:</span>
+            <VariableDropdown
+              value={selectedVariableId}
+              onValueChange={handleVariableSelect}
+              agentId={currentAgent?.id || null}
+              onAddNew={onOpenTools}
             />
           </div>
-          */}
 
-          {error && <div className="text-red-500 text-sm">{error}</div>}
-
-          {output && (
+          {result && (
             <div className="mt-4 p-4 bg-gray-800 rounded border border-gray-700">
-              <h4 className="text-sm font-medium mb-2 text-gray-300">
-                Response:
-              </h4>
-              <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
-                {output}
-              </pre>
+              {result.success && result.download_url ? (
+                <div className="text-sm text-gray-300">
+                  <div className="break-words">
+                    {result.message || "Excel file generated successfully!"}{" "}
+                    <a
+                      href={result.download_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 underline"
+                    >
+                      click here
+                    </a>
+                  </div>
+                  {selectedVariableId && (
+                    <div className="mt-2 text-sm text-green-400">
+                      Saved download link as{" "}
+                      {
+                        Object.values(variables).find(
+                          (v) => v.id === selectedVariableId
+                        )?.name
+                      }
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-red-400 break-words">
+                  Error: {result.message || "Failed to generate Excel file"}
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        <div className="flex justify-end gap-2 p-4 border-t border-gray-700">
+        <div className="flex justify-start gap-2 p-4 border-t border-gray-700">
           <Button
             onClick={processBlock}
             disabled={isLoading || isProcessing}

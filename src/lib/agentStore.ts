@@ -20,6 +20,7 @@ import {
   SearchAgentBlock,
   TransformBlock,
   WebAgentBlock,
+  ContactBlock,
 } from "../types/types";
 import { useSourceStore } from "./store";
 import usePromptStore from "./store";
@@ -84,6 +85,25 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
   saveAgent: async (blocks: Block[]) => {
     try {
+      // console.log("=== SAVE AGENT DEBUG ===");
+      // console.log("Total blocks received:", blocks.length);
+
+      // Find and log contact blocks specifically
+      const contactBlocks = blocks.filter((block) => block.type === "contact");
+      console.log("Contact blocks found:", contactBlocks.length);
+      contactBlocks.forEach((block, index) => {
+        console.log(`Contact Block ${index + 1}:`, {
+          blockNumber: block.blockNumber,
+          type: block.type,
+          subject: (block as any).subject,
+          recipient: (block as any).recipient,
+          body: (block as any).body,
+          channel: (block as any).channel,
+          fullBlock: block,
+        });
+      });
+      console.log("=== END INITIAL DEBUG ===");
+
       const cleanBlocks = blocks.map((block) => {
         if (block.type === "searchagent") {
           // Ensure every field has a default value
@@ -156,8 +176,13 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: agentBlock.systemPrompt || "",
               userPrompt: agentBlock.userPrompt || "",
               saveAsCsv: Boolean(agentBlock.saveAsCsv),
-              outputVariable: null,
-              sourceInfo: {
+              outputVariable:
+                agentBlock.outputVariable?.id &&
+                agentBlock.outputVariable.name &&
+                agentBlock.outputVariable.type
+                  ? agentBlock.outputVariable
+                  : null,
+              sourceInfo: agentBlock.sourceInfo || {
                 nickname: "",
                 downloadUrl: "",
               },
@@ -165,6 +190,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               name: agentBlock.name || `Block ${agentBlock.blockNumber}`,
               blockNumber: agentBlock.blockNumber,
               type: agentBlock.type,
+              agentId: get().currentAgent?.id || "",
             } as AgentBlock;
 
             // Log any remaining undefined values
@@ -192,6 +218,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               name: block.name || `Block ${block.blockNumber}`,
               blockNumber: block.blockNumber,
               type: block.type,
+              agentId: get().currentAgent?.id || "",
             } as SearchAgentBlock;
 
             logUndefinedFields(
@@ -220,6 +247,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
                 transformBlock.name || `Block ${transformBlock.blockNumber}`,
               blockNumber: transformBlock.blockNumber,
               type: transformBlock.type,
+              agentId: get().currentAgent?.id || "",
             } as TransformBlock;
 
             logUndefinedFields(
@@ -236,7 +264,44 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               name: block.name || `Block ${block.blockNumber}`,
               blockNumber: block.blockNumber,
               type: block.type,
+              agentId: get().currentAgent?.id || "",
             };
+            return preparedBlock;
+          }
+
+          case "contact": {
+            const contactBlock = block as ContactBlock;
+            // console.log("===  ===");
+            // console.log("Raw contact block:", contactBlock);
+            // console.log("Subject value:", contactBlock.subject);
+            // console.log("Recipient value:", contactBlock.recipient);
+            // console.log("Body value:", contactBlock.body);
+            // console.log("Channel CONTACT BLOCK DEBUGvalue:", contactBlock.channel);
+
+            const preparedBlock = {
+              ...contactBlock,
+              id: contactBlock.id || `block-${contactBlock.blockNumber}`,
+              name: contactBlock.name || `Block ${contactBlock.blockNumber}`,
+              blockNumber: contactBlock.blockNumber,
+              type: contactBlock.type,
+              channel: contactBlock.channel || "email",
+              recipient: contactBlock.recipient || "",
+              subject: contactBlock.subject || "",
+              body: contactBlock.body || "",
+              agentId: get().currentAgent?.id || "",
+              // Include required BaseBlock fields
+              systemPrompt: contactBlock.systemPrompt || "",
+              userPrompt: contactBlock.userPrompt || "",
+              saveAsCsv: contactBlock.saveAsCsv || false,
+            } as ContactBlock;
+
+            console.log("Prepared contact block:", preparedBlock);
+            console.log("=== END CONTACT DEBUG ===");
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Contact Block #${block.blockNumber}`
+            );
             return preparedBlock;
           }
 
@@ -258,6 +323,12 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               selectedVariableId: webBlock.selectedVariableId || "",
               selectedVariableName: webBlock.selectedVariableName || "",
               results: webBlock.results || [],
+              outputVariable:
+                webBlock.outputVariable?.id &&
+                webBlock.outputVariable.name &&
+                webBlock.outputVariable.type
+                  ? webBlock.outputVariable
+                  : null,
             };
 
             logUndefinedFields(
@@ -464,6 +535,320 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
     } catch (error) {
       console.error("Error saving agent:", error);
       return { success: false, error: String(error) };
+    }
+  },
+
+  checkMasterRole: async (): Promise<boolean> => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return false;
+
+      const userDoc = await getDoc(doc(db, "users", userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.master === true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking master role:", error);
+      return false;
+    }
+  },
+
+  createAgentForUser: async (
+    name: string,
+    targetUserId: string,
+    blocks?: Block[]
+  ) => {
+    try {
+      const currentUserId = auth.currentUser?.uid;
+      if (!currentUserId) throw new Error("No user logged in");
+
+      // Check if current user has master role
+      const isMaster = await get().checkMasterRole();
+      if (!isMaster) throw new Error("Insufficient permissions");
+
+      // Use the exact same block cleaning logic as saveAgent
+      const cleanBlocks = blocks
+        ? blocks.map((block) => {
+            if (block.type === "searchagent") {
+              // Ensure every field has a default value
+              return {
+                id: block.id || crypto.randomUUID(),
+                type: "searchagent",
+                blockNumber: block.blockNumber,
+                name: block.name || `Search ${block.blockNumber}`,
+                query: block.query || "",
+                engine: block.engine || "search",
+                limit: block.limit || 5,
+                topic: block.topic || "",
+                section: block.section || "",
+                timeWindow: block.timeWindow || "",
+                trend: block.trend || "indexes",
+                region: block.region || "",
+                outputVariable: block.outputVariable || null,
+                newsSearchType: block.newsSearchType || "query",
+                newsTopic: block.newsTopic || "",
+                newsSection: block.newsSection || "",
+                financeWindow: block.financeWindow || "1D",
+                marketsIndexMarket: block.marketsIndexMarket || "",
+              };
+            } else if (block.type === "codeblock") {
+              return {
+                ...block,
+                id: block.id || crypto.randomUUID(),
+                name: block.name || `Code ${block.blockNumber}`,
+                language: block.language || "python",
+                code: block.code || "",
+                status: block.status || "tbd",
+                outputVariable: block.outputVariable || null,
+              };
+            }
+            return block;
+          })
+        : [];
+
+      // Debug function to identify undefined values
+      const logUndefinedFields = (obj: any, context: string) => {
+        Object.entries(obj).forEach(([key, value]) => {
+          if (value === undefined) {
+            console.warn(
+              `${context}: Found undefined value for field "${key}"`
+            );
+          }
+        });
+      };
+
+      // Use the exact same preparation logic as saveAgent
+      const preparedBlocks = cleanBlocks.map((block) => {
+        logUndefinedFields(block, `Block #${block.blockNumber}`);
+
+        switch (block.type) {
+          case "agent": {
+            const agentBlock = block as AgentBlock;
+            const preparedBlock = {
+              ...agentBlock,
+              systemPrompt: agentBlock.systemPrompt || "",
+              userPrompt: agentBlock.userPrompt || "",
+              saveAsCsv: Boolean(agentBlock.saveAsCsv),
+              outputVariable:
+                agentBlock.outputVariable?.id &&
+                agentBlock.outputVariable.name &&
+                agentBlock.outputVariable.type
+                  ? agentBlock.outputVariable
+                  : null,
+              sourceInfo: agentBlock.sourceInfo || {
+                nickname: "",
+                downloadUrl: "",
+              },
+              id: agentBlock.id || `block-${agentBlock.blockNumber}`,
+              name: agentBlock.name || `Block ${agentBlock.blockNumber}`,
+              blockNumber: agentBlock.blockNumber,
+              type: agentBlock.type,
+              agentId: get().currentAgent?.id || "",
+            } as AgentBlock;
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Agent Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
+          case "searchagent": {
+            const preparedBlock = {
+              ...block,
+              query: block.query || "",
+              engine: block.engine || "search",
+              limit: block.limit || 5,
+              outputVariable:
+                block.outputVariable?.id &&
+                block.outputVariable.name &&
+                block.outputVariable.type
+                  ? block.outputVariable
+                  : null,
+              id: block.id || `block-${block.blockNumber}`,
+              name: block.name || `Block ${block.blockNumber}`,
+              blockNumber: block.blockNumber,
+              type: block.type,
+              agentId: get().currentAgent?.id || "",
+            } as SearchAgentBlock;
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Search Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
+          case "transform": {
+            const transformBlock = block as TransformBlock;
+            const preparedBlock = {
+              ...transformBlock,
+              transformations: transformBlock.transformations || {
+                filterCriteria: [],
+              },
+              sourceName: transformBlock.sourceName || "",
+              outputVariable:
+                transformBlock.outputVariable?.id &&
+                transformBlock.outputVariable.name &&
+                transformBlock.outputVariable.type
+                  ? transformBlock.outputVariable
+                  : null,
+              id: transformBlock.id || `block-${transformBlock.blockNumber}`,
+              name:
+                transformBlock.name || `Block ${transformBlock.blockNumber}`,
+              blockNumber: transformBlock.blockNumber,
+              type: transformBlock.type,
+              agentId: get().currentAgent?.id || "",
+            } as TransformBlock;
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Transform Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
+          case "checkin": {
+            const preparedBlock = {
+              ...block,
+              id: block.id || `block-${block.blockNumber}`,
+              name: block.name || `Block ${block.blockNumber}`,
+              blockNumber: block.blockNumber,
+              type: block.type,
+              agentId: get().currentAgent?.id || "",
+            };
+            return preparedBlock;
+          }
+
+          case "contact": {
+            const contactBlock = block as ContactBlock;
+            const preparedBlock = {
+              ...contactBlock,
+              id: contactBlock.id || `block-${contactBlock.blockNumber}`,
+              name: contactBlock.name || `Block ${contactBlock.blockNumber}`,
+              blockNumber: contactBlock.blockNumber,
+              type: contactBlock.type,
+              channel: contactBlock.channel || "email",
+              recipient: contactBlock.recipient || "",
+              subject: contactBlock.subject || "",
+              body: contactBlock.body || "",
+              agentId: get().currentAgent?.id || "",
+              // Include required BaseBlock fields
+              systemPrompt: contactBlock.systemPrompt || "",
+              userPrompt: contactBlock.userPrompt || "",
+              saveAsCsv: contactBlock.saveAsCsv || false,
+            } as ContactBlock;
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Contact Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
+          case "webagent": {
+            const webBlock = block as unknown as WebAgentBlock;
+            const preparedBlock = {
+              ...webBlock,
+              id: webBlock.id || `block-${webBlock.blockNumber}`,
+              name: webBlock.name || `Block ${webBlock.blockNumber}`,
+              blockNumber: webBlock.blockNumber,
+              type: webBlock.type,
+              activeTab: webBlock.activeTab || "url",
+              searchVariable: webBlock.searchVariable || "",
+              agentId: "", // Will be set to new agent ID below
+              systemPrompt: webBlock.systemPrompt || "",
+              userPrompt: webBlock.userPrompt || "",
+              saveAsCsv: webBlock.saveAsCsv || false,
+              url: webBlock.url || "",
+              selectedVariableId: webBlock.selectedVariableId || "",
+              selectedVariableName: webBlock.selectedVariableName || "",
+              results: webBlock.results || [],
+              outputVariable:
+                webBlock.outputVariable?.id &&
+                webBlock.outputVariable.name &&
+                webBlock.outputVariable.type
+                  ? webBlock.outputVariable
+                  : null,
+            };
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Web Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
+          case "make": {
+            const makeBlock = block as any;
+            const preparedBlock = {
+              ...makeBlock,
+              id: makeBlock.id || `block-${makeBlock.blockNumber}`,
+              name: makeBlock.name || `Block ${makeBlock.blockNumber}`,
+              blockNumber: makeBlock.blockNumber,
+              type: makeBlock.type,
+              webhookUrl: makeBlock.webhookUrl || "",
+              parameters: makeBlock.parameters || [],
+              outputVariable: makeBlock.outputVariable || null,
+              agentId: "", // Will be set to new agent ID below
+              systemPrompt: makeBlock.systemPrompt || "",
+              userPrompt: makeBlock.userPrompt || "",
+              saveAsCsv: makeBlock.saveAsCsv || false,
+            };
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Make Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
+          default: {
+            // For block types not explicitly handled, preserve all properties
+            return {
+              ...block,
+              agentId: "", // Will be set to new agent ID below
+            };
+          }
+        }
+      });
+
+      // Generate new agent ID
+      const newAgentId = doc(collection(db, `users/${targetUserId}/agents`)).id;
+
+      // Update all block agentIds to point to the new agent
+      const blocksWithCorrectAgentId = preparedBlocks.map((block) => ({
+        ...block,
+        agentId: newAgentId,
+      }));
+
+      const newAgent: Agent = {
+        id: newAgentId,
+        name,
+        userId: targetUserId,
+        createdAt: new Date().toISOString(),
+        blocks: blocksWithCorrectAgentId as Block[],
+      };
+
+      // Final check for any undefined values
+      logUndefinedFields(newAgent, "Final Agent Object for Other User");
+
+      console.log("Final agent data to save for other user:", newAgent);
+
+      // Save to target user's agents subcollection
+      await setDoc(
+        doc(db, `users/${targetUserId}/agents`, newAgent.id),
+        newAgent
+      );
+
+      console.log(`Agent created for user ${targetUserId}:`, newAgent);
+
+      return newAgent;
+    } catch (error) {
+      console.error("Error creating agent for user:", error);
+      throw error;
     }
   },
 }));

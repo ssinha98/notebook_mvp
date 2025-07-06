@@ -1,7 +1,7 @@
 import React, { forwardRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FiSettings, FiInfo } from "react-icons/fi";
-import { DeepResearchAgentBlock } from "@/types/types";
+import { DeepResearchAgentBlock, TableVariable } from "@/types/types";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -25,11 +25,19 @@ import VariableDropdown from "./VariableDropdown";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface SearchResult {
-  date: string | null;
+  date?: string | null;
   title: string;
   url: string;
+  description?: string;
 }
 
 export interface ResearchResponse {
@@ -46,11 +54,36 @@ interface DeepResearchAgentProps {
   ) => void;
   initialTopic?: string;
   isProcessing?: boolean;
+  onOpenTools?: () => void;
+  initialSearchEngine?: "perplexity" | "firecrawl";
+  initialOutputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate" | "table";
+    columnName?: string;
+  } | null;
 }
 
 interface DeepResearchAgentRef {
   processBlock: () => Promise<boolean>;
 }
+
+// Add debounce hook
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 const DeepResearchAgent = forwardRef<
   DeepResearchAgentRef,
@@ -63,6 +96,9 @@ const DeepResearchAgent = forwardRef<
       onUpdateBlock,
       initialTopic = "",
       isProcessing = false,
+      onOpenTools,
+      initialSearchEngine = "perplexity",
+      initialOutputVariable = null,
     },
     ref
   ) => {
@@ -71,25 +107,111 @@ const DeepResearchAgent = forwardRef<
     const [error, setError] = useState<string>("");
     const [researchResults, setResearchResults] =
       useState<ResearchResponse | null>(null);
-    const [selectedVariableId, setSelectedVariableId] = useState<string>("");
+    const [selectedVariableId, setSelectedVariableId] = useState<string>(() => {
+      // Initialize with table column format if needed
+      if (
+        initialOutputVariable?.type === "table" &&
+        initialOutputVariable.columnName
+      ) {
+        return `${initialOutputVariable.id}:${initialOutputVariable.columnName}`;
+      }
+      return initialOutputVariable?.id || "";
+    });
+    const [searchEngine, setSearchEngine] = useState<
+      "perplexity" | "firecrawl"
+    >(initialSearchEngine);
+
+    // Debounce the topic to avoid excessive updates
+    const debouncedTopic = useDebounce(topic, 500);
 
     const variables = useVariableStore((state) => state.variables);
     const currentAgent = useAgentStore((state) => state.currentAgent);
 
+    // Debounced update function
+    const debouncedUpdateBlock = React.useCallback(
+      (updates: Partial<DeepResearchAgentBlock>) => {
+        onUpdateBlock(blockNumber, updates);
+      },
+      [onUpdateBlock, blockNumber]
+    );
+
+    // Save topic only when user stops typing
+    React.useEffect(() => {
+      if (debouncedTopic !== initialTopic) {
+        debouncedUpdateBlock({ topic: debouncedTopic });
+      }
+    }, [debouncedTopic, initialTopic, debouncedUpdateBlock]);
+
+    // Save search engine when it changes (immediate since it's not a keystroke event)
+    React.useEffect(() => {
+      if (searchEngine !== initialSearchEngine) {
+        debouncedUpdateBlock({ searchEngine });
+      }
+    }, [searchEngine, initialSearchEngine, debouncedUpdateBlock]);
+
     const handleVariableSelect = (value: string) => {
-      setSelectedVariableId(value);
+      if (value === "add_new" && onOpenTools) {
+        onOpenTools();
+      } else {
+        setSelectedVariableId(value);
+
+        // Find the selected variable and format it properly
+        let selectedVariable;
+        let outputVariable;
+
+        if (value.includes(":")) {
+          // Table variable with column name
+          const [tableId, columnName] = value.split(":");
+          selectedVariable = Object.values(variables).find(
+            (v) => v.id === tableId
+          );
+
+          if (selectedVariable) {
+            outputVariable = {
+              id: selectedVariable.id,
+              name: `${selectedVariable.name}.${columnName}`,
+              type: "table" as const,
+              columnName: columnName,
+            };
+          }
+        } else {
+          // Regular variable
+          selectedVariable = Object.values(variables).find(
+            (v) => v.id === value
+          );
+
+          if (selectedVariable) {
+            outputVariable = {
+              id: selectedVariable.id,
+              name: selectedVariable.name,
+              type: selectedVariable.type as "input" | "intermediate" | "table",
+            };
+          }
+        }
+
+        // Update the block with the output variable using debounced function
+        debouncedUpdateBlock({
+          outputVariable: outputVariable || null,
+        });
+      }
     };
 
-    // Save topic with debounce
+    // Update selection when initialOutputVariable changes
     React.useEffect(() => {
-      const timeoutId = setTimeout(() => {
-        if (topic !== initialTopic) {
-          onUpdateBlock(blockNumber, { topic });
+      if (initialOutputVariable?.id) {
+        // If it's a table variable with column name, construct the proper value
+        if (
+          initialOutputVariable.type === "table" &&
+          initialOutputVariable.columnName
+        ) {
+          setSelectedVariableId(
+            `${initialOutputVariable.id}:${initialOutputVariable.columnName}`
+          );
+        } else {
+          setSelectedVariableId(initialOutputVariable.id);
         }
-      }, 500);
-
-      return () => clearTimeout(timeoutId);
-    }, [topic, blockNumber, onUpdateBlock, initialTopic]);
+      }
+    }, [initialOutputVariable]);
 
     const processBlock = async () => {
       try {
@@ -105,26 +227,48 @@ const DeepResearchAgent = forwardRef<
         console.log("Sending request to /ask with prompt:", topic.trim());
         const response = await api.post("/ask", {
           prompt: topic.trim(),
+          search_engine: searchEngine,
         });
 
         console.log("Full API response:", response);
 
         if (
           response &&
-          response.message &&
+          response.message !== undefined &&
           Array.isArray(response.search_results)
         ) {
-          setResearchResults(response);
+          // Convert boolean message to string if needed
+          const formattedResponse = {
+            message: String(response.message),
+            search_results: response.search_results,
+          };
+          setResearchResults(formattedResponse);
 
           if (selectedVariableId) {
-            const selectedVariable = Object.values(variables).find(
-              (v) => v.id === selectedVariableId
+            console.log("Selected variable ID:", selectedVariableId);
+            const urls = response.search_results.map(
+              (result: SearchResult) => result.url
             );
-            if (selectedVariable) {
+            console.log("URLs extracted:", urls);
+
+            if (selectedVariableId.includes(":")) {
+              // Table variable - save as rows (append each URL as a new row)
+              const [tableId, columnName] = selectedVariableId.split(":");
+              for (const url of urls) {
+                if (url && url.trim()) {
+                  await useVariableStore
+                    .getState()
+                    .addTableRow(tableId, { [columnName]: url.trim() });
+                }
+              }
+            } else {
+              // Regular variable - save as comma-separated list
               await useVariableStore
                 .getState()
-                .updateVariable(selectedVariableId, response.message);
+                .updateVariable(selectedVariableId, urls.join(", "));
             }
+          } else {
+            console.log("No selectedVariableId");
           }
 
           return true;
@@ -198,14 +342,10 @@ const DeepResearchAgent = forwardRef<
             </AlertDialog>
           </div>
           <Popover>
-            <PopoverTrigger>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-gray-100"
-              >
+            <PopoverTrigger asChild>
+              <span className="text-gray-400 hover:text-gray-200 cursor-pointer">
                 <FiSettings className="h-4 w-4" />
-              </Button>
+              </span>
             </PopoverTrigger>
             <PopoverContent className="w-40 p-0 bg-black border border-red-500">
               <button
@@ -232,11 +372,34 @@ const DeepResearchAgent = forwardRef<
           </div>
 
           <div className="flex items-center gap-2 text-gray-300">
+            <span>Search Engine:</span>
+            <Select
+              value={searchEngine}
+              onValueChange={(value: "perplexity" | "firecrawl") =>
+                setSearchEngine(value)
+              }
+            >
+              <SelectTrigger className="w-[180px] bg-gray-800 border-gray-700 text-white">
+                <SelectValue placeholder="Select search engine" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-gray-700">
+                <SelectItem value="perplexity" className="text-white">
+                  Perplexity
+                </SelectItem>
+                <SelectItem value="firecrawl" className="text-white">
+                  Firecrawl
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2 text-gray-300">
             <span>Set output as:</span>
             <VariableDropdown
               value={selectedVariableId}
               onValueChange={handleVariableSelect}
               agentId={currentAgent?.id || null}
+              onAddNew={onOpenTools}
             />
           </div>
 
@@ -297,7 +460,7 @@ const DeepResearchAgent = forwardRef<
           )}
         </div>
 
-        <div className="flex justify-end gap-2 p-4 border-t border-gray-700">
+        <div className="flex justify-start gap-2 p-4 border-t border-gray-700">
           <Button
             onClick={processBlock}
             disabled={isLoading || isProcessing}

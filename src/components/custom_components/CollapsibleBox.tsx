@@ -36,6 +36,23 @@ import PipedriveAgent from "./PipedriveAgent";
 import DataVizAgent, { DataVizAgentRef } from "./DataVizAgent";
 import ClickUpAgent from "./ClickUpAgent";
 import GoogleDriveAgent from "./GoogleDriveAgent";
+import { useVariableStore } from "@/lib/variableStore";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import SortableBlock from "./SortableBlock";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -91,6 +108,27 @@ const CollapsibleBox = forwardRef<
     [key: number]: boolean;
   }>({});
   const [hasRated, setHasRated] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const oldIndex = blocks.findIndex((block) => block.id === active.id);
+      const newIndex = blocks.findIndex((block) => block.id === over?.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reorderBlocks = useSourceStore.getState().reorderBlocks;
+        reorderBlocks(oldIndex, newIndex);
+      }
+    }
+  };
 
   const addNewBlock = (
     blockType:
@@ -255,6 +293,7 @@ const CollapsibleBox = forwardRef<
             initialTimeWindow={block.timeWindow}
             initialTrend={block.trend}
             initialRegion={block.region}
+            initialOutputVariable={block.outputVariable}
             onOpenTools={props.onOpenTools}
           />
         );
@@ -263,6 +302,7 @@ const CollapsibleBox = forwardRef<
           <AgentBlock
             key={block.blockNumber}
             blockNumber={block.blockNumber}
+            variables={props.variables || []}
             initialOutputVariable={block.outputVariable}
             onAddVariable={props.onAddVariable || (() => {})}
             onOpenTools={props.onOpenTools}
@@ -280,7 +320,7 @@ const CollapsibleBox = forwardRef<
                 userPrompt,
                 saveAsCsv,
                 sourceInfo,
-                outputVariable,
+                outputVariable: outputVariable,
                 type: "agent",
                 agentId: props.agentId || "",
               });
@@ -351,15 +391,15 @@ const CollapsibleBox = forwardRef<
             key={block.blockNumber}
             blockNumber={block.blockNumber}
             onDeleteBlock={deleteBlock}
-            onAddVariable={props.onAddVariable || (() => {})}
-            onOpenTools={props.onOpenTools}
             onUpdateBlock={(blockNumber, updates) => {
               updateBlock(blockNumber, updates);
             }}
-            initialActiveTab={block.activeTab}
+            onAddVariable={props.onAddVariable || (() => {})}
+            onOpenTools={props.onOpenTools}
             initialUrl={block.url}
-            initialSearchVariable={block.searchVariable}
+            initialPrompt={block.prompt}
             initialSelectedVariableId={block.selectedVariableId}
+            initialOutputVariable={block.outputVariable}
           />
         );
       case "codeblock":
@@ -373,14 +413,25 @@ const CollapsibleBox = forwardRef<
             key={block.blockNumber}
             blockNumber={block.blockNumber}
             onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber, updates) => {
+            onUpdateBlock={(blockNumber: number, updates: any) => {
               updateBlock(blockNumber, updates);
             }}
             onAddVariable={props.onAddVariable || (() => {})}
             onOpenTools={props.onOpenTools}
             initialLanguage={block.language}
             initialCode={block.code}
-            initialOutputVariable={block.outputVariable}
+            initialOutputVariable={
+              block.outputVariable
+                ? {
+                    id: block.outputVariable.id,
+                    name: block.outputVariable.name,
+                    type:
+                      block.outputVariable.type === "table"
+                        ? "intermediate"
+                        : block.outputVariable.type,
+                  }
+                : null
+            }
             initialStatus={block.status}
           />
         );
@@ -402,6 +453,7 @@ const CollapsibleBox = forwardRef<
             }}
             initialWebhookUrl={block.webhookUrl}
             initialParameters={block.parameters}
+            onOpenTools={props.onOpenTools}
           />
         );
       case "excelagent":
@@ -421,12 +473,13 @@ const CollapsibleBox = forwardRef<
             ) => {
               updateBlock(blockNumber, updates);
             }}
-            initialFileUrl={block.fileUrl}
-            initialSheetName={block.sheetName}
-            initialRange={block.range}
-            initialOperations={block.operations}
             initialPrompt={block.prompt}
             isProcessing={processingBlocks[block.blockNumber] || false}
+            onOpenTools={props.onOpenTools}
+            onProcessingChange={(isProcessing) =>
+              handleProcessingChange(block.blockNumber, isProcessing)
+            }
+            initialOutputVariable={block.outputVariable}
           />
         );
       case "instagramagent":
@@ -470,6 +523,9 @@ const CollapsibleBox = forwardRef<
             }}
             initialTopic={block.topic}
             isProcessing={processingBlocks[block.blockNumber] || false}
+            onOpenTools={props.onOpenTools}
+            initialSearchEngine={block.searchEngine}
+            initialOutputVariable={block.outputVariable}
           />
         );
       case "pipedriveagent":
@@ -586,7 +642,22 @@ const CollapsibleBox = forwardRef<
             <>
               <div style={blockContainerStyle}>
                 {props.isEditMode ? (
-                  blocks.map((block) => renderBlock(block))
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={blocks.map((b) => b.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {blocks.map((block) => (
+                        <SortableBlock key={block.id} block={block}>
+                          {renderBlock(block)}
+                        </SortableBlock>
+                      ))}
+                    </SortableContext>
+                  </DndContext>
                 ) : (
                   <>
                     {blocks.length > 0 && renderBlock(blocks[0])}

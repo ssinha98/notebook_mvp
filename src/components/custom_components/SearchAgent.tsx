@@ -3,6 +3,8 @@ import React, {
   useState,
   useImperativeHandle,
   useEffect,
+  useCallback,
+  useMemo,
 } from "react";
 import { SearchAgentBlock, Variable } from "@/types/types";
 import { Button } from "@/components/ui/button";
@@ -66,6 +68,12 @@ interface SearchAgentProps {
   initialTimeWindow?: string;
   initialTrend?: string;
   initialRegion?: string;
+  initialOutputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate" | "table";
+    columnName?: string;
+  } | null;
 }
 
 export interface SearchAgentRef {
@@ -698,6 +706,23 @@ function NewsCard({ result }: { result: any }) {
   }
 }
 
+// Add debounce hook
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
   (props, ref) => {
     const [query, setQuery] = useState(props.initialQuery || "");
@@ -717,7 +742,19 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     const [newsSection, setNewsSection] = useState<string>(
       props.initialSection || ""
     );
-    const [selectedVariableId, setSelectedVariableId] = useState<string>("");
+    const [selectedVariableId, setSelectedVariableId] = useState<string>(() => {
+      // If we have an initial output variable with a column name, construct the proper value
+      if (
+        props.initialOutputVariable?.type === "table" &&
+        props.initialOutputVariable.columnName
+      ) {
+        const value = `${props.initialOutputVariable.id}:${props.initialOutputVariable.columnName}`;
+        return value;
+      }
+      // Otherwise use the ID directly
+      const value = props.initialOutputVariable?.id || "";
+      return value;
+    });
     const [modelResponse, setModelResponse] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<string>("parsed");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -735,65 +772,10 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       []
     );
 
-    // Add state for variables if needed
-    const [variables, setVariables] =
-      useState<Record<string, Variable>>(storeVariables);
+    // Add debounced query
+    const debouncedQuery = useDebounce(query, 500);
 
-    // Update local variables when store changes
-    useEffect(() => {
-      setVariables(storeVariables);
-    }, [storeVariables]);
-
-    // Helper function to find variable by name
-    const findVariableByName = (name: string) => {
-      return Object.values(storeVariables).find((v) => v.name === name);
-    };
-
-    // Update processVariablesInText to use store variables
-    const processVariablesInText = (text: string): string => {
-      const regex = /{{(.*?)}}/g;
-      return text.replace(regex, (match, varName) => {
-        const trimmedName = varName.trim();
-        const variable = findVariableByName(trimmedName);
-        return variable?.value || match;
-      });
-    };
-
-    // Update formatTextWithVariables to use store variables
-    const formatTextWithVariables = (text: string) => {
-      const regex = /{{(.*?)}}/g;
-      const parts = [];
-      let lastIndex = 0;
-
-      for (const match of text.matchAll(regex)) {
-        const [fullMatch, varName] = match;
-        const startIndex = match.index!;
-        const trimmedName = varName.trim();
-        const varExists = findVariableByName(trimmedName) !== undefined;
-
-        if (startIndex > lastIndex) {
-          parts.push(text.slice(lastIndex, startIndex));
-        }
-
-        parts.push(
-          <span
-            key={startIndex}
-            className={varExists ? "font-bold text-blue-400" : "text-red-400"}
-          >
-            {fullMatch}
-          </span>
-        );
-
-        lastIndex = startIndex + fullMatch.length;
-      }
-
-      if (lastIndex < text.length) {
-        parts.push(text.slice(lastIndex));
-      }
-
-      return parts.length ? parts : text;
-    };
-
+    // Add missing marketsTrend state
     const validTrends = [
       "indexes",
       "most-active",
@@ -812,6 +794,37 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         : "indexes"
     );
 
+    // Add state for variables if needed
+    const [variables, setVariables] =
+      useState<Record<string, Variable>>(storeVariables);
+
+    // Update local variables when store changes
+    useEffect(() => {
+      setVariables(storeVariables);
+    }, [storeVariables]);
+
+    // Update selection when initialOutputVariable changes
+    useEffect(() => {
+      if (props.initialOutputVariable?.id) {
+        // If it's a table variable with column name, construct the proper value
+        if (
+          props.initialOutputVariable.type === "table" &&
+          props.initialOutputVariable.columnName
+        ) {
+          setSelectedVariableId(
+            `${props.initialOutputVariable.id}:${props.initialOutputVariable.columnName}`
+          );
+        } else {
+          setSelectedVariableId(props.initialOutputVariable.id);
+        }
+      }
+    }, [props.initialOutputVariable]);
+
+    // Helper function to find variable by name
+    const findVariableByName = (name: string) => {
+      return Object.values(storeVariables).find((v) => v.name === name);
+    };
+
     // Expose processBlock to parent components
     useImperativeHandle(ref, () => ({
       processBlock: async () => {
@@ -819,45 +832,114 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       },
     }));
 
-    const handleUpdateBlock = (updates: Partial<SearchAgentBlock>) => {
-      try {
+    // Memoize expensive text processing functions
+    const formatTextWithVariables = useCallback(
+      (text: string) => {
+        const regex = /{{(.*?)}}/g;
+        const parts = [];
+        let lastIndex = 0;
+
+        for (const match of text.matchAll(regex)) {
+          const [fullMatch, varName] = match;
+          const startIndex = match.index!;
+          const trimmedName = varName.trim();
+          const varExists = findVariableByName(trimmedName) !== undefined;
+
+          if (startIndex > lastIndex) {
+            parts.push(text.slice(lastIndex, startIndex));
+          }
+
+          parts.push(
+            <span
+              key={startIndex}
+              className={varExists ? "font-bold text-blue-400" : "text-red-400"}
+            >
+              {fullMatch}
+            </span>
+          );
+
+          lastIndex = startIndex + fullMatch.length;
+        }
+
+        if (lastIndex < text.length) {
+          parts.push(text.slice(lastIndex));
+        }
+
+        return parts.length ? parts : text;
+      },
+      [storeVariables]
+    ); // Only re-run when variables change
+
+    const processVariablesInText = useCallback(
+      (text: string): string => {
+        const regex = /{{(.*?)}}/g;
+        return text.replace(regex, (match, varName) => {
+          const trimmedName = varName.trim();
+          const variable = findVariableByName(trimmedName);
+          return variable?.value?.toString() || match;
+        });
+      },
+      [storeVariables]
+    ); // Only re-run when variables change
+
+    // Debounced update function - only called when user stops typing
+    const debouncedUpdateBlock = useCallback(
+      (updates: Partial<SearchAgentBlock>) => {
         if (typeof props.onUpdateBlock === "function") {
           props.onUpdateBlock(props.blockNumber, updates);
-        } else {
-          console.warn("onUpdateBlock is not available");
         }
-      } catch (error) {
-        console.error("Error updating block:", error);
+      },
+      [props.onUpdateBlock, props.blockNumber]
+    );
+
+    // Only update block when debounced query changes (after user stops typing)
+    useEffect(() => {
+      if (debouncedQuery !== props.initialQuery) {
+        debouncedUpdateBlock({
+          type: "searchagent",
+          blockNumber: props.blockNumber,
+          query: debouncedQuery,
+          engine: searchEngine,
+          limit,
+          topic: newsTopic,
+          section: newsSection,
+          timeWindow,
+          trend: marketsTrend,
+          region: marketsRegion,
+        });
       }
+    }, [
+      debouncedQuery,
+      searchEngine,
+      limit,
+      newsTopic,
+      newsSection,
+      timeWindow,
+      marketsTrend,
+      marketsRegion,
+      debouncedUpdateBlock,
+      props.initialQuery,
+      props.blockNumber,
+    ]);
+
+    // Simple query change handler - only updates local state (no immediate block update)
+    const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newQuery = e.target.value;
+      setQuery(newQuery); // Only update local state, debounced effect handles block update
     };
 
+    // Engine change handler
     const handleEngineChange = (value: string) => {
       console.log("Engine changing to:", value);
       setSearchEngine(
         value as "search" | "news" | "finance" | "markets" | "image"
       );
-      handleUpdateBlock({
+      // Immediate update for engine change since it's not a keystroke event
+      debouncedUpdateBlock({
         type: "searchagent",
         blockNumber: props.blockNumber,
         engine: value as "search" | "news" | "finance" | "markets" | "image",
         query,
-        limit,
-        topic: newsTopic,
-        section: newsSection,
-        timeWindow,
-        trend: marketsTrend,
-        region: marketsRegion,
-      });
-    };
-
-    const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newQuery = e.target.value;
-      setQuery(newQuery);
-      handleUpdateBlock({
-        type: "searchagent",
-        blockNumber: props.blockNumber,
-        query: newQuery,
-        engine: searchEngine,
         limit,
         topic: newsTopic,
         section: newsSection,
@@ -872,7 +954,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     ) => {
       setNewsSearchType(type);
       // Clear other values when switching tabs
-      handleUpdateBlock({
+      debouncedUpdateBlock({
         newsSearchType: type,
         query: type === "query" ? query : undefined,
         newsTopic: type === "topic" ? newsTopic : undefined,
@@ -893,20 +975,12 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           setNewsSection(value);
           break;
       }
-      handleUpdateBlock({
+      debouncedUpdateBlock({
         [`news${field}`]: value,
       } as Partial<SearchAgentBlock>);
     };
 
     const handleSearch = async (): Promise<boolean> => {
-      console.log("=== Search Debug Logs ===");
-      console.log("1. Starting search with params:", {
-        searchEngine,
-        query,
-        limit,
-        imagePrompt,
-      });
-
       if (props.onProcessingChange) {
         props.onProcessingChange(true);
       }
@@ -916,42 +990,83 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         const endpoint =
           searchEngine === "image" ? "/api/image_search" : "/api/search";
 
-        const payload = {
-          query: processedQuery,
-          num: limit || 5,
-          ...(searchEngine === "image"
-            ? {
-                image_prompt: imagePrompt,
-              }
-            : {}),
+        let payload: any = {
+          engine: searchEngine,
         };
 
-        console.log("2. Sending request to endpoint:", endpoint);
-        console.log("3. With payload:", payload);
+        if (searchEngine === "news") {
+          if (newsSearchType === "topic") {
+            // Topic search - newsTopic already contains the token!
+            payload.topic_token = newsTopic; // newsTopic is already the token
+
+            if (newsSection) {
+              payload.section_token = newsSection; // newsSection is already the token
+            }
+          } else {
+            // Query search - send the query
+            payload.query = processedQuery;
+            payload.num = limit || 5;
+          }
+        } else if (searchEngine === "image") {
+          payload.query = processedQuery;
+          payload.image_prompt = imagePrompt;
+          payload.num = limit || 5;
+        } else {
+          // Regular search - always use query
+          payload.query = processedQuery;
+          payload.num = limit || 5;
+        }
 
         const response = await api.post(endpoint, payload);
-        console.log("4. Full response object:", response);
-        console.log("4a. Response status:", response.status);
-        console.log("4b. Response headers:", response.headers);
-        console.log("4c. Response data:", response.data);
-
-        // Convert the entire response to a string and set it
         setModelResponse(JSON.stringify(response, null, 2));
+
+        if (selectedVariableId) {
+          try {
+            // Extract URLs based on search engine type
+            let urls: string[] = [];
+            if (searchEngine === "search") {
+              urls =
+                response.results?.map((result: SearchItem) => result.link) ||
+                [];
+            } else if (searchEngine === "news") {
+              urls = response.results?.map((result: any) => result.link) || [];
+            } else if (
+              searchEngine === "finance" ||
+              searchEngine === "markets"
+            ) {
+              urls =
+                response.results?.[0]?.results?.map((item: any) => item.link) ||
+                [];
+            }
+
+            // Check if it's a table variable (has ":")
+            if (selectedVariableId.includes(":")) {
+              // Table variable - save as rows (append each URL as a new row)
+              const [tableId, columnName] = selectedVariableId.split(":");
+              for (const url of urls) {
+                if (url && url.trim()) {
+                  await useVariableStore
+                    .getState()
+                    .addTableRow(tableId, { [columnName]: url.trim() });
+                }
+              }
+            } else {
+              // Regular variable - save as comma-separated list
+              await useVariableStore
+                .getState()
+                .updateVariable(selectedVariableId, urls.join(", "));
+            }
+          } catch (error) {
+            console.error("Error saving results to variable:", error);
+            toast.error("Failed to save results to variable");
+          }
+        }
         return true;
       } catch (error: any) {
         console.error("5. Search error:", error);
         if (error.response) {
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
           console.error("5a. Error response data:", error.response.data);
           console.error("5b. Error response status:", error.response.status);
-          console.error("5c. Error response headers:", error.response.headers);
-        } else if (error.request) {
-          // The request was made but no response was received
-          console.error("5d. Error request:", error.request);
-        } else {
-          // Something happened in setting up the request that triggered an Error
-          console.error("5e. Error message:", error.message);
         }
         toast.error(
           `Search failed: ${error.message || "Unknown error occurred"}`
@@ -965,12 +1080,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     };
 
     const renderResults = () => {
-      console.log("=== Render Results Debug Logs ===");
-      console.log("1. Current modelResponse:", modelResponse);
-      console.log("2. Current searchEngine:", searchEngine);
-
       if (!modelResponse) {
-        console.log("3. No modelResponse, returning null");
         return null;
       }
 
@@ -1005,8 +1115,6 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           default:
             displayResults = modelResponse;
         }
-
-        console.log("5. Final displayResults:", displayResults);
 
         return (
           <div className="mt-4 p-4 bg-gray-800 rounded">
@@ -1076,7 +1184,45 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         props.onOpenTools();
       } else {
         setSelectedVariableId(value);
-        // Update variable immediately with current selected images
+
+        // Find the selected variable and format it properly
+        let selectedVariable;
+        let outputVariable;
+
+        if (value.includes(":")) {
+          // Table variable with column name
+          const [tableId, columnName] = value.split(":");
+          selectedVariable = Object.values(storeVariables).find(
+            (v) => v.id === tableId
+          );
+
+          if (selectedVariable) {
+            outputVariable = {
+              id: selectedVariable.id,
+              name: `${selectedVariable.name}.${columnName}`,
+              type: "table" as const,
+              columnName: columnName,
+            };
+          }
+        } else {
+          // Regular variable
+          selectedVariable = Object.values(storeVariables).find(
+            (v) => v.id === value
+          );
+
+          if (selectedVariable) {
+            outputVariable = {
+              id: selectedVariable.id,
+              name: selectedVariable.name,
+              type: selectedVariable.type as "input" | "intermediate" | "table",
+            };
+          }
+        }
+
+        // Update the block with the output variable
+        debouncedUpdateBlock({
+          outputVariable: outputVariable || null,
+        });
       }
     };
 
@@ -1310,7 +1456,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                   </label>
                   <Select
                     onValueChange={(v) =>
-                      handleUpdateBlock({
+                      debouncedUpdateBlock({
                         financeWindow: v as
                           | "1D"
                           | "5D"
@@ -1356,7 +1502,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                           | "cryptocurrencies"
                           | "currencies"
                       );
-                      handleUpdateBlock({
+                      debouncedUpdateBlock({
                         marketsTrend: v as
                           | "indexes"
                           | "most-active"
@@ -1392,7 +1538,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                     </label>
                     <Select
                       onValueChange={(v) =>
-                        handleUpdateBlock({
+                        debouncedUpdateBlock({
                           marketsIndexMarket: v as
                             | "americas"
                             | "europe-middle-east-africa"

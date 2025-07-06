@@ -1,8 +1,8 @@
 import React, {
   useState,
-  useEffect,
   forwardRef,
   useImperativeHandle,
+  useCallback,
 } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,136 +10,194 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { InfoIcon, XIcon, ChevronLeft, ChevronRight } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { useVariableStore } from "@/lib/variableStore";
-import { Variable, WebAgentBlock, AgentBlock } from "@/types/types";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import Carousel from "react-multi-carousel";
-import "react-multi-carousel/lib/styles.css";
-import { AgentBlockRef } from "@/components/custom_components/AgentBlock";
-import { api } from "@/tools/api";
+import { Variable } from "@/types/types";
 import ReactMarkdown from "react-markdown";
-import { fileManager } from "@/tools/fileManager";
-import { auth } from "@/tools/firebase";
+import { api } from "@/tools/api";
+import { useVariableStore } from "@/lib/variableStore";
+import { useAgentStore } from "@/lib/agentStore";
+import VariableDropdown from "./VariableDropdown";
+import { toast } from "sonner";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface WebAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
-  onAddVariable: (variable: Variable) => void;
-  onOpenTools?: () => void;
-  onUpdateBlock?: (
-    blockNumber: number,
-    updates: Partial<WebAgentBlock>
-  ) => void;
-  initialActiveTab?: "url" | "variables";
+  onUpdateBlock: (blockNumber: number, updates: Partial<any>) => void;
+  onAddVariable: (newVariable: Variable) => void;
   initialUrl?: string;
-  initialSearchVariable?: string;
+  initialPrompt?: string;
   initialSelectedVariableId?: string;
-  initialResults?: Array<{ url: string; content: string }>;
-  initialNickname?: string;
+  initialOutputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate" | "table";
+    columnName?: string;
+  } | null;
+  onOpenTools?: () => void;
+}
+
+interface WebResponse {
+  markdown?: string;
+  analysis?: string;
+  error?: string;
 }
 
 export interface WebAgentRef {
   processBlock: () => Promise<boolean>;
+  getOutput: () => any;
 }
+
+// Add debounce hook
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   const {
     blockNumber,
     onDeleteBlock,
-    onAddVariable,
-    onOpenTools,
     onUpdateBlock,
-    initialActiveTab = "url",
+    onAddVariable,
     initialUrl = "",
-    initialSearchVariable = "",
-    initialSelectedVariableId = "",
-    initialResults = [],
-    initialNickname = "",
+    initialPrompt = "",
+    initialSelectedVariableId,
+    initialOutputVariable,
   } = props;
-  const [activeTab, setActiveTab] = useState(initialActiveTab);
+
   const [url, setUrl] = useState(initialUrl);
-  const [searchVariable, setSearchVariable] = useState(initialSearchVariable);
-  const [selectedVariableId, setSelectedVariableId] = useState(
-    initialSelectedVariableId
-  );
-  const [results, setResults] = useState(initialResults);
-  const variables = useVariableStore((state) => state.variables) || {};
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [isLoading, setIsLoading] = useState(false);
-  const [content, setContent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [nickname, setNickname] = useState(initialNickname);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isConfirmed, setIsConfirmed] = useState(false);
-
-  // Dummy data for carousel testing
-  const dummyResults = [
-    { url: "https://example1.com", content: "Content from first website" },
-    { url: "https://example2.com", content: "Content from second website" },
-    { url: "https://example3.com", content: "Content from third website" },
-  ];
-
-  const handleSave = () => {
-    if (onUpdateBlock) {
-      const selectedVariable = Object.values(variables).find(
-        (v) => v.id === selectedVariableId
-      );
-
-      onUpdateBlock(blockNumber, {
-        activeTab,
-        url,
-        searchVariable,
-        searchVariableId: selectedVariableId,
-        selectedVariableId,
-        selectedVariableName: selectedVariable?.name,
-      });
+  const [response, setResponse] = useState<WebResponse | null>(null);
+  const [selectedVariableId, setSelectedVariableId] = useState<string>(() => {
+    // Initialize with table column format if needed
+    if (
+      initialOutputVariable?.type === "table" &&
+      initialOutputVariable.columnName
+    ) {
+      return `${initialOutputVariable.id}:${initialOutputVariable.columnName}`;
     }
-  };
+    return initialSelectedVariableId || initialOutputVariable?.id || "";
+  });
+  const [output, setOutput] = useState<any>(null);
 
-  const handleUrlSave = () => {
-    console.log("Saving URL:", url);
-    handleSave();
-  };
+  // Debounce the inputs to avoid excessive updates
+  const debouncedUrl = useDebounce(url, 500);
+  const debouncedPrompt = useDebounce(prompt, 500);
 
-  useEffect(() => {
-    handleSave();
-  }, [activeTab, url, searchVariable, selectedVariableId]);
+  const currentAgent = useAgentStore((state) => state.currentAgent);
 
-  // Add formatTextWithVariables function from AgentBlock
-  const formatTextWithVariables = (text: string) => {
+  // Load variables when component mounts
+  React.useEffect(() => {
+    const currentAgentId = useAgentStore.getState().currentAgent?.id;
+    if (currentAgentId) {
+      useVariableStore.getState().loadVariables(currentAgentId);
+    }
+  }, []);
+
+  // Debounced update functions
+  const debouncedUpdateBlock = useCallback(
+    (updates: any) => {
+      if (typeof onUpdateBlock === "function") {
+        onUpdateBlock(blockNumber, updates);
+      }
+    },
+    [onUpdateBlock, blockNumber]
+  );
+
+  // Save URL changes only when user stops typing
+  React.useEffect(() => {
+    if (debouncedUrl !== initialUrl) {
+      debouncedUpdateBlock({ url: debouncedUrl });
+    }
+  }, [debouncedUrl, initialUrl, debouncedUpdateBlock]);
+
+  // Save prompt changes only when user stops typing
+  React.useEffect(() => {
+    if (debouncedPrompt !== initialPrompt) {
+      debouncedUpdateBlock({ prompt: debouncedPrompt });
+    }
+  }, [debouncedPrompt, initialPrompt, debouncedUpdateBlock]);
+
+  // Update selection when initialOutputVariable changes
+  React.useEffect(() => {
+    if (initialOutputVariable?.id) {
+      // If it's a table variable with column name, construct the proper value
+      if (
+        initialOutputVariable.type === "table" &&
+        initialOutputVariable.columnName
+      ) {
+        setSelectedVariableId(
+          `${initialOutputVariable.id}:${initialOutputVariable.columnName}`
+        );
+      } else {
+        setSelectedVariableId(initialOutputVariable.id);
+      }
+    }
+  }, [initialOutputVariable]);
+
+  // Memoize expensive text processing function
+  const formatTextWithVariables = useCallback((text: string) => {
+    const parts: React.ReactNode[] = [];
     const regex = /{{(.*?)}}/g;
-    const parts = [];
     let lastIndex = 0;
 
     for (const match of text.matchAll(regex)) {
       const [fullMatch, varName] = match;
       const startIndex = match.index!;
-      const trimmedName = varName.trim();
-      const varExists = Object.values(variables).some(
-        (v) => v.name === trimmedName
-      );
 
+      // Add text before the variable
       if (startIndex > lastIndex) {
         parts.push(text.slice(lastIndex, startIndex));
       }
 
+      // Check if variable exists
+      let varExists = false;
+      const cleanVarName = varName.trim();
+
+      // Check if it's a table column reference (contains dot)
+      if (cleanVarName.includes(".")) {
+        const [tableName, columnName] = cleanVarName.split(".");
+        const variables = useVariableStore.getState().variables;
+        const tableVar = Object.values(variables).find(
+          (v) => v.name === tableName
+        );
+
+        // Variable is valid if table exists and has the specified column
+        varExists = !!(
+          tableVar &&
+          tableVar.type === "table" &&
+          Array.isArray(tableVar.columns) &&
+          tableVar.columns.includes(columnName)
+        );
+      } else {
+        // Regular variable check
+        varExists = !!useVariableStore
+          .getState()
+          .getVariableByName(cleanVarName);
+      }
+
+      // Add the variable part with styling
       parts.push(
         <span
           key={startIndex}
@@ -152,182 +210,363 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       lastIndex = startIndex + fullMatch.length;
     }
 
+    // Add remaining text
     if (lastIndex < text.length) {
       parts.push(text.slice(lastIndex));
     }
 
     return parts.length ? parts : text;
+  }, []); // No dependencies needed since we're calling getState() directly
+
+  // Process variables in text (for actual URL resolution)
+  const processVariablesInText = (text: string): string => {
+    const regex = /{{(.*?)}}/g;
+    return text.replace(regex, (match, varName) => {
+      const variable = useVariableStore
+        .getState()
+        .getVariableByName(varName.trim());
+      if (!variable) return match;
+
+      // Handle table variables
+      if (variable.type === "table") {
+        return "[Table data]"; // Or format table data as needed
+      }
+
+      return String(variable.value || match);
+    });
   };
 
+  // Handle variable selection
   const handleVariableSelect = (value: string) => {
-    if (value === "add_new" && onOpenTools) {
-      onOpenTools();
+    if (value === "add_new" && props.onOpenTools) {
+      props.onOpenTools();
     } else {
       setSelectedVariableId(value);
-    }
-  };
 
-  const responsive = {
-    desktop: {
-      breakpoint: { max: 3000, min: 1024 },
-      items: 1,
-    },
-    tablet: {
-      breakpoint: { max: 1024, min: 464 },
-      items: 1,
-    },
-    mobile: {
-      breakpoint: { max: 464, min: 0 },
-      items: 1,
-    },
-  };
+      // Find the selected variable and format it properly
+      const variables = useVariableStore.getState().variables;
+      let selectedVariable;
+      let outputVariable;
 
-  const handleScrapeUrl = async () => {
-    if (!url) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await api.get(
-        `/api/scrape?url=${encodeURIComponent(url)}`
-      );
-      if (response.success && response.data?.markdown) {
-        setContent(response.data.markdown);
-      } else {
-        setError(response.error || "Failed to scrape website");
-      }
-    } catch (err) {
-      setError("Failed to fetch website content");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!url.trim()) return;
-
-    try {
-      const selectedVariable = Object.values(variables).find(
-        (v) => v.id === selectedVariableId
-      );
-
-      await fileManager.handleFile({
-        userId: auth.currentUser?.uid || "",
-        type: "website",
-        url: url.trim(),
-        nickname: selectedVariable?.name || url.trim(),
-      });
-    } catch (error) {
-      console.error("Error saving website:", error);
-    }
-  };
-
-  const handleFetch = async () => {
-    if (!url || !auth.currentUser) return;
-
-    setIsLoading(true);
-    try {
-      const response = await api.get(
-        `/api/process_url?url=${encodeURIComponent(url.trim())}&user_id=${auth.currentUser.uid}&nickname=${encodeURIComponent(nickname.trim())}`
-      );
-
-      if (response.success && response.data) {
-        setContent(response.data.content);
-        console.log("Retrieved processed URL content:", response);
-      } else {
-        setError(
-          "This URL hasn't been processed yet. Please confirm it first."
+      if (value.includes(":")) {
+        // Table variable with column name
+        const [tableId, columnName] = value.split(":");
+        selectedVariable = Object.values(variables).find(
+          (v) => v.id === tableId
         );
-        console.error("Failed to fetch URL content:", response.error);
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      setError(`Error fetching content: ${errorMessage}`);
-      console.error("Error fetching content:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const handleSaveNickname = async () => {
-    if (!url.trim() || !nickname.trim()) return;
-
-    setIsSaving(true);
-    try {
-      await fileManager.handleFile({
-        userId: auth.currentUser?.uid || "",
-        type: "website",
-        url: url.trim(),
-        nickname: nickname.trim(),
-      });
-      // Optional: Show success feedback
-      console.log("Saved website with nickname:", nickname);
-    } catch (error) {
-      console.error("Error saving nickname:", error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (!url.trim() || !nickname.trim() || !auth.currentUser) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await api.post("/api/process_url", {
-        url: url.trim(),
-        nickname: nickname.trim(),
-        user_id: auth.currentUser.uid,
-      });
-
-      if (response.success && response.data) {
-        setIsConfirmed(true);
-        setContent(response.data.content);
-        console.log("URL processed successfully:", response);
-
-        // Save the URL info for later use
-        if (onUpdateBlock) {
-          onUpdateBlock(blockNumber, {
-            url: url.trim(),
-            sanitizedUrl: response.data.sanitized_url,
-            downloadLink: response.data.download_link,
-          });
+        if (selectedVariable) {
+          outputVariable = {
+            id: selectedVariable.id,
+            name: `${selectedVariable.name}.${columnName}`,
+            type: "table" as const,
+            columnName: columnName,
+          };
         }
       } else {
-        setError(response.error || "Failed to process URL");
-        console.error("URL processing failed:", response.error);
+        // Regular variable
+        selectedVariable = Object.values(variables).find((v) => v.id === value);
+
+        if (selectedVariable) {
+          outputVariable = {
+            id: selectedVariable.id,
+            name: selectedVariable.name,
+            type: selectedVariable.type as "input" | "intermediate" | "table",
+          };
+        }
+      }
+
+      // Update the block with the output variable
+      onUpdateBlock(blockNumber, {
+        outputVariable: outputVariable || null,
+      });
+    }
+  };
+
+  // Add this helper function to handle table variables
+  const getTableColumnValues = (variableName: string): string[] => {
+    const cleanVariableName = variableName.replace(/[{}]/g, "");
+    console.log("Clean variable name:", cleanVariableName);
+
+    const [tableName, columnName] = cleanVariableName.split(".");
+    console.log("Table name:", tableName, "Column name:", columnName);
+
+    const variables = useVariableStore.getState().variables;
+    console.log("All variables:", variables);
+
+    const tableVar = Object.values(variables).find((v) => v.name === tableName);
+    console.log("Found table:", tableVar);
+
+    if (
+      !tableVar ||
+      tableVar.type !== "table" ||
+      !Array.isArray(tableVar.value)
+    ) {
+      console.log("Table not found or invalid:", { tableName, tableVar });
+      return [];
+    }
+
+    // Use the columnName from the variable reference
+    const values = tableVar.value.map((row) => row[columnName]).filter(Boolean);
+    console.log("Extracted values:", values);
+    return values;
+  };
+
+  // Modify handleFetch to add logging
+  const handleFetch = async () => {
+    console.log("handleFetch", url);
+    if (!url.trim()) return;
+    setIsLoading(true);
+    setResponse(null);
+
+    try {
+      // Check if URL is a table variable reference
+      if (url.match(/{{.*?}}/)) {
+        const [tableName, columnName] = url.replace(/[{}]/g, "").split(".");
+        const tableUrls = getTableColumnValues(`${tableName}.${columnName}`);
+        console.log("Retrieved URLs:", tableUrls);
+
+        if (tableUrls.length === 0) {
+          setResponse({ error: "No URLs found in table column" });
+          return;
+        }
+
+        // Process each URL and collect summaries
+        const summaries = [];
+        const errors = [];
+
+        // Process URLs sequentially with individual error handling
+        for (const processedUrl of tableUrls) {
+          console.log("Processing URL:", processedUrl);
+
+          // Wrap each URL processing in its own try-catch to ensure isolation
+          try {
+            // Validate URL first
+            if (!processedUrl || !processedUrl.trim()) {
+              throw new Error("Empty or invalid URL");
+            }
+
+            const data = {
+              url: processedUrl.trim(),
+              ...(prompt.trim() && { prompt: prompt.trim() }),
+            };
+
+            const response = await api.post("/scrape", data);
+
+            if (!response?.analysis) {
+              throw new Error("No analysis returned from API");
+            }
+
+            // Handle successful response
+            if (selectedVariableId.includes(":")) {
+              await saveToTableColumn(
+                processedUrl,
+                columnName,
+                response.analysis
+              );
+            } else {
+              summaries.push(response.analysis);
+            }
+          } catch (err) {
+            // Comprehensive error handling for each URL
+            const errorMessage =
+              err instanceof Error ? err.message : "Unknown error occurred";
+            console.error(`Error processing URL ${processedUrl}:`, err);
+
+            // Always save error to table if it's a table column operation
+            if (selectedVariableId.includes(":")) {
+              await saveToTableColumn(
+                processedUrl,
+                columnName,
+                `Error: ${errorMessage}`
+              );
+            }
+
+            errors.push({
+              url: processedUrl,
+              error: errorMessage,
+            });
+
+            // Continue to next URL regardless of error
+          }
+        }
+
+        // Show summary of results
+        if (errors.length > 0) {
+          toast.warning(
+            `${errors.length} of ${tableUrls.length} URL(s) failed to process. Check table for details.`
+          );
+        }
+
+        if (summaries.length > 0) {
+          toast.success(`Successfully processed ${summaries.length} URL(s)`);
+        }
+
+        // Save results for non-table variables
+        if (!selectedVariableId.includes(":") && summaries.length > 0) {
+          await useVariableStore
+            .getState()
+            .updateVariable(selectedVariableId, summaries.join(", "));
+        }
+
+        setOutput(summaries);
+        setResponse({
+          analysis:
+            summaries.length > 0
+              ? summaries.join(", ")
+              : "All URLs processed (check table for results)",
+        });
+      } else {
+        // Original single URL logic
+        const data = {
+          url: url.trim(),
+          ...(prompt.trim() && { prompt: prompt.trim() }),
+        };
+
+        const response = await api.post("/scrape", data);
+        setResponse(response);
+        setOutput(response);
+
+        if (selectedVariableId && response) {
+          const contentToSave = response.analysis || response.markdown || "";
+          await useVariableStore
+            .getState()
+            .updateVariable(selectedVariableId, contentToSave);
+        }
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      setError(`Error processing URL: ${errorMessage}`);
-      console.error("Error processing URL:", error);
+      // This should only catch errors in the overall setup, not individual URL processing
+      console.error("Overall process error:", error);
+      setResponse({
+        error:
+          error instanceof Error ? error.message : "Failed to process request",
+      });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Helper method to save data to table column with error handling
+  const saveToTableColumn = async (
+    processedUrl: string,
+    columnName: string,
+    content: string
+  ) => {
+    try {
+      const variable =
+        useVariableStore.getState().variables[selectedVariableId.split(":")[0]];
+
+      if (variable?.value && Array.isArray(variable.value)) {
+        const rowWithUrl = variable.value.find(
+          (row) => row[columnName] === processedUrl
+        );
+
+        if (rowWithUrl) {
+          const targetColumn = selectedVariableId.split(":")[1];
+          await useVariableStore
+            .getState()
+            .updateTableRow(selectedVariableId.split(":")[0], rowWithUrl.id, {
+              [targetColumn]: content,
+            });
+        } else {
+          console.warn(`Row with URL ${processedUrl} not found in table`);
+        }
+      }
+    } catch (err) {
+      console.error(
+        `Failed to save to table column for URL ${processedUrl}:`,
+        err
+      );
+      // Don't throw here - we want to continue processing other URLs
+    }
+  };
+
+  const renderContent = () => {
+    if (isLoading) {
+      return <div className="text-gray-400">Loading...</div>;
+    }
+
+    if (!response) {
+      return "Enter a URL and click Fetch to see website content here";
+    }
+
+    if (response.error) {
+      return <div className="text-red-400">{response.error}</div>;
+    }
+
+    // Always show table if we have a table variable selected
+    if (selectedVariableId?.includes(":")) {
+      const tableVar =
+        useVariableStore.getState().variables[selectedVariableId.split(":")[0]];
+
+      const rows = Array.isArray(tableVar?.value) ? tableVar.value : [];
+      const columns =
+        rows.length > 0
+          ? Object.keys(rows[0]).filter((col) => col !== "id")
+          : [];
+
+      return (
+        <div className="space-y-4">
+          <div className="bg-gray-900 p-4 rounded-lg overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {columns.map((column) => (
+                    <TableHead key={column}>{column}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row: any, index: number) => (
+                  <TableRow key={index}>
+                    {columns.map((column) => (
+                      <TableCell key={column} className="max-w-xl">
+                        {row[column]}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      );
+    }
+
+    // Show regular response content if not a table
+    if (typeof response !== "string" && response.analysis) {
+      return (
+        <div className="space-y-4">
+          <div className="bg-gray-900 p-4 rounded-lg">
+            <h4 className="text-blue-400 mb-2">Analysis</h4>
+            <p className="text-gray-300">{response.analysis}</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="prose prose-invert max-w-none">
+        <ReactMarkdown>
+          {typeof response === "string" ? response : response.markdown || ""}
+        </ReactMarkdown>
+      </div>
+    );
   };
 
   useImperativeHandle(ref, () => ({
     processBlock: async () => {
-      try {
-        await handleFetch();
-        return true;
-      } catch (error) {
-        console.error("Error processing web block:", error);
-        return false;
-      }
+      await handleFetch();
+      return true;
     },
+    getOutput: () => output,
   }));
 
   return (
     <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-white">
-          Web Agent #{blockNumber}
+          Web Agent {blockNumber}
         </h3>
         <Popover>
           <PopoverTrigger>
@@ -346,201 +585,71 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
         </Popover>
       </div>
 
-      <Tabs
-        defaultValue="url"
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as "url" | "variables")}
-        className="w-full"
-      >
-        <TabsList className="grid w-full grid-cols-2 bg-gray-900">
-          <TabsTrigger
-            value="url"
-            className="text-gray-300 data-[state=active]:bg-gray-800 data-[state=active]:text-white"
-          >
-            URL to visit
-          </TabsTrigger>
-          <TabsTrigger
-            value="variables"
-            className="text-gray-300 data-[state=active]:bg-gray-800 data-[state=active]:text-white"
-          >
-            Variables to search for
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="url" className="mt-4 space-y-4">
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="The URL you want us to visit"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  className="flex-1"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Give it a @nickname for later blocks"
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleConfirm}
-                  disabled={!url.trim() || !nickname.trim() || isLoading}
-                  className="whitespace-nowrap"
-                >
-                  {isLoading ? (
-                    <>
-                      <span className="animate-spin mr-2">⟳</span>
-                      Processing...
-                    </>
-                  ) : isConfirmed ? (
-                    "Processed ✔"
-                  ) : (
-                    "Process URL"
-                  )}
-                </Button>
-              </div>
-
-              {error && (
-                <div className="text-red-400 text-sm mt-2">{error}</div>
-              )}
-
-              {url && (
-                <div className="preview mt-2 text-gray-300">
-                  {formatTextWithVariables(url)}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <hr className="border-gray-700 my-4" />
-
-          <Card className="bg-gray-900 border-gray-700">
-            <CardContent className="p-4">
-              <div className="text-sm text-gray-400 mb-2">{url}</div>
-              <div className="text-white prose prose-invert max-w-none h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
-                {error ? (
-                  <div className="text-red-400">{error}</div>
-                ) : isLoading ? (
-                  "Fetching..."
-                ) : content ? (
-                  <ReactMarkdown>{content}</ReactMarkdown>
-                ) : (
-                  "Enter a URL and click Fetch to see website content here"
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Button
-            onClick={handleFetch}
-            disabled={!url.trim() || isLoading}
-            className="flex items-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <span className="animate-spin mr-2">⟳</span>
-                Fetching...
-              </>
-            ) : (
-              "Fetch"
-            )}
-          </Button>
-        </TabsContent>
-
-        <TabsContent value="variables" className="mt-4 space-y-4">
-          <div className="flex items-center gap-2">
+      <div className="space-y-4">
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
             <Input
-              placeholder="Variable to search for"
-              value={searchVariable}
-              onChange={(e) => setSearchVariable(e.target.value)}
-              className="w-full"
+              placeholder="The URL you want us to visit"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="flex-1"
             />
-            <AlertDialog>
-              <AlertDialogTrigger>
-                <InfoIcon className="h-5 w-5 text-gray-400 hover:text-gray-300" />
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Search Variables</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Enter a variable to search for across websites. The results
-                    will be displayed in the carousel below.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-300">
-                  <XIcon className="h-5 w-5" />
-                </button>
-              </AlertDialogContent>
-            </AlertDialog>
           </div>
-
-          {searchVariable && (
-            <div className="preview mt-2 text-gray-300">
-              {formatTextWithVariables(searchVariable)}
+          {url && (
+            <div className="text-sm text-gray-300">
+              {formatTextWithVariables(url)}
             </div>
           )}
-
-          <hr className="border-gray-700 my-4" />
-
-          <div className="relative mt-8">
-            <div className="absolute right-4 -top-8 flex gap-2">
-              <button
-                className="text-gray-400 hover:text-gray-200 transition-colors"
-                onClick={() => {
-                  const carousel = document.querySelector(
-                    ".react-multi-carousel-list"
-                  );
-                  if (carousel) {
-                    (carousel as any).previous();
-                  }
-                }}
-              >
-                <ChevronLeft className="h-6 w-6" />
-              </button>
-              <button
-                className="text-gray-400 hover:text-gray-200 transition-colors"
-                onClick={() => {
-                  const carousel = document.querySelector(
-                    ".react-multi-carousel-list"
-                  );
-                  if (carousel) {
-                    (carousel as any).next();
-                  }
-                }}
-              >
-                <ChevronRight className="h-6 w-6" />
-              </button>
-            </div>
-            <Carousel
-              responsive={responsive}
-              infinite={false}
-              className="w-full"
-              containerClass="carousel-container"
-              itemClass="carousel-item px-2"
-              arrows={false}
-              showDots={true}
-            >
-              {dummyResults.map((result, index) => (
-                <div key={index} className="px-4">
-                  <Card className="bg-gray-900 border-gray-700">
-                    <CardContent className="p-4">
-                      <div className="text-sm text-gray-400 mb-2">
-                        {result.url}
-                      </div>
-                      <div className="text-white">{result.content}</div>
-                    </CardContent>
-                  </Card>
-                </div>
-              ))}
-            </Carousel>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Enter your prompt for the URL (optional)"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              className="flex-1"
+            />
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+
+        <div className="flex items-center gap-2 text-gray-300">
+          <span>Save output as:</span>
+          <VariableDropdown
+            value={selectedVariableId}
+            onValueChange={handleVariableSelect}
+            agentId={currentAgent?.id || null}
+            onAddNew={props.onOpenTools}
+          />
+        </div>
+
+        <hr className="border-gray-700 my-4" />
+
+        <Card className="bg-gray-900 border-gray-700">
+          <CardContent className="p-4">
+            <div className="text-sm text-gray-400 mb-2">{url}</div>
+            <div className="text-white prose prose-invert max-w-none h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
+              {renderContent()}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Button
+          onClick={handleFetch}
+          disabled={!url.trim() || isLoading}
+          className="flex items-center gap-2"
+        >
+          {isLoading ? (
+            <>
+              <span className="animate-spin mr-2">⟳</span>
+              Fetching...
+            </>
+          ) : (
+            "Fetch"
+          )}
+        </Button>
+      </div>
     </div>
   );
 });
+
+WebAgent.displayName = "WebAgent";
 
 export default WebAgent;

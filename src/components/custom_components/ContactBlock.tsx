@@ -73,7 +73,19 @@ const ContactBlock = forwardRef<ContactBlockRef, ContactBlockProps>(
         const variable = useVariableStore
           .getState()
           .getVariableByName(varName.trim());
-        return variable?.value || match;
+
+        // Handle different types of variable values
+        if (!variable?.value) return match;
+
+        if (typeof variable.value === "string") {
+          return variable.value;
+        } else if (Array.isArray(variable.value)) {
+          // Handle table variables by converting to string representation
+          return `Table with ${variable.value.length} rows`;
+        } else {
+          // Handle other types
+          return String(variable.value);
+        }
       });
     };
 

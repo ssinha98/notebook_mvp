@@ -128,7 +128,8 @@ export default function Notebook() {
     outputVariable?: {
       id: string;
       name: string;
-      type: "input" | "intermediate";
+      type: "input" | "intermediate" | "table";
+      columnName?: string;
     } | null
   ) => {
     // Update the block in the store
@@ -190,6 +191,11 @@ export default function Notebook() {
   const [isInputVariablesSheetOpen, setIsInputVariablesSheetOpen] =
     useState(false);
 
+  // Add these new state variables
+  const [isMasterUser, setIsMasterUser] = useState(false);
+  const [targetUserId, setTargetUserId] = useState("");
+  const [masterMode, setMasterMode] = useState(false);
+
   const renderBlock = (block: Block, index: number) => {
     switch (block.type) {
       case "agent":
@@ -201,8 +207,19 @@ export default function Notebook() {
             key={block.blockNumber}
             blockNumber={block.blockNumber}
             onDeleteBlock={deleteBlock}
-            // initialOutputVariable={block.outputVariable}
-            // variables={variables}
+            initialOutputVariable={
+              block.outputVariable
+                ? {
+                    id: block.outputVariable.id,
+                    name: block.outputVariable.name,
+                    type:
+                      block.outputVariable.type === "table"
+                        ? "intermediate"
+                        : block.outputVariable.type,
+                  }
+                : null
+            }
+            variables={variables}
             onAddVariable={handleAddVariable}
             onOpenTools={() => setIsToolsSheetOpen(true)}
             onSavePrompts={handleSavePrompts}
@@ -212,7 +229,6 @@ export default function Notebook() {
             initialUserPrompt={block.userPrompt}
             initialSaveAsCsv={block.saveAsCsv}
             initialSource={block.sourceInfo}
-            initialOutputVariable={block.outputVariable || null}
           />
         );
       case "transform":
@@ -295,6 +311,9 @@ export default function Notebook() {
             ref={(ref) => {
               if (ref) blockRefs.current[block.blockNumber] = ref;
             }}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates);
+            }}
             key={block.blockNumber}
             blockNumber={block.blockNumber}
             onDeleteBlock={deleteBlock}
@@ -318,7 +337,18 @@ export default function Notebook() {
             onOpenTools={() => setIsToolsSheetOpen(true)}
             initialLanguage={block.language}
             initialCode={block.code}
-            initialOutputVariable={block.outputVariable}
+            initialOutputVariable={
+              block.outputVariable
+                ? {
+                    id: block.outputVariable.id,
+                    name: block.outputVariable.name,
+                    type:
+                      block.outputVariable.type === "table"
+                        ? "intermediate"
+                        : block.outputVariable.type,
+                  }
+                : null
+            }
           />
         );
       case "make":
@@ -337,6 +367,7 @@ export default function Notebook() {
             initialParameters={block.parameters}
             onAddVariable={handleAddVariable}
             variables={variables}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
           />
         );
       case "excelagent":
@@ -351,13 +382,12 @@ export default function Notebook() {
             onUpdateBlock={(blockNumber, updates) => {
               updateBlockData(blockNumber, updates);
             }}
-            initialFileUrl={block.fileUrl}
-            initialSheetName={block.sheetName}
-            initialRange={block.range}
-            initialOperations={block.operations}
+            initialPrompt={block.prompt}
             isProcessing={
               isProcessing && currentBlockIndex === block.blockNumber
             }
+            onProcessingChange={setIsProcessing}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
           />
         );
       case "deepresearchagent":
@@ -376,6 +406,7 @@ export default function Notebook() {
             isProcessing={
               isProcessing && currentBlockIndex === block.blockNumber
             }
+            onOpenTools={() => setIsToolsSheetOpen(true)}
           />
         );
       case "instagramagent":
@@ -591,6 +622,17 @@ export default function Notebook() {
     console.log("Current agent state:", currentAgent);
   }, [currentAgent]);
 
+  // Add this effect to check master role on component mount
+  useEffect(() => {
+    const checkMasterRole = async () => {
+      const { checkMasterRole } = useAgentStore.getState();
+      const isMaster = await checkMasterRole();
+      setIsMasterUser(isMaster);
+    };
+
+    checkMasterRole();
+  }, []);
+
   // Add this state for the new agent name
   const [newAgentName, setNewAgentName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -602,12 +644,28 @@ export default function Notebook() {
       return;
     }
 
+    if (masterMode && !targetUserId.trim()) {
+      alert("Please enter a target user ID");
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const { createAgent } = useAgentStore.getState();
-      await createAgent(newAgentName);
-      alert("Agent saved successfully!");
-      setNewAgentName(""); // Reset the input
+      if (masterMode && targetUserId.trim()) {
+        // Create agent for another user
+        const { createAgentForUser } = useAgentStore.getState();
+        await createAgentForUser(newAgentName, targetUserId);
+        alert(`Agent created successfully for user: ${targetUserId}`);
+      } else {
+        // Create agent for current user (existing functionality)
+        const { createAgent } = useAgentStore.getState();
+        await createAgent(newAgentName);
+        alert("Agent saved successfully!");
+      }
+
+      setNewAgentName("");
+      setTargetUserId("");
+      setMasterMode(false);
     } catch (error) {
       console.error("Error saving agent:", error);
       alert("Failed to save agent. Please try again.");
@@ -650,6 +708,31 @@ export default function Notebook() {
     deleteBlock: blockManagerDeleteBlock,
   } = useBlockManager();
 
+  const processVariablesInText = (text: string): string => {
+    const regex = /{{(.*?)}}/g;
+    return text.replace(regex, (match, varName) => {
+      const trimmedName = varName.trim();
+      if (trimmedName.includes(".")) {
+        // Handle table.column reference
+        const [tableName, columnName] = trimmedName.split(".");
+        const tableVar = useVariableStore
+          .getState()
+          .getVariableByName(tableName);
+        if (tableVar?.type === "table") {
+          const columnValues = useVariableStore
+            .getState()
+            .getTableColumn(tableVar.id, columnName);
+          return JSON.stringify(columnValues);
+        }
+      }
+      // Handle regular variable
+      const variable = useVariableStore
+        .getState()
+        .getVariableByName(trimmedName);
+      return variable ? String(variable.value) : match;
+    });
+  };
+
   const runBlocks = async (startIndex: number = 0) => {
     setIsRunning(true);
     const blockList = getBlockList();
@@ -662,11 +745,21 @@ export default function Notebook() {
     try {
       for (let i = startIndex; i < blockList.length; i++) {
         const block = blockList[i];
-        setCurrentBlock(block as unknown as Block); // Double cast through unknown
+        setCurrentBlock(block as unknown as Block);
         setCurrentBlockIndex(i);
         console.log(`Processing block ${block.blockNumber} (${block.type})`);
 
         try {
+          const blockRef = blockRefs.current[block.blockNumber];
+          if (!blockRef) {
+            console.error(`Block ref not found for block ${block.blockNumber}`);
+            continue;
+          }
+
+          // Process block based on type
+          let success = false;
+          let output = null;
+
           switch (block.type) {
             case "checkin":
               console.log(`Pausing at CheckInBlock ${block.blockNumber}`);
@@ -702,16 +795,18 @@ export default function Notebook() {
               return; // Stop execution after sending email
             case "contact":
               console.log("Processing contact block", block.blockNumber);
-              const contactRef = blockRefs.current[block.blockNumber];
-              const success = await contactRef?.processBlock();
+              success = await blockRef.processBlock();
               if (!success) {
                 console.error("Contact block failed, stopping execution");
                 return;
               }
               break;
             case "agent":
-              const agentRef = blockRefs.current[block.blockNumber];
-              await agentRef?.processBlock();
+              success = await blockRef.processBlock();
+              if (!success) {
+                console.error("Agent block failed, stopping execution");
+                return;
+              }
               break;
             case "searchagent":
               console.log("Processing search agent block", block.blockNumber);
@@ -724,8 +819,8 @@ export default function Notebook() {
                 return;
               }
               try {
-                const searchSuccess = await searchRef.processBlock();
-                if (!searchSuccess) {
+                success = await searchRef.processBlock();
+                if (!success) {
                   console.error(
                     "Search agent block failed, stopping execution"
                   );
@@ -737,36 +832,25 @@ export default function Notebook() {
               }
               break;
             case "webagent":
-              const webRef = blockRefs.current[block.blockNumber];
-              await webRef?.processBlock();
+              success = await blockRef.processBlock();
+              if (!success) {
+                console.error("Web agent block failed, stopping execution");
+                return;
+              }
               break;
             case "codeblock":
               console.log("Processing code block", block.blockNumber);
-              const codeRef = blockRefs.current[block.blockNumber];
-              const codeSuccess = await codeRef?.processBlock();
-              if (!codeSuccess) {
+              success = await blockRef.processBlock();
+              if (!success) {
                 console.error("Code block failed, stopping execution");
                 return;
               }
               break;
             case "excelagent":
               console.log("Processing Excel agent block", block.blockNumber);
-              const excelRef = blockRefs.current[block.blockNumber];
-              if (!excelRef) {
-                console.error(
-                  "Excel agent ref not found for block",
-                  block.blockNumber
-                );
-                return;
-              }
-              try {
-                const excelSuccess = await excelRef.processBlock();
-                if (!excelSuccess) {
-                  console.error("Excel agent block failed, stopping execution");
-                  return;
-                }
-              } catch (error) {
-                console.error("Error processing Excel agent block:", error);
+              success = await blockRef.processBlock();
+              if (!success) {
+                console.error("Excel agent block failed, stopping execution");
                 return;
               }
               break;
@@ -775,24 +859,11 @@ export default function Notebook() {
                 "Processing Instagram agent block",
                 block.blockNumber
               );
-              const instagramRef = blockRefs.current[block.blockNumber];
-              if (!instagramRef) {
+              success = await blockRef.processBlock();
+              if (!success) {
                 console.error(
-                  "Instagram agent ref not found for block",
-                  block.blockNumber
+                  "Instagram agent block failed, stopping execution"
                 );
-                return;
-              }
-              try {
-                const instagramSuccess = await instagramRef.processBlock();
-                if (!instagramSuccess) {
-                  console.error(
-                    "Instagram agent block failed, stopping execution"
-                  );
-                  return;
-                }
-              } catch (error) {
-                console.error("Error processing Instagram agent block:", error);
                 return;
               }
               break;
@@ -801,27 +872,10 @@ export default function Notebook() {
                 "Processing deep research agent block",
                 block.blockNumber
               );
-              const deepResearchRef = blockRefs.current[block.blockNumber];
-              if (!deepResearchRef) {
+              success = await blockRef.processBlock();
+              if (!success) {
                 console.error(
-                  "Deep research agent ref not found for block",
-                  block.blockNumber
-                );
-                return;
-              }
-              try {
-                const deepResearchSuccess =
-                  await deepResearchRef.processBlock();
-                if (!deepResearchSuccess) {
-                  console.error(
-                    "Deep research agent block failed, stopping execution"
-                  );
-                  return;
-                }
-              } catch (error) {
-                console.error(
-                  "Error processing deep research agent block:",
-                  error
+                  "Deep research agent block failed, stopping execution"
                 );
                 return;
               }
@@ -831,60 +885,27 @@ export default function Notebook() {
                 "Processing Pipedrive agent block",
                 block.blockNumber
               );
-              const pipedriveRef = blockRefs.current[block.blockNumber];
-              if (!pipedriveRef) {
+              success = await blockRef.processBlock();
+              if (!success) {
                 console.error(
-                  "Pipedrive agent ref not found for block",
-                  block.blockNumber
+                  "Pipedrive agent block failed, stopping execution"
                 );
-                return;
-              }
-              try {
-                const pipedriveSuccess = await pipedriveRef.processBlock();
-                if (!pipedriveSuccess) {
-                  console.error(
-                    "Pipedrive agent block failed, stopping execution"
-                  );
-                  return;
-                }
-              } catch (error) {
-                console.error("Error processing Pipedrive agent block:", error);
                 return;
               }
               break;
             case "datavizagent":
               console.log("Processing DataViz agent block", block.blockNumber);
-              const datavizRef = blockRefs.current[block.blockNumber];
-              if (!datavizRef) {
-                console.error(
-                  "DataViz agent ref not found for block",
-                  block.blockNumber
-                );
-                return;
-              }
-              try {
-                const datavizSuccess = await datavizRef.processBlock();
-                if (!datavizSuccess) {
-                  console.error(
-                    "DataViz agent block failed, stopping execution"
-                  );
-                  return;
-                }
-              } catch (error) {
-                console.error("Error processing DataViz agent block:", error);
+              success = await blockRef.processBlock();
+              if (!success) {
+                console.error("DataViz agent block failed, stopping execution");
                 return;
               }
               break;
             case "clickupagent":
-              const clickupRef = blockRefs.current[block.blockNumber];
-              if (clickupRef) {
-                const clickupSuccess = await clickupRef.processBlock();
-                if (!clickupSuccess) {
-                  console.error(
-                    "ClickUp agent block failed, stopping execution"
-                  );
-                  return;
-                }
+              success = await blockRef.processBlock();
+              if (!success) {
+                console.error("ClickUp agent block failed, stopping execution");
+                return;
               }
               break;
             case "googledriveagent":
@@ -892,41 +913,69 @@ export default function Notebook() {
                 "Processing Google Drive agent block",
                 block.blockNumber
               );
-              const googleDriveRef = blockRefs.current[block.blockNumber];
-              if (!googleDriveRef) {
+              success = await blockRef.processBlock();
+              if (!success) {
                 console.error(
-                  "Google Drive agent ref not found for block",
-                  block.blockNumber
-                );
-                return;
-              }
-              try {
-                const googleDriveSuccess = await googleDriveRef.processBlock();
-                if (!googleDriveSuccess) {
-                  console.error(
-                    "Google Drive agent block failed, stopping execution"
-                  );
-                  return;
-                }
-              } catch (error) {
-                console.error(
-                  "Error processing Google Drive agent block:",
-                  error
+                  "Google Drive agent block failed, stopping execution"
                 );
                 return;
               }
               break;
           }
+
+          // Handle output variable if present
+          const blockData = useSourceStore
+            .getState()
+            .blocks.find((b) => b.blockNumber === block.blockNumber);
+          if (
+            blockData?.outputVariable &&
+            blockData.outputVariable.type === "table" &&
+            blockData.outputVariable.columnName
+          ) {
+            const tableId = blockData.outputVariable.id;
+            const columnName = blockData.outputVariable.columnName;
+            const tableVar = useVariableStore.getState().variables[tableId];
+
+            if (tableVar?.type === "table" && "getOutput" in blockRef) {
+              const output = blockRef.getOutput();
+              console.log(
+                `Appending to table column ${tableVar.name}.${columnName}:`,
+                output
+              );
+
+              // If the output is a string, always create a new row (append)
+              if (typeof output === "string" && output.trim()) {
+                await useVariableStore
+                  .getState()
+                  .addTableRow(tableId, { [columnName]: output.trim() });
+              }
+              // If the output is an array, create new rows for each value (append all)
+              else if (Array.isArray(output)) {
+                for (const value of output) {
+                  if (value && String(value).trim()) {
+                    await useVariableStore.getState().addTableRow(tableId, {
+                      [columnName]: String(value).trim(),
+                    });
+                  }
+                }
+              }
+            }
+          } else if (blockData?.outputVariable && "getOutput" in blockRef) {
+            // Handle regular variable output
+            const output = blockRef.getOutput();
+            await useVariableStore
+              .getState()
+              .updateVariable(blockData.outputVariable.id, output);
+          }
         } catch (error) {
           console.error(`Error processing block ${block.blockNumber}:`, error);
-          return; // Stop execution on error
+          return;
         }
       }
     } finally {
       if (!isRunPaused) {
         setIsProcessing(false);
         setCurrentBlockIndex(null);
-        // Don't set isRunning to false here as we want to keep the panel open
       }
     }
   };
@@ -980,6 +1029,33 @@ export default function Notebook() {
                 placeholder="Add an agent name"
                 className="w-64 bg-gray-800 border-gray-700 text-white"
               />
+
+              {/* Master role UI - only show if user is master */}
+              {isMasterUser && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="masterMode"
+                      checked={masterMode}
+                      onChange={(e) => setMasterMode(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <label htmlFor="masterMode" className="text-white text-sm">
+                      Create for another user
+                    </label>
+                  </div>
+
+                  {masterMode && (
+                    <Input
+                      value={targetUserId}
+                      onChange={(e) => setTargetUserId(e.target.value)}
+                      placeholder="Target user ID"
+                      className="w-64 bg-gray-800 border-gray-700 text-white"
+                    />
+                  )}
+                </>
+              )}
             </div>
             <Button
               onClick={handleSaveAsAgent}
@@ -994,7 +1070,7 @@ export default function Notebook() {
               ) : (
                 <>
                   <SaveOutlined className="mr-2" />
-                  Save New Agent
+                  {masterMode ? "Create Agent for User" : "Save New Agent"}
                 </>
               )}
             </Button>

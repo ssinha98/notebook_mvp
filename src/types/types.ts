@@ -1,10 +1,14 @@
 export interface Variable {
   id: string;
   name: string;
-  type: "input" | "intermediate";
-  value?: any;
+  type: "input" | "intermediate" | "table";
+  value?: string | TableRow[]; // Updated to support table rows
   description?: string;
   agentId?: string;
+  columnName?: string;
+  rows?: TableRow[];
+  // Table-specific fields
+  columns?: string[]; // List of column names for table variables
 }
 
 // types.ts
@@ -67,7 +71,7 @@ export interface BaseBlock {
   name: string;
   blockNumber: number;
   type: BlockType;
-  agentId: string; // Make agentId required for all blocks
+  agentId: string;
   systemPrompt: string;
   userPrompt: string;
   saveAsCsv: boolean;
@@ -75,7 +79,8 @@ export interface BaseBlock {
   outputVariable?: {
     id: string;
     name: string;
-    type: "input" | "intermediate";
+    type: "input" | "intermediate" | "table";
+    columnName?: string; // Used when outputting to a table column
   } | null;
 }
 
@@ -134,11 +139,6 @@ export interface Block {
 // Specific block type interfaces
 export interface AgentBlock extends BaseBlock {
   type: "agent";
-  outputVariable?: {
-    id: string;
-    name: string;
-    type: "input" | "intermediate";
-  } | null;
   sourceInfo?: SourceInfo;
 }
 
@@ -146,11 +146,7 @@ export interface AgentBlock extends BaseBlock {
 export interface DeepResearchAgentBlock extends BaseBlock {
   type: "deepresearchagent";
   topic: string;
-  outputVariable?: {
-    id: string;
-    name: string;
-    type: "input" | "intermediate";
-  } | null;
+  searchEngine?: "perplexity" | "firecrawl";
 }
 
 /* OLD SearchAgentBlock interface
@@ -250,11 +246,6 @@ export interface MakeBlock extends BaseBlock {
 export interface PipedriveAgentBlock extends BaseBlock {
   type: "pipedriveagent";
   prompt: string;
-  outputVariable?: {
-    id: string;
-    name: string;
-    type: "input" | "intermediate";
-  } | null;
 }
 
 // Add new interface for DataVizAgent
@@ -262,11 +253,6 @@ export interface DataVizAgentBlock extends BaseBlock {
   type: "datavizagent";
   prompt: string;
   chartType: string;
-  outputVariable?: {
-    id: string;
-    name: string;
-    type: "input" | "intermediate";
-  } | null;
 }
 
 // Add the new interface
@@ -317,6 +303,12 @@ export interface AgentStore {
   currentAgent: Agent | null;
   loadAgents: () => Promise<void>;
   createAgent: (name: string) => Promise<void>;
+  createAgentForUser: (
+    name: string,
+    targetUserId: string,
+    blocks?: Block[]
+  ) => Promise<Agent>;
+  checkMasterRole: () => Promise<boolean>;
   saveAgent: (blocks: Block[]) => Promise<void>;
   loadAgent: (agentId: string) => Promise<void>;
   deleteAgent: (agentId: string) => Promise<void>;
@@ -351,6 +343,7 @@ export interface WebAgentBlock extends BaseBlock {
   selectedVariableId?: string;
   selectedVariableName?: string;
   results?: Array<{ url: string; content: string }>;
+  prompt?: string;
 }
 
 // Add CodeBlock interface
@@ -361,11 +354,6 @@ export interface CodeBlock extends BaseBlock {
   status: "approved" | "tbd";
   selectedVariableId?: string;
   variables: Variable[];
-  outputVariable?: {
-    id: string;
-    name: string;
-    type: "input" | "intermediate";
-  } | null;
 }
 
 export interface ExcelAgentBlock extends BaseBlock {
@@ -384,11 +372,6 @@ export interface InstagramAgentBlock extends BaseBlock {
   type: "instagramagent";
   url: string;
   postCount: number;
-  outputVariable?: {
-    id: string;
-    name: string;
-    type: "input" | "intermediate";
-  } | null;
 }
 
 export interface AgentTask {
@@ -402,4 +385,58 @@ export interface AgentTask {
 export interface GoogleDriveAgentBlock extends BaseBlock {
   type: "googledriveagent";
   prompt?: string;
+}
+
+// Base variable interface
+export interface BaseVariable {
+  id: string;
+  name: string;
+  type: "input" | "intermediate";
+  value?: any;
+  description?: string;
+  agentId?: string;
+}
+
+// New table variable interface
+export interface TableVariable {
+  id: string;
+  name: string;
+  type: "table";
+  agentId: string;
+  updatedAt: string;
+  rows: TableRow[];
+  columnName?: string;
+}
+
+export interface TableRow {
+  id: string;
+  [columnName: string]: any;
+}
+
+// Firebase-related types
+export interface FirebaseTableVariable {
+  id: string;
+  name: string;
+  type: "table";
+  agentId: string;
+  updatedAt: string;
+  rows: TableRow[];
+}
+
+export interface FirebaseVariables {
+  [variableId: string]: BaseVariable | FirebaseTableVariable;
+}
+
+// Table reference types
+export interface TableColumnReference {
+  tableId: string;
+  tableName: string;
+  columnName: string;
+}
+
+export interface ParsedVariableReference {
+  type: "simple" | "table";
+  variableName: string;
+  columnName?: string;
+  fullReference: string;
 }

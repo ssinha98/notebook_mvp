@@ -14,18 +14,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import Image from "next/image";
 import { api } from "@/tools/api";
 import { Variable } from "@/types/types";
 import { Settings } from "lucide-react";
 import { useVariableStore } from "@/lib/variableStore";
+import VariableDropdown from "./VariableDropdown";
+import { useAgentStore } from "@/lib/agentStore";
 
 interface MakeBlockProps {
   blockNumber: number;
@@ -41,6 +36,7 @@ interface MakeBlockProps {
     type: "input" | "intermediate";
   } | null;
   isProcessing?: boolean;
+  onOpenTools?: () => void;
 }
 
 export interface MakeBlockRef {
@@ -58,6 +54,8 @@ const MakeBlock = forwardRef<MakeBlockRef, MakeBlockProps>((props, ref) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const currentAgent = useAgentStore((state) => state.currentAgent);
 
   // Helper function to interpolate variables in a string
   const interpolateVariables = (text: string): string => {
@@ -121,19 +119,44 @@ const MakeBlock = forwardRef<MakeBlockRef, MakeBlockProps>((props, ref) => {
   };
 
   const handleVariableSelect = (value: string) => {
-    setSelectedVariableId(value || null);
-    if (value) {
-      const selectedVariable = props.variables.find((v) => v.id === value);
-      if (selectedVariable) {
-        props.onUpdateBlock(props.blockNumber, {
-          webhookUrl,
-          parameters,
-          outputVariable: {
-            id: selectedVariable.id,
-            name: selectedVariable.name,
-            type: "intermediate",
-          },
-        });
+    if (value === "add_new" && props.onOpenTools) {
+      props.onOpenTools();
+    } else {
+      setSelectedVariableId(value || null);
+      if (value) {
+        // Handle both regular variables and table columns
+        if (value.includes(":")) {
+          // Table column selection - for now just use the table ID
+          const [tableId] = value.split(":");
+          const selectedVariable = props.variables.find(
+            (v) => v.id === tableId
+          );
+          if (selectedVariable) {
+            props.onUpdateBlock(props.blockNumber, {
+              webhookUrl,
+              parameters,
+              outputVariable: {
+                id: selectedVariable.id,
+                name: selectedVariable.name,
+                type: "intermediate",
+              },
+            });
+          }
+        } else {
+          // Regular variable selection
+          const selectedVariable = props.variables.find((v) => v.id === value);
+          if (selectedVariable) {
+            props.onUpdateBlock(props.blockNumber, {
+              webhookUrl,
+              parameters,
+              outputVariable: {
+                id: selectedVariable.id,
+                name: selectedVariable.name,
+                type: "intermediate",
+              },
+            });
+          }
+        }
       }
     }
   };
@@ -272,23 +295,12 @@ print("Response:", response.text)
 
         <div className="flex items-center gap-2 text-gray-300">
           <span>Set output as:</span>
-          <Select
+          <VariableDropdown
             value={selectedVariableId || ""}
             onValueChange={handleVariableSelect}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Variables" />
-            </SelectTrigger>
-            <SelectContent>
-              {props.variables
-                .filter((v) => v.type === "intermediate")
-                .map((variable) => (
-                  <SelectItem key={variable.id} value={variable.id}>
-                    {variable.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+            agentId={currentAgent?.id || null}
+            onAddNew={props.onOpenTools}
+          />
         </div>
       </div>
 
@@ -357,7 +369,7 @@ print("Response:", response.text)
         </div>
       )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-start gap-2">
         <Button variant="outline" onClick={handleClear}>
           Clear
         </Button>

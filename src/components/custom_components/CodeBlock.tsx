@@ -70,24 +70,6 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
   const variables = Object.values(variablesObj);
   const currentAgent = useAgentStore((state) => state.currentAgent);
 
-  // Add debugging logs
-  useEffect(() => {
-    console.log("CodeBlock mount/update - Debug info:", {
-      blockNumber: props.blockNumber,
-      initialOutputVariable: props.initialOutputVariable,
-      variablesObj,
-      variables,
-      currentAgent,
-      selectedVariableId,
-    });
-  }, [
-    props.initialOutputVariable,
-    variablesObj,
-    variables,
-    currentAgent,
-    selectedVariableId,
-  ]);
-
   // Load variables when component mounts
   useEffect(() => {
     const loadVars = async () => {
@@ -100,10 +82,21 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
     loadVars();
   }, [currentAgent?.id]);
 
-  // Update effect to initialize selected variable from initialOutputVariable
-  useEffect(() => {
-    if (props.initialOutputVariable?.id) {
-      setSelectedVariableId(props.initialOutputVariable.id);
+  // Update local variable value when initialOutputVariable changes
+  React.useEffect(() => {
+    if (props.initialOutputVariable) {
+      if (
+        props.initialOutputVariable.type === "table" &&
+        props.initialOutputVariable.columnName
+      ) {
+        // Table column variable - set the combined value
+        setSelectedVariableId(
+          `${props.initialOutputVariable.id}:${props.initialOutputVariable.columnName}`
+        );
+      } else {
+        // Regular variable
+        setSelectedVariableId(props.initialOutputVariable.id);
+      }
     }
   }, [props.initialOutputVariable]);
 
@@ -249,11 +242,18 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
           .getVariableByName(varName.trim())?.value;
 
         if (variableValue !== undefined) {
-          // Always wrap string values in quotes to ensure valid Python syntax
-          const value =
-            typeof variableValue === "string"
-              ? `"${variableValue}"` // Add quotes around strings
-              : variableValue; // Leave non-strings (like numbers) as is
+          // Handle different types of variable values
+          let value: string;
+          if (typeof variableValue === "string") {
+            // Always wrap string values in quotes to ensure valid Python syntax
+            value = `"${variableValue}"`;
+          } else if (Array.isArray(variableValue)) {
+            // Handle table variables by converting to string representation
+            value = `"Table with ${variableValue.length} rows"`;
+          } else {
+            // Handle other types (numbers, booleans, etc.)
+            value = String(variableValue);
+          }
 
           interpolatedCode = interpolatedCode.replace(fullMatch, value);
         } else {
@@ -395,7 +395,7 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
         </div>
       )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-start gap-2">
         <Button
           variant="outline"
           onClick={() => {

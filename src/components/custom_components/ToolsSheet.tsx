@@ -140,62 +140,63 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      {/* <TableHead>Original File</TableHead> */}
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {Object.entries(fileNicknames).map(
                       ([nickname, details]) => (
-                        <ContextMenu key={nickname}>
-                          <ContextMenuTrigger>
-                            <TableRow className="cursor-pointer hover:bg-secondary/80">
-                              <td className="px-4 py-2">{nickname}</td>
-                              <td className="px-4 py-2">
-                                {details.originalName}
-                              </td>
-                              <td className="px-4 py-2 text-right">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSourceDelete(nickname);
+                        <TableRow
+                          key={nickname}
+                          className="cursor-pointer hover:bg-secondary/80"
+                        >
+                          <td className="px-4 py-2">{nickname}</td>
+                          <td className="px-4 py-2 text-right">
+                            <ContextMenu>
+                              <ContextMenuTrigger asChild>
+                                <div className="w-full h-full">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSourceDelete(nickname);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 h-4 w-4 p-0 text-muted-foreground hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </ContextMenuTrigger>
+                              <ContextMenuContent>
+                                <ContextMenuItem
+                                  className="flex items-center gap-2"
+                                  onClick={() => {
+                                    addBlock("transform", {
+                                      sourceName: nickname,
+                                      originalFilePath: details.originalName,
+                                      fileType: "csv",
+                                      transformations: {
+                                        filterCriteria: [],
+                                        columns: [],
+                                        previewData: [],
+                                      },
+                                    });
+                                    onOpenChange(false);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 h-4 w-4 p-0 text-muted-foreground hover:text-destructive"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  Add to notebook
+                                </ContextMenuItem>
+                                <ContextMenuItem
+                                  className="text-destructive focus:text-destructive flex items-center gap-2"
+                                  onClick={() => handleSourceDelete(nickname)}
                                 >
                                   <Trash2 className="h-4 w-4" />
-                                </button>
-                              </td>
-                            </TableRow>
-                          </ContextMenuTrigger>
-                          <ContextMenuContent>
-                            <ContextMenuItem
-                              className="flex items-center gap-2"
-                              onClick={() => {
-                                addBlock("transform", {
-                                  sourceName: nickname,
-                                  originalFilePath: details.originalName,
-                                  fileType: "csv",
-                                  transformations: {
-                                    filterCriteria: [],
-                                    columns: [],
-                                    previewData: [],
-                                  },
-                                });
-                                onOpenChange(false);
-                              }}
-                            >
-                              <Plus className="h-4 w-4" />
-                              Add to notebook
-                            </ContextMenuItem>
-                            <ContextMenuItem
-                              className="text-destructive focus:text-destructive flex items-center gap-2"
-                              onClick={() => handleSourceDelete(nickname)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </ContextMenuItem>
-                          </ContextMenuContent>
-                        </ContextMenu>
+                                  Delete
+                                </ContextMenuItem>
+                              </ContextMenuContent>
+                            </ContextMenu>
+                          </td>
+                        </TableRow>
                       )
                     )}
                   </TableBody>
@@ -230,9 +231,9 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
                     <TableBody>
                       {Object.values(variables)
                         .filter((v) => v.type === "input")
-                        .map((variable, index) => (
+                        .map((variable) => (
                           <TableRow
-                            key={index}
+                            key={variable.id}
                             className="cursor-pointer hover:bg-secondary/80"
                             onClick={() => {
                               navigator.clipboard.writeText(
@@ -270,9 +271,9 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
                     <TableBody>
                       {Object.values(variables)
                         .filter((v) => v.type === "intermediate")
-                        .map((variable, index) => (
+                        .map((variable) => (
                           <TableRow
-                            key={index}
+                            key={variable.id}
                             className="cursor-pointer hover:bg-secondary/80"
                             onClick={() => {
                               navigator.clipboard.writeText(

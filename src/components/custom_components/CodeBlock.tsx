@@ -42,7 +42,8 @@ interface CodeBlockProps {
   initialOutputVariable?: {
     id: string;
     name: string;
-    type: "input" | "intermediate";
+    type: "input" | "intermediate" | "table";
+    columnName?: string;
   } | null;
   initialStatus?: "approved" | "tbd";
 }

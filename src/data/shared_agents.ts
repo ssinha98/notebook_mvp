@@ -3577,7 +3577,8 @@ Marketing Division:
         outputVariable: {
           name: "distribution_chart",
         },
-        output: "https://drive.google.com/file/d/1P-nLj0Cdtem7hfVm0pK9P6tQ63E1AD6Z/view?usp=sharing",
+        output:
+          "https://drive.google.com/file/d/1P-nLj0Cdtem7hfVm0pK9P6tQ63E1AD6Z/view?usp=sharing",
       },
       {
         id: "white_paper_generation",
@@ -3631,6 +3632,228 @@ Marketing Division:
         ],
         output:
           "✅ Notion board updated: White paper draft sent to Project XYZ prospect",
+      },
+    ],
+  },
+  {
+    id: "multi-platform-ads-monitor",
+    name: "Multi-Platform Ads Performance Monitor",
+    description:
+      "Automated weekly monitoring and analysis of Google, Facebook, and LinkedIn ads performance",
+    agentDescription:
+      "This agent automatically pulls campaign performance data from Google Ads, Facebook Ads, and LinkedIn Ads, creates comprehensive summaries and visualizations, updates Google Sheets with LinkedIn data, and monitors for performance issues. It sends weekly performance reports to the marketing team and provides actionable recommendations when performance is declining. Benefit Metrics: Saves ~3-4 hours per week in manual reporting, provides early warning for underperforming campaigns, and centralizes cross-platform ad performance monitoring.",
+    tags: ["Marketing", "Analytics", "Automation"],
+    start_method: "scheduled",
+    blocks: [
+      {
+        id: "google_ads_pull_block",
+        type: "make",
+        blockNumber: 1,
+        webhookUrl: "https://hook.make.com/google-ads-campaign-pull",
+        parameters: [
+          {
+            key: "campaign_1",
+            value: "brand_awareness_campaign_001",
+          },
+          {
+            key: "campaign_2",
+            value: "lead_generation_campaign_002",
+          },
+          {
+            key: "campaign_3",
+            value: "conversion_campaign_003",
+          },
+        ],
+        outputVariable: {
+          name: "google_ads_pull",
+          value:
+            "Google Ads Campaign Performance Data:\n\nCampaign: brand_awareness_campaign_001\n• Impressions: 45,230\n• Clicks: 1,821\n• CTR: 4.02%\n• CPC: $1.23\n• Conversions: 67\n• Cost: $2,239.83\n• ROAS: 3.4x\n\nCampaign: lead_generation_campaign_002\n• Impressions: 32,187\n• Clicks: 2,156\n• CTR: 6.7%\n• CPC: $0.87\n• Conversions: 134\n• Cost: $1,875.72\n• ROAS: 4.2x\n\nCampaign: conversion_campaign_003\n• Impressions: 18,945\n• Clicks: 1,234\n• CTR: 6.5%\n• CPC: $1.45\n• Conversions: 89\n• Cost: $1,789.30\n• ROAS: 2.8x",
+        },
+        output:
+          "✅ Google Ads data retrieved successfully - 3 campaigns analyzed",
+      },
+      {
+        id: "facebook_ads_pull_block",
+        type: "make",
+        blockNumber: 2,
+        webhookUrl: "https://hook.make.com/facebook-ads-campaign-pull",
+        parameters: [
+          {
+            key: "campaign_1",
+            value: "facebook_brand_campaign_001",
+          },
+          {
+            key: "campaign_2",
+            value: "facebook_retargeting_campaign_002",
+          },
+          {
+            key: "campaign_3",
+            value: "facebook_lookalike_campaign_003",
+          },
+        ],
+        outputVariable: {
+          name: "facebook_ads_pull",
+          value:
+            "Facebook Ads Campaign Performance Data:\n\nCampaign: facebook_brand_campaign_001\n• Impressions: 67,432\n• Clicks: 2,847\n• CTR: 4.22%\n• CPC: $0.95\n• Conversions: 98\n• Cost: $2,704.65\n• ROAS: 3.1x\n\nCampaign: facebook_retargeting_campaign_002\n• Impressions: 28,156\n• Clicks: 1,932\n• CTR: 6.86%\n• CPC: $1.12\n• Conversions: 156\n• Cost: $2,163.84\n• ROAS: 4.7x\n\nCampaign: facebook_lookalike_campaign_003\n• Impressions: 41,023\n• Clicks: 1,687\n• CTR: 4.11%\n• CPC: $1.34\n• Conversions: 87\n• Cost: $2,260.58\n• ROAS: 2.9x",
+        },
+        output:
+          "✅ Facebook Ads data retrieved successfully - 3 campaigns analyzed",
+      },
+      {
+        id: "linkedin_ads_pull_block",
+        type: "make",
+        blockNumber: 3,
+        webhookUrl: "https://hook.make.com/linkedin-ads-campaign-pull",
+        parameters: [
+          {
+            key: "campaign_1",
+            value: "linkedin_professional_campaign_001",
+          },
+          {
+            key: "campaign_2",
+            value: "linkedin_thought_leadership_campaign_002",
+          },
+          {
+            key: "campaign_3",
+            value: "linkedin_lead_gen_campaign_003",
+          },
+        ],
+        outputVariable: {
+          name: "linkedin_ads_pull",
+          value:
+            "LinkedIn Ads Campaign Performance Data:\n\nCampaign: linkedin_professional_campaign_001\n• Impressions: 23,456\n• Clicks: 892\n• CTR: 3.8%\n• CPC: $2.15\n• Conversions: 34\n• Cost: $1,917.80\n• ROAS: 2.4x\n\nCampaign: linkedin_thought_leadership_campaign_002\n• Impressions: 18,923\n• Clicks: 734\n• CTR: 3.88%\n• CPC: $2.43\n• Conversions: 28\n• Cost: $1,783.62\n• ROAS: 2.1x\n\nCampaign: linkedin_lead_gen_campaign_003\n• Impressions: 31,245\n• Clicks: 1,156\n• CTR: 3.7%\n• CPC: $1.89\n• Conversions: 67\n• Cost: $2,184.84\n• ROAS: 3.2x",
+        },
+        output:
+          "✅ LinkedIn Ads data retrieved successfully - 3 campaigns analyzed",
+      },
+      {
+        id: "ads_summary_block",
+        type: "agent",
+        blockNumber: 4,
+        userPrompt:
+          "Analyze the performance data from {{google_ads_pull}}, {{facebook_ads_pull}}, and {{linkedin_ads_pull}}. Create a comprehensive summary comparing performance across all three platforms. Include key metrics, top performing campaigns, and any notable trends or insights.",
+        outputVariable: {
+          name: "ads_performance_summary",
+          value:
+            "Multi-Platform Ads Performance Summary:\n\n**Overall Performance:**\n• Total Spend: $16,919.18\n• Total Conversions: 760\n• Average ROAS: 3.2x\n• Platform Performance Ranking: Facebook (3.9x avg ROAS) > Google (3.5x avg ROAS) > LinkedIn (2.6x avg ROAS)\n\n**Top Performing Campaigns:**\n1. Facebook Retargeting Campaign (4.7x ROAS)\n2. Google Lead Generation Campaign (4.2x ROAS)\n3. Google Brand Awareness Campaign (3.4x ROAS)\n\n**Platform Insights:**\n• Google Ads: Strong lead generation performance, highest conversion volume\n• Facebook Ads: Best retargeting results, strong brand awareness\n• LinkedIn Ads: Higher CPC but good professional audience engagement\n\n**Key Trends:**\n• Retargeting campaigns consistently outperform prospecting\n• LinkedIn showing lower ROAS but higher intent conversions\n• Google maintaining steady performance across all campaign types",
+        },
+        output:
+          "Multi-Platform Ads Performance Summary:\n\n**Overall Performance:**\n• Total Spend: $16,919.18\n• Total Conversions: 760\n• Average ROAS: 3.2x\n• Platform Performance Ranking: Facebook (3.9x avg ROAS) > Google (3.5x avg ROAS) > LinkedIn (2.6x avg ROAS)\n\n**Top Performing Campaigns:**\n1. Facebook Retargeting Campaign (4.7x ROAS)\n2. Google Lead Generation Campaign (4.2x ROAS)\n3. Google Brand Awareness Campaign (3.4x ROAS)\n\n**Platform Insights:**\n• Google Ads: Strong lead generation performance, highest conversion volume\n• Facebook Ads: Best retargeting results, strong brand awareness\n• LinkedIn Ads: Higher CPC but good professional audience engagement\n\n**Key Trends:**\n• Retargeting campaigns consistently outperform prospecting\n• LinkedIn showing lower ROAS but higher intent conversions\n• Google maintaining steady performance across all campaign types",
+      },
+      {
+        id: "performance_visualization_block",
+        type: "dataviz",
+        blockNumber: 5,
+        chosenChart: "smart",
+        source: "{{ads_performance_summary}}",
+        context: "Multi-platform advertising performance comparison",
+        pointers: "Focus on ROAS comparison and conversion volume by platform",
+        outputVariable: {
+          name: "ads_performance_chart",
+          value:
+            "https://drive.google.com/file/d/1ads-performance-visualization/view",
+        },
+        output:
+          "https://drive.google.com/file/d/1ads-performance-visualization/view",
+      },
+      {
+        id: "google_sheets_update_block",
+        type: "codeblock",
+        blockNumber: 6,
+        language: "python",
+        code: `import gspread
+  from google.oauth2.service_account import Credentials
+  import pandas as pd
+  from datetime import datetime
+  
+  # Set up credentials and connect to Google Sheets
+  SCOPES = ['https://www.googleapis.com/spreadsheets/w/2022/03/google-sheets/']
+  creds = Credentials.from_service_account_file('path/to/service-account.json', scopes=SCOPES)
+  client = gspread.authorize(creds)
+  
+  # Open the marketing spreadsheet
+  sheet = client.open("Marketing Performance Tracker").worksheet("LinkedIn Ads")
+  
+  # Parse LinkedIn ads data
+  linkedin_data = """{{linkedin_ads_pull}}"""
+  
+  # Extract campaign data (simplified parsing)
+  campaigns = []
+  lines = linkedin_data.strip().split('\\n')
+  current_campaign = {}
+  
+  for line in lines:
+      if line.startswith('Campaign:'):
+          if current_campaign:
+              campaigns.append(current_campaign)
+          current_campaign = {'campaign': line.split(': ')[1], 'date': datetime.now().strftime('%Y-%m-%d')}
+      elif '• Impressions:' in line:
+          current_campaign['impressions'] = line.split(': ')[1].replace(',', '')
+      elif '• Clicks:' in line:
+          current_campaign['clicks'] = line.split(': ')[1].replace(',', '')
+      elif '• CTR:' in line:
+          current_campaign['ctr'] = line.split(': ')[1]
+      elif '• CPC:' in line:
+          current_campaign['cpc'] = line.split(': ')[1]
+      elif '• Conversions:' in line:
+          current_campaign['conversions'] = line.split(': ')[1]
+      elif '• Cost:' in line:
+          current_campaign['cost'] = line.split(': ')[1]
+      elif '• ROAS:' in line:
+          current_campaign['roas'] = line.split(': ')[1]
+  
+  if current_campaign:
+      campaigns.append(current_campaign)
+  
+  # Update the sheet
+  for i, campaign in enumerate(campaigns):
+      row_num = i + 2  # Starting from row 2 (assuming headers in row 1)
+      sheet.update(f'A{row_num}', campaign.get('date', ''))
+      sheet.update(f'B{row_num}', campaign.get('campaign', ''))
+      sheet.update(f'C{row_num}', campaign.get('impressions', ''))
+      sheet.update(f'D{row_num}', campaign.get('clicks', ''))
+      sheet.update(f'E{row_num}', campaign.get('ctr', ''))
+      sheet.update(f'F{row_num}', campaign.get('cpc', ''))
+      sheet.update(f'G{row_num}', campaign.get('conversions', ''))
+      sheet.update(f'H{row_num}', campaign.get('cost', ''))
+      sheet.update(f'I{row_num}', campaign.get('roas', ''))
+  
+  print(f"Updated {len(campaigns)} LinkedIn campaigns in Google Sheets")`,
+        outputVariable: {
+          name: "sheets_update_result",
+          value: "Updated 3 LinkedIn campaigns in Google Sheets",
+        },
+        output: "Updated 3 LinkedIn campaigns in Google Sheets",
+      },
+      {
+        id: "linkedin_performance_check_block",
+        type: "agent",
+        blockNumber: 7,
+        userPrompt:
+          "Analyze the LinkedIn ads performance data from {{linkedin_ads_pull}} and the Google Sheets update results from {{sheets_update_result}}. Look for signs of stagnating or declining performance. Compare current performance to typical benchmarks. If performance is declining or stagnating, recommend specific content or targeting changes. If performance is acceptable, confirm it's fine for now. Save your analysis and recommendations.",
+        outputVariable: {
+          name: "linkedin_weekly_check",
+          value:
+            "LinkedIn Ads Weekly Performance Check:\n\n**Current Performance Analysis:**\n• Average ROAS: 2.6x (Below 3.0x benchmark)\n• Average CTR: 3.8% (Good for LinkedIn)\n• Average CPC: $2.15 (Within expected range)\n• Conversion Rate: 3.8% (Acceptable)\n\n**Performance Status: ⚠️ NEEDS ATTENTION**\n\n**Key Issues Identified:**\n• ROAS consistently below 3.0x benchmark across all campaigns\n• Thought leadership campaign showing weakest performance (2.1x ROAS)\n• Cost per conversion trending upward\n\n**Recommended Actions:**\n1. **Content Refresh:** Update thought leadership campaign with more engaging, industry-specific content\n2. **Audience Refinement:** Narrow targeting for professional campaign to focus on high-intent job titles\n3. **Creative Testing:** A/B test video content vs. static images for lead gen campaign\n4. **Bid Strategy:** Consider switching to target ROAS bidding at 3.5x\n5. **Landing Page Optimization:** Review and optimize landing pages for better conversion rates\n\n**Next Review:** Monitor for 2 weeks after implementing changes",
+        },
+        output:
+          "LinkedIn Ads Weekly Performance Check:\n\n**Current Performance Analysis:**\n• Average ROAS: 2.6x (Below 3.0x benchmark)\n• Average CTR: 3.8% (Good for LinkedIn)\n• Average CPC: $2.15 (Within expected range)\n• Conversion Rate: 3.8% (Acceptable)\n\n**Performance Status: ⚠️ NEEDS ATTENTION**\n\n**Key Issues Identified:**\n• ROAS consistently below 3.0x benchmark across all campaigns\n• Thought leadership campaign showing weakest performance (2.1x ROAS)\n• Cost per conversion trending upward\n\n**Recommended Actions:**\n1. **Content Refresh:** Update thought leadership campaign with more engaging, industry-specific content\n2. **Audience Refinement:** Narrow targeting for professional campaign to focus on high-intent job titles\n3. **Creative Testing:** A/B test video content vs. static images for lead gen campaign\n4. **Bid Strategy:** Consider switching to target ROAS bidding at 3.5x\n5. **Landing Page Optimization:** Review and optimize landing pages for better conversion rates\n\n**Next Review:** Monitor for 2 weeks after implementing changes",
+      },
+      {
+        id: "weekly_report_email_block",
+        type: "contact",
+        blockNumber: 8,
+        to: "marketing_group@dragonflydb.io",
+        subject:
+          "Weekly Ads Performance Report & LinkedIn Optimization Recommendations",
+        body: "Hi Marketing Team,\n\nHere's your weekly multi-platform ads performance report:\n\n## 📊 Performance Summary\n{{ads_performance_summary}}\n\n## 📈 Visual Analysis\nDetailed performance visualization: {{ads_performance_chart}}\n\n## 🔍 LinkedIn Deep Dive\n{{linkedin_weekly_check}}\n\n## 📋 Google Sheets Update\nLinkedIn campaign data has been updated in our Marketing Performance Tracker: {{sheets_update_result}}\n\n## 🎯 Key Takeaways\n• Facebook retargeting is our top performer - consider expanding budget\n• Google lead gen showing strong consistent results\n• LinkedIn needs attention - ROAS below benchmark\n• Overall spend efficiency is good but room for improvement\n\n## 🚀 Next Steps\n1. Implement LinkedIn optimization recommendations\n2. Consider reallocating budget from LinkedIn to Facebook retargeting\n3. Review landing page performance for LinkedIn campaigns\n4. Schedule creative refresh for underperforming campaigns\n\nFull campaign data is available in the Marketing Performance Tracker spreadsheet.\n\nQuestions? Reply to this email or ping me on Slack.\n\nBest,\nYour Marketing Automation Agent",
+        outputVariable: {
+          name: "weekly_report_sent",
+          value:
+            "Weekly marketing report sent to marketing_group@dragonflydb.io",
+        },
+        output:
+          "📨 Weekly marketing report sent to marketing_group@dragonflydb.io",
       },
     ],
   },

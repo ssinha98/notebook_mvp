@@ -113,7 +113,8 @@ export default function AgentStorePage() {
       ? SHAREABLE_AGENTS.filter(
           (agent) =>
             agent.id !== "pawlicy-clinic-router" &&
-            agent.id !== "tokenomics-strategy-agent"
+            agent.id !== "tokenomics-strategy-agent" &&
+            agent.id !== "multi-platform-ads-monitor"
         )
       : SHAREABLE_AGENTS.filter(
           (agent) =>

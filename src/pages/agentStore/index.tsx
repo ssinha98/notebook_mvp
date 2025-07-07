@@ -107,13 +107,18 @@ export default function AgentStorePage() {
     console.log("Cleared tag:", tag);
   };
 
-  // Update filter logic to exclude specific agent
+  // Update filter logic to exclude specific agents
   const filteredAgents =
     selectedTag === "All"
-      ? SHAREABLE_AGENTS.filter((agent) => agent.id !== "pawlicy-clinic-router")
+      ? SHAREABLE_AGENTS.filter(
+          (agent) =>
+            agent.id !== "pawlicy-clinic-router" &&
+            agent.id !== "tokenomics-strategy-agent"
+        )
       : SHAREABLE_AGENTS.filter(
           (agent) =>
             agent.id !== "pawlicy-clinic-router" &&
+            agent.id !== "tokenomics-strategy-agent" &&
             agent.tags.some(
               (tag) => tag.toLowerCase() === selectedTag.toLowerCase()
             )

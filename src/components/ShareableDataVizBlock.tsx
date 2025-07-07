@@ -85,6 +85,7 @@ export default function ShareableDataVizBlock({
   source,
   context,
   pointers,
+  outputVariable,
   isProcessing,
   isCompleted,
   thinkingEmoji,
@@ -197,6 +198,13 @@ export default function ShareableDataVizBlock({
             <div className="bg-gray-800 p-3 rounded-lg">
               <span className="text-white">{pointers}</span>
             </div>
+          </div>
+        )}
+
+        {outputVariable && (
+          <div>
+            <p className="text-sm text-gray-400 mb-2">Save output as:</p>
+            <p className="text-blue-400">{outputVariable.name}</p>
           </div>
         )}
 

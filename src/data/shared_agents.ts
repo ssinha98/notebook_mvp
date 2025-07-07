@@ -3466,8 +3466,7 @@ Marketing Division:
       "Automated tokenomics analysis and white paper creation from client materials",
     agentDescription:
       "This agent processes client materials to extract tokenomics insights, creates distribution visualizations, and generates professional white papers. It streamlines the complex process of tokenomics strategy development by automatically analyzing project materials and delivering comprehensive documentation. Benefit Metrics: Reduces tokenomics analysis time by 80%, eliminates manual white paper creation, and saves ~4-5 hours per client consultation.",
-    tags: ["Content", "Data Analysis", "Sales"],
-    // tags: ["Consulting", "Finance", "Content"],
+    tags: ["Consulting", "Finance", "Content"],
     start_method: "email",
     blocks: [
       {
@@ -3494,7 +3493,7 @@ Marketing Division:
         attachedFile: {
           name: "prospecting_leads_guide.pdf",
           type: "pdf",
-          url: "https://drive.google.com/file/d/1example-prospecting-leads-guide/view",
+          url: "https://docs.google.com/document/d/1MwpQSoL9xZDezMOx54Rtgw7XGWjb-57IA7IuoIwKa1g/edit?usp=sharing",
           content: "Prospecting leads guide content...",
         },
         outputVariable: {
@@ -3526,7 +3525,13 @@ Marketing Division:
         type: "agent",
         blockNumber: 5,
         userPrompt:
-          "Review all the information we've gathered so far from the initial email and the follow-up response. Determine if we have sufficient information to proceed with creating a comprehensive tokenomics strategy. If yes, summarize the key project details.",
+          "Review the email content and attached materials. Using @prospecting_leads_guide as a reference, identify any additional questions that need to be answered to deliver the tokenomics strategy. Draft a professional email asking these questions.",
+        attachedFile: {
+          name: "prospecting_leads_guide.pdf",
+          type: "pdf",
+          url: "https://docs.google.com/document/d/1MwpQSoL9xZDezMOx54Rtgw7XGWjb-57IA7IuoIwKa1g/edit?usp=sharing",
+          content: "Prospecting leads guide content...",
+        },
         outputVariable: {
           name: "project_readiness",
         },
@@ -3572,8 +3577,7 @@ Marketing Division:
         outputVariable: {
           name: "distribution_chart",
         },
-        output:
-          "Pie chart created successfully! View here: https://drive.google.com/file/d/1P-nLj0Cdtem7hfVm0pK9P6tQ63E1AD6Z/view?usp=sharing",
+        output: "https://drive.google.com/file/d/1P-nLj0Cdtem7hfVm0pK9P6tQ63E1AD6Z/view?usp=sharing",
       },
       {
         id: "white_paper_generation",

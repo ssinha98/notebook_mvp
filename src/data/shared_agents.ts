@@ -3459,4 +3459,175 @@ Marketing Division:
       },
     ],
   },
+  {
+    id: "tokenomics-strategy-agent",
+    name: "Tokenomics Strategy & White Paper Generator",
+    description:
+      "Automated tokenomics analysis and white paper creation from client materials",
+    agentDescription:
+      "This agent processes client materials to extract tokenomics insights, creates distribution visualizations, and generates professional white papers. It streamlines the complex process of tokenomics strategy development by automatically analyzing project materials and delivering comprehensive documentation. Benefit Metrics: Reduces tokenomics analysis time by 80%, eliminates manual white paper creation, and saves ~4-5 hours per client consultation.",
+    tags: ["Content", "Data Analysis", "Sales"],
+    // tags: ["Consulting", "Finance", "Content"],
+    start_method: "email",
+    blocks: [
+      {
+        id: "initial_tokenomics_request",
+        type: "simulatedemail",
+        blockNumber: 1,
+        from: "client@projectxyz.com",
+        subject: "Tokenomics Strategy Support Request",
+        body: "Hey,\n\nI'm looking to add a tokenomics strategy to my app. Attached are some materials to give you context about our project, user base, and business model.\n\nCould you help us develop a comprehensive tokenomics framework and documentation?\n\nThanks!\nAlex\nProject XYZ Team",
+        attachments: [
+          {
+            name: "project_materials.pdf",
+            type: "pdf",
+            content: "Project materials content...",
+          },
+        ],
+      },
+      {
+        id: "prospecting_questions_block",
+        type: "agent",
+        blockNumber: 2,
+        userPrompt:
+          "Review the email content and attached materials. Using @prospecting_leads_guide as a reference, identify any additional questions that need to be answered to deliver the tokenomics strategy. Draft a professional email asking these questions.",
+        attachedFile: {
+          name: "prospecting_leads_guide.pdf",
+          type: "pdf",
+          url: "https://drive.google.com/file/d/1example-prospecting-leads-guide/view",
+          content: "Prospecting leads guide content...",
+        },
+        outputVariable: {
+          name: "qualification_questions",
+        },
+        output:
+          "Hey Alex,\n\nThanks for contacting us about tokenomics strategy support! I've reviewed your initial materials and would love to help you develop a comprehensive framework.\n\nA couple of questions about what you're working on to ensure we provide the most relevant strategy:\n\n1. What's your target user base size and current monthly active users? This helps us determine the right token utility mechanisms.\n\n2. Do you have any existing revenue streams or monetization plans? Understanding your business model will help us align the tokenomics with your economic objectives.\n\nOnce I have these details, I can dive deeper into creating your tokenomics strategy and white paper.\n\nBest regards,\nTokenomics Strategy Team",
+      },
+      {
+        id: "send_qualification_questions",
+        type: "contact",
+        blockNumber: 3,
+        to: "client@projectxyz.com",
+        subject: "Re: Tokenomics Strategy Support Request",
+        body: "{{qualification_questions}}",
+        output: "Response 200: 📨 email sent!",
+      },
+      {
+        id: "client_qualification_response",
+        type: "simulatedemail",
+        blockNumber: 4,
+        from: "client@projectxyz.com",
+        subject: "Re: Tokenomics Strategy Support Request",
+        body: "Hi there,\n\nThanks for the follow-up! Here are the answers to your questions:\n\n1. We currently have about 15,000 monthly active users and are targeting 100,000+ within the next 18 months. Our user base is primarily mobile-first, tech-savvy millennials and Gen Z.\n\n2. We have a freemium model with premium subscriptions ($9.99/month) and we're exploring in-app purchases. About 8% of users convert to premium currently.\n\nHope this helps! Looking forward to seeing what you come up with.\n\nBest,\nAlex",
+        attachments: [],
+      },
+      {
+        id: "readiness_check_block",
+        type: "agent",
+        blockNumber: 5,
+        userPrompt:
+          "Review all the information we've gathered so far from the initial email and the follow-up response. Determine if we have sufficient information to proceed with creating a comprehensive tokenomics strategy. If yes, summarize the key project details.",
+        outputVariable: {
+          name: "project_readiness",
+        },
+        output:
+          "✅ Ready to proceed with tokenomics strategy development!\n\nProject Summary:\n• App: Project XYZ\n• Current MAU: 15,000\n• Target MAU: 100,000+ (18 months)\n• User Demographics: Mobile-first, tech-savvy millennials & Gen Z\n• Revenue Model: Freemium ($9.99/month) + in-app purchases\n• Conversion Rate: 8% to premium\n• Business Model: Established revenue streams ready for tokenization\n\nAll necessary information collected to develop comprehensive tokenomics strategy.",
+      },
+      {
+        id: "tokenomics_analysis_block",
+        type: "agent",
+        blockNumber: 6,
+        userPrompt:
+          "Using the project details from {{project_readiness}} and @tokenomics_strategy as a reference framework, extract key points for developing a white paper and create a comprehensive tokenomics distribution strategy focusing on supply/demand dynamics for Project XYZ.",
+        attachedFile: {
+          name: "tokenomics_strategy.pdf",
+          type: "pdf",
+          url: "https://drive.google.com/file/d/1example-tokenomics-strategy-framework/view",
+          content: "Tokenomics strategy framework content...",
+        },
+        outputVariable: {
+          name: "tokenomics_analysis",
+        },
+        output:
+          "Tokenomics Analysis Complete for Project XYZ:\n\nKey Points for White Paper:\n• Utility-driven token model with staking rewards\n• Freemium-to-premium conversion incentives\n• Community governance for feature development\n• Deflationary mechanisms through burning\n• Mobile-first user experience integration\n\nTokenomics Distribution:\n• Team & Advisors: 20%\n• Community Rewards: 35%\n• Liquidity Pool: 25%\n• Development Fund: 15%\n• Marketing & Partnerships: 5%\n\nSupply/Demand Drivers:\n• Premium subscription discounts with token payments\n• Staking rewards for long-term holders\n• Governance participation increases demand\n• In-app purchase token utility\n• Monthly burn events tied to revenue",
+      },
+      {
+        id: "distribution_extraction_block",
+        type: "agent",
+        blockNumber: 7,
+        userPrompt:
+          "From {{tokenomics_analysis}}, extract only the tokenomics distribution percentages and categories. Format this as clean data suitable for visualization.",
+        outputVariable: {
+          name: "token_distribution",
+        },
+        output:
+          "Token Distribution Data:\n\nTeam & Advisors: 20%\nCommunity Rewards: 35%\nLiquidity Pool: 25%\nDevelopment Fund: 15%\nMarketing & Partnerships: 5%",
+      },
+      {
+        id: "pie_chart_visualization",
+        type: "dataviz",
+        blockNumber: 8,
+        chosenChart: "pie",
+        source: "{{token_distribution}}",
+        outputVariable: {
+          name: "distribution_chart",
+        },
+        output:
+          "Pie chart created successfully! View here: https://drive.google.com/file/d/1P-nLj0Cdtem7hfVm0pK9P6tQ63E1AD6Z/view?usp=sharing",
+      },
+      {
+        id: "white_paper_generation",
+        type: "agent",
+        blockNumber: 9,
+        userPrompt:
+          "Using the analysis from {{tokenomics_analysis}} and the @white_paper_demo template, create a comprehensive white paper draft covering the tokenomics strategy, distribution model, and economic mechanisms for Project XYZ.",
+        attachedFile: {
+          name: "white_paper_demo.pdf",
+          type: "pdf",
+          url: "https://drive.google.com/file/d/1example-white-paper-template/view",
+          content: "White paper template content...",
+        },
+        outputVariable: {
+          name: "white_paper_draft",
+        },
+        output:
+          "White Paper Draft Complete:\n\n# Project XYZ Tokenomics White Paper\n\n## Executive Summary\nProject XYZ introduces a utility-driven token economy designed to incentivize community participation while enhancing the freemium-to-premium conversion funnel...\n\n## Token Distribution & Allocation\n[Detailed breakdown of the 5-tier allocation strategy]\n\n## Economic Mechanisms\n[Premium subscription discounts, staking rewards, governance participation, deflationary burning]\n\n## Mobile-First Implementation\n[Seamless in-app token integration and user experience]\n\n## Implementation Roadmap\n[Phased rollout strategy over 24 months]\n\nDocument saved as: project-xyz-tokenomics-whitepaper-v1.pdf",
+      },
+      {
+        id: "client_delivery_block",
+        type: "contact",
+        blockNumber: 10,
+        to: "client@projectxyz.com",
+        subject: "Your Tokenomics Strategy & White Paper - Ready for Review",
+        body: "Hi Alex,\n\nI've completed the comprehensive tokenomics analysis for Project XYZ based on your project details. Please find attached:\n\n1. **Token Distribution Visualization**: {{distribution_chart}}\n2. **White Paper Draft**: {{white_paper_draft}}\n\nThe strategy is specifically tailored to your freemium model and mobile-first user base:\n\n• Community-first approach with 35% token allocation\n• Premium subscription integration with token utility\n• Mobile-optimized token experience\n• Deflationary mechanisms tied to your revenue streams\n• Growth-focused distribution supporting your 100K+ MAU target\n\nKey highlights:\n• Token-based discounts for premium subscriptions\n• Staking rewards to increase user retention\n• Governance participation for feature development\n• Phased 24-month implementation roadmap\n\nPlease review and let me know if you'd like any adjustments to the strategy or additional analysis.\n\nBest regards,\nTokenomics Strategy Team",
+        output: "Response 200: 📨 email sent!",
+      },
+      {
+        id: "notion_update_block",
+        type: "make",
+        blockNumber: 11,
+        webhookUrl: "https://hook.make.com/notion-pipeline-update",
+        parameters: [
+          {
+            key: "client_name",
+            value: "Project XYZ - Alex",
+          },
+          {
+            key: "status",
+            value: "white paper draft sent to prospect",
+          },
+          {
+            key: "project_type",
+            value: "tokenomics strategy",
+          },
+          {
+            key: "deliverables",
+            value: "token distribution chart, white paper draft",
+          },
+        ],
+        output:
+          "✅ Notion board updated: White paper draft sent to Project XYZ prospect",
+      },
+    ],
+  },
 ];

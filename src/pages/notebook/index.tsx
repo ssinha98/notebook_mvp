@@ -55,6 +55,8 @@ import DataVizAgent, {
 } from "@/components/custom_components/DataVizAgent";
 import ClickUpAgent from "@/components/custom_components/ClickUpAgent";
 import GoogleDriveAgent from "@/components/custom_components/GoogleDriveAgent";
+import { useAutoSave } from "@/hooks/useAutoSave";
+import { toast } from "sonner";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -1011,6 +1013,36 @@ export default function Notebook() {
   };
 
   const [isRunComplete, setIsRunComplete] = useState(false);
+
+  // Custom handler for creating new agents
+  const handleCreateNewAgent = async (name: string) => {
+    setIsSaving(true);
+    try {
+      if (masterMode && targetUserId.trim()) {
+        const { createAgentForUser } = useAgentStore.getState();
+        await createAgentForUser(name, targetUserId);
+        toast.success(`Agent created successfully for user: ${targetUserId}`);
+      } else {
+        const { createAgent } = useAgentStore.getState();
+        await createAgent(name);
+        toast.success("Agent saved successfully!");
+      }
+      setNewAgentName("");
+      setTargetUserId("");
+      setMasterMode(false);
+    } catch (error) {
+      console.error("Error saving agent:", error);
+      toast.error("Failed to save agent. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Use auto-save hook for new agents and Cmd+S
+  useAutoSave({
+    onCreateNewAgent: handleCreateNewAgent,
+    isEditMode: isEditMode,
+  });
 
   return (
     <Layout>

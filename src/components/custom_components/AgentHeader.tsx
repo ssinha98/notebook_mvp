@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Block } from "@/types/types";
 import { toast } from "sonner";
+import { useAutoSave } from "@/hooks/useAutoSave";
 
 interface AgentHeaderProps {
   isEditMode: boolean;
@@ -37,7 +38,7 @@ export default function AgentHeader({
   onEditModeChange,
 }: AgentHeaderProps) {
   const [isSaving, setIsSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // REMOVED: const [hasChanges, setHasChanges] = useState(false);
   const [isNameDialogOpen, setIsNameDialogOpen] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -53,6 +54,18 @@ export default function AgentHeader({
     createAgentForUser,
   } = useAgentStore();
   const { blocks } = useSourceStore();
+
+  // Use auto-save hook - this provides hasChanges
+  const {
+    isSaving: autoSaveIsSaving,
+    hasChanges, // This replaces the local hasChanges state
+    performManualSave,
+  } = useAutoSave({
+    isEditMode,
+  });
+
+  // Update isSaving to use auto-save state
+  const actualIsSaving = isSaving || autoSaveIsSaving;
 
   // Check master role on component mount
   useEffect(() => {
@@ -77,17 +90,8 @@ export default function AgentHeader({
     }
   }, [currentAgent]);
 
-  // Check for changes whenever blocks change
-  useEffect(() => {
-    if (currentAgent) {
-      // Compare current blocks with saved agent blocks
-      const hasUnsavedChanges = !isEqual(blocks, currentAgent.blocks);
-      setHasChanges(hasUnsavedChanges);
-
-      // Update name when agent changes
-      setNewName(currentAgent.name);
-    }
-  }, [blocks, currentAgent]);
+  // REMOVED: The useEffect that was managing hasChanges locally
+  // The hook now handles this logic
 
   // Reset newName when currentAgent changes
   useEffect(() => {
@@ -117,8 +121,8 @@ export default function AgentHeader({
       return;
     }
 
-    // Otherwise, save normally to current user
-    await performSave("current");
+    // Use auto-save hook for regular saves
+    await performManualSave();
   };
 
   const performSave = async (target: "current" | "other") => {
@@ -211,16 +215,25 @@ export default function AgentHeader({
             </AlertDialogContent>
           </AlertDialog>
         )}
+
+        {/* Auto-save indicator */}
+        {hasChanges && isEditMode && (
+          <span className="text-sm text-yellow-400 flex items-center gap-1">
+            <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+            Unsaved changes
+          </span>
+        )}
       </div>
+
       <div className="flex items-center gap-4">
         {isEditMode && (
           <>
             <Button
               onClick={handleSaveAgent}
-              disabled={isSaving}
+              disabled={actualIsSaving}
               className="bg-green-600 hover:bg-green-700"
             >
-              {isSaving ? (
+              {actualIsSaving ? (
                 <>
                   <span className="animate-spin mr-2">⟳</span>
                   Saving...

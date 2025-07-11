@@ -329,23 +329,23 @@ export default function AgentHeader({
             </AlertDialog>
           </>
         )}
-        <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-lg">
-          <span
+        {/* <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-lg"> */}
+          {/* <span
             className={`text-sm ${!isEditMode ? "text-white" : "text-gray-400"}`}
           >
             View
-          </span>
-          <Switch
+          </span> */}
+          {/* <Switch
             checked={isEditMode}
             onCheckedChange={onEditModeChange}
             className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-600 h-6 w-11 [&>span]:h-5 [&>span]:w-5 [&>span]:bg-white"
-          />
-          <span
+          /> */}
+          {/* <span
             className={`text-sm ${isEditMode ? "text-white" : "text-gray-400"}`}
           >
             Edit
-          </span>
-        </div>
+          </span> */}
+        {/* </div> */}
       </div>
     </div>
   );

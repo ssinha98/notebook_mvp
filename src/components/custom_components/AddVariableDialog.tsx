@@ -7,6 +7,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { Variable } from "@/types/types";
 import { useVariableStore } from "@/lib/variableStore";
 import {
@@ -18,6 +30,8 @@ import {
 } from "firebase/firestore";
 import { auth } from "@/tools/firebase";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Image from "next/image";
+import { Info } from "lucide-react";
 
 interface AddVariableDialogProps {
   open: boolean;
@@ -25,14 +39,18 @@ interface AddVariableDialogProps {
   onAddVariable: (variable: Variable) => void;
   defaultType?: "input" | "intermediate" | "table";
   currentAgentId: string;
+  defaultTab?: "new-variable" | "add-column"; // Add this prop
+  preSelectedTableId?: string; // Add this prop
 }
 
 const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
   open,
   onOpenChange,
   onAddVariable,
-  defaultType = "input",
+  defaultType = "intermediate",
   currentAgentId,
+  defaultTab = "new-variable", // Default to new-variable tab
+  preSelectedTableId = "", // Default to empty string
 }) => {
   const [newVariable, setNewVariable] = useState<Variable>({
     id: crypto.randomUUID(),
@@ -53,6 +71,13 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
       ),
     [open]
   );
+
+  // Set pre-selected table when dialog opens
+  useEffect(() => {
+    if (open && preSelectedTableId) {
+      setSelectedTableId(preSelectedTableId);
+    }
+  }, [open, preSelectedTableId]);
 
   useEffect(() => {
     if (!open) {
@@ -182,7 +207,9 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
         <DialogHeader>
           <DialogTitle>Add New Variable</DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="new-variable">
+        <Tabs defaultValue={defaultTab}>
+          {" "}
+          {/* Use the defaultTab prop */}
           <TabsList className="grid w-full grid-cols-2 bg-gray-700">
             <TabsTrigger
               value="new-variable"
@@ -197,28 +224,75 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
               Add Column to Table
             </TabsTrigger>
           </TabsList>
-
           <TabsContent value="new-variable" className="py-4">
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <label>Variable Type</label>
-                <select
-                  className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-gray-200"
+                <div className="flex items-center gap-2">
+                  <label>Variable Type</label>
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <Info className="h-4 w-4 text-gray-500 hover:text-gray-700 cursor-help" />
+                    </HoverCardTrigger>
+                    <HoverCardContent
+                      className="w-96 z-[100] bg-white dark:bg-gray-800 border shadow-xl"
+                      side="top"
+                      sideOffset={10}
+                      avoidCollisions={true}
+                      collisionPadding={20}
+                    >
+                      <div className="flex flex-col space-y-3">
+                        <Image
+                          src={
+                            newVariable.type === "table"
+                              ? "/table_variable_example.gif"
+                              : "/single_variable_example.gif"
+                          }
+                          alt={`${newVariable.type} Variable Example`}
+                          width={350}
+                          height={250}
+                          unoptimized
+                          className="rounded-md"
+                        />
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold">
+                            {newVariable.type === "input" && "Input Variable"}
+                            {newVariable.type === "intermediate" &&
+                              "Intermediary Variable"}
+                            {newVariable.type === "table" && "Table Variable"}
+                          </h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">
+                            {newVariable.type === "input" &&
+                              "Variables that you can set before running your agent. Perfect for customizing prompts or data inputs."}
+                            {newVariable.type === "intermediate" &&
+                              "Best for passing single values from one block to another. Your variable name will be replaced with the value set by a previous block"}
+                            {newVariable.type === "table" &&
+                              "Creates a table comprised of rows and columns. Ideal for passing multiple values from one block to another, and producing a table as your output"}
+                          </p>
+                        </div>
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
+                </div>
+                <Select
                   value={newVariable.type}
-                  onChange={(e) =>
+                  onValueChange={(value) =>
                     setNewVariable({
                       ...newVariable,
-                      type: e.target.value as
-                        | "input"
-                        | "intermediate"
-                        | "table",
+                      type: value as "input" | "intermediate" | "table",
                     })
                   }
                 >
-                  <option value="input">Input Variable</option>
-                  <option value="intermediate">Intermediary Variable</option>
-                  <option value="table">Table Variable</option>
-                </select>
+                  <SelectTrigger className="bg-gray-700 border-gray-600 text-gray-200">
+                    <SelectValue placeholder="Select variable type" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[80]">
+                    <SelectItem value="input">Input Variable</SelectItem>
+                    <SelectItem value="intermediate">
+                      Intermediary Variable
+                    </SelectItem>
+                    <SelectItem value="table">Table Variable</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {newVariable.type === "table" ? (
@@ -268,25 +342,25 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
               </Button>
             </div>
           </TabsContent>
-
           <TabsContent value="add-column" className="py-4">
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <label>Select Table</label>
-                <div className="bg-gray-700 border border-gray-600 rounded">
-                  <select
-                    className="w-full px-2 py-1 text-gray-200 bg-transparent"
-                    value={selectedTableId}
-                    onChange={(e) => setSelectedTableId(e.target.value)}
-                  >
-                    <option value="">Select a table...</option>
+                <Select
+                  value={selectedTableId}
+                  onValueChange={setSelectedTableId}
+                >
+                  <SelectTrigger className="bg-gray-700 border-gray-600 text-gray-200">
+                    <SelectValue placeholder="Select a table..." />
+                  </SelectTrigger>
+                  <SelectContent className="z-[80]">
                     {tables.map((table) => (
-                      <option key={table.id} value={table.id}>
+                      <SelectItem key={table.id} value={table.id}>
                         {table.name}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
-                </div>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <label htmlFor="newColumnName">New Column Name</label>

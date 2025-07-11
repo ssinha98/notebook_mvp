@@ -57,6 +57,7 @@ import ClickUpAgent from "@/components/custom_components/ClickUpAgent";
 import GoogleDriveAgent from "@/components/custom_components/GoogleDriveAgent";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { toast } from "sonner";
+import EditableDataGrid from "../../components/custom_components/EditableDataGrid";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -74,11 +75,60 @@ const mainStyle: CSSProperties = {
   gap: "16px",
 };
 
+// Sample Firebase data structure
+const sampleFirebaseData = {
+  columns: [
+    "prospective_customers",
+    "description_of_needs",
+    "stage",
+    "summary_of_company_website",
+  ],
+  value: [
+    {
+      prospective_customers: "Windsurf (via BI)",
+      description_of_needs: "Looking for engineering leadership best practices",
+      stage: "Researching",
+      summary_of_company_website: "BI article highlights developer success",
+    },
+    {
+      prospective_customers: "Windsurf (via FC)",
+      description_of_needs: "Branding & marketing strategy",
+      stage: "Interest",
+      summary_of_company_website: "Feature on AI branding transformation",
+    },
+    {
+      prospective_customers: "Windsurf (via TC)",
+      description_of_needs: "Building AI assistants for dev workflows",
+      stage: "Engaged",
+      summary_of_company_website: "TC article details their AI roadmap",
+    },
+    {
+      prospective_customers: "AeroStack",
+      description_of_needs: "Needs help automating internal tooling with AI",
+      stage: "Qualified",
+      summary_of_company_website: "Early-stage SaaS for enterprise ops teams",
+    },
+  ],
+};
+
+// Define types for navigation items
+type NavigationItem =
+  | {
+      type: "table";
+      variable: Variable;
+      displayName: string;
+    }
+  | {
+      type: "input_intermediate";
+      variables: Variable[];
+      displayName: string;
+    };
+
 export default function Notebook() {
   const [isApiKeySheetOpen, setIsApiKeySheetOpen] = useState(false);
   const [isToolsSheetOpen, setIsToolsSheetOpen] = useState(false);
   const [variables, setVariables] = useState<Variable[]>([]);
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(true); // Changed from false to true - always default to edit mode
   const [isRunning, setIsRunning] = useState(false);
   const [currentBlock, setCurrentBlock] = useState<Block | null>(null);
   // const [blockNumberInput, setBlockNumberInput] = useState<string>("");
@@ -198,6 +248,9 @@ export default function Notebook() {
   const [targetUserId, setTargetUserId] = useState("");
   const [masterMode, setMasterMode] = useState(false);
 
+  // Add this state near other useState hooks
+  const [selection, setSelection] = useState<any[]>([]);
+
   const renderBlock = (block: Block, index: number) => {
     switch (block.type) {
       case "agent":
@@ -293,10 +346,12 @@ export default function Notebook() {
             initialTimeWindow={block.timeWindow}
             initialTrend={block.trend}
             initialRegion={block.region}
+            initialOutputVariable={block.outputVariable}
             isProcessing={
               isProcessing && currentBlockIndex === block.blockNumber
             }
             onProcessingChange={setIsProcessing}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
           />
         );
       case "contact":
@@ -305,6 +360,18 @@ export default function Notebook() {
             key={block.blockNumber}
             blockNumber={block.blockNumber}
             onDeleteBlock={deleteBlock}
+            initialChannel={block.channel}
+            initialRecipient={block.recipient}
+            initialSubject={block.subject}
+            initialBody={block.body}
+            onSave={(values) => {
+              updateBlockData(block.blockNumber, {
+                channel: values.channel,
+                recipient: values.recipient,
+                subject: values.subject,
+                body: values.body,
+              });
+            }}
           />
         );
       case "webagent":
@@ -321,6 +388,10 @@ export default function Notebook() {
             onDeleteBlock={deleteBlock}
             onAddVariable={handleAddVariable}
             onOpenTools={() => setIsToolsSheetOpen(true)}
+            initialUrl={block.url}
+            initialPrompt={block.prompt}
+            initialSelectedVariableId={block.selectedVariableId}
+            initialOutputVariable={block.outputVariable}
           />
         );
       case "codeblock":
@@ -370,6 +441,7 @@ export default function Notebook() {
             onAddVariable={handleAddVariable}
             variables={variables}
             onOpenTools={() => setIsToolsSheetOpen(true)}
+            // initialOutputVariable={block.outputVariable}
           />
         );
       case "excelagent":
@@ -390,6 +462,7 @@ export default function Notebook() {
             }
             onProcessingChange={setIsProcessing}
             onOpenTools={() => setIsToolsSheetOpen(true)}
+            initialOutputVariable={block.outputVariable}
           />
         );
       case "deepresearchagent":
@@ -409,6 +482,8 @@ export default function Notebook() {
               isProcessing && currentBlockIndex === block.blockNumber
             }
             onOpenTools={() => setIsToolsSheetOpen(true)}
+            initialSearchEngine={block.searchEngine}
+            initialOutputVariable={block.outputVariable}
           />
         );
       case "instagramagent":
@@ -470,6 +545,7 @@ export default function Notebook() {
               isProcessing && currentBlockIndex === block.blockNumber
             }
             onProcessingChange={setIsProcessing}
+            onOpenTools={() => setIsToolsSheetOpen(true)}
           />
         );
       case "clickupagent":
@@ -1044,6 +1120,138 @@ export default function Notebook() {
     isEditMode: isEditMode,
   });
 
+  // Get table variables from the store
+  const { variables: storeVariables } = useVariableStore();
+
+  // State for managing multiple tables
+  const [currentTableIndex, setCurrentTableIndex] = useState(0);
+
+  // Function to get navigation items (table variables + one group for input/intermediate)
+  const getNavigationItems = (): NavigationItem[] => {
+    const allVariables = Object.values(storeVariables).filter(
+      (variable) => variable.agentId === agentId
+    );
+
+    const tableVariables = allVariables.filter((v) => v.type === "table");
+    const inputIntermediateVariables = allVariables.filter(
+      (v) => v.type === "input" || v.type === "intermediate"
+    );
+
+    const navigationItems: NavigationItem[] = [];
+
+    // Add table variables (each as separate item)
+    tableVariables.forEach((tableVar) => {
+      navigationItems.push({
+        type: "table",
+        variable: tableVar,
+        displayName: tableVar.name,
+      });
+    });
+
+    // Add input/intermediate variables as one group (if any exist)
+    if (inputIntermediateVariables.length > 0) {
+      navigationItems.push({
+        type: "input_intermediate",
+        variables: inputIntermediateVariables,
+        displayName: "Input & Intermediate Variables",
+      });
+    }
+
+    return navigationItems;
+  };
+
+  // Function to get Firebase data from current navigation item
+  const getFirebaseDataFromVariables = () => {
+    const navigationItems = getNavigationItems();
+
+    // If we have items and the current index is valid
+    if (
+      navigationItems.length > 0 &&
+      currentTableIndex < navigationItems.length
+    ) {
+      const currentItem = navigationItems[currentTableIndex];
+
+      // Handle table variables (existing behavior)
+      if (currentItem.type === "table") {
+        return {
+          columns: currentItem.variable.columns || [],
+          value: Array.isArray(currentItem.variable.value)
+            ? currentItem.variable.value
+            : [],
+        };
+      }
+
+      // Handle input/intermediate variables group
+      if (currentItem.type === "input_intermediate") {
+        const columns = currentItem.variables.map((v) => v.name);
+        const values = currentItem.variables.map((v) =>
+          typeof v.value === "string" ? v.value : String(v.value || "")
+        );
+
+        // Create single row with all values
+        const tableData = [
+          {
+            id: "values-row",
+            ...columns.reduce(
+              (acc, col, index) => {
+                acc[col] = values[index];
+                return acc;
+              },
+              {} as Record<string, any>
+            ),
+          },
+        ];
+
+        return {
+          columns: columns,
+          value: tableData,
+        };
+      }
+    }
+
+    // Fallback to sample data if no variables found
+    return sampleFirebaseData;
+  };
+
+  // Navigation functions (simplified)
+  const goToPreviousVariable = () => {
+    const navigationItems = getNavigationItems();
+    if (navigationItems.length > 0) {
+      setCurrentTableIndex((prev) =>
+        prev > 0 ? prev - 1 : navigationItems.length - 1
+      );
+    }
+  };
+
+  const goToNextVariable = () => {
+    const navigationItems = getNavigationItems();
+    if (navigationItems.length > 0) {
+      setCurrentTableIndex((prev) =>
+        prev < navigationItems.length - 1 ? prev + 1 : 0
+      );
+    }
+  };
+
+  // Helper function to get current display name
+  const getCurrentVariableName = () => {
+    const navigationItems = getNavigationItems();
+    if (
+      navigationItems.length > 0 &&
+      currentTableIndex < navigationItems.length
+    ) {
+      return navigationItems[currentTableIndex].displayName;
+    }
+    return `Variable ${currentTableIndex + 1}`;
+  };
+
+  // Reset variable index when variables change
+  useEffect(() => {
+    const navigationItems = getNavigationItems();
+    if (currentTableIndex >= navigationItems.length) {
+      setCurrentTableIndex(0);
+    }
+  }, [storeVariables, currentTableIndex]);
+
   return (
     <Layout>
       <div style={pageStyle}>
@@ -1148,7 +1356,7 @@ export default function Notebook() {
             </div>
           </div>
           <CollapsibleBox
-            title="Agent Flow"
+            title="Workflow and Tools"
             variables={variables}
             agentId={agentId as string}
             onAddVariable={handleAddVariable}
@@ -1167,6 +1375,132 @@ export default function Notebook() {
             {currentBlock && currentBlock.modelResponse && (
               <RateAgentRun onRate={handleRateAgent} />
             )}
+          </CollapsibleBox>
+          <CollapsibleBox title="Output Editor">
+            <div className="w-full">
+              {/* Variable Navigation Controls */}
+              {getNavigationItems().length > 1 && (
+                <div className="flex items-center justify-between mb-4 p-3 bg-gray-800 rounded-lg border border-gray-600">
+                  <button
+                    onClick={goToPreviousVariable}
+                    className="flex items-center gap-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+                  >
+                    <span>←</span> Previous
+                  </button>
+
+                  <div className="text-center">
+                    <div className="text-white font-medium">
+                      {getCurrentVariableName()}
+                    </div>
+                    <div className="text-gray-400 text-sm">
+                      {currentTableIndex + 1} of {getNavigationItems().length}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={goToNextVariable}
+                    className="flex items-center gap-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+                  >
+                    Next <span>→</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Full width table */}
+              <EditableDataGrid
+                firebaseData={getFirebaseDataFromVariables()}
+                tableWidth="100%"
+                // Add these new props
+                currentTableId={(() => {
+                  const navigationItems = getNavigationItems();
+                  if (
+                    navigationItems.length > 0 &&
+                    currentTableIndex < navigationItems.length
+                  ) {
+                    const currentItem = navigationItems[currentTableIndex];
+                    return currentItem.type === "table"
+                      ? currentItem.variable.id
+                      : undefined;
+                  }
+                  return undefined;
+                })()}
+                currentAgentId={agentId as string}
+                onAddVariable={handleAddVariable}
+                onDataChange={(updatedData) => {
+                  console.log("Data updated:", updatedData);
+                  const navigationItems = getNavigationItems();
+                  if (
+                    navigationItems.length > 0 &&
+                    currentTableIndex < navigationItems.length
+                  ) {
+                    const currentItem = navigationItems[currentTableIndex];
+
+                    // Handle table variables (existing behavior)
+                    if (currentItem.type === "table") {
+                      useVariableStore
+                        .getState()
+                        .updateVariable(currentItem.variable.id, updatedData);
+                    }
+
+                    // Handle input/intermediate variables group
+                    else if (currentItem.type === "input_intermediate") {
+                      // Update each input/intermediate variable with its new value
+                      if (updatedData.length > 0) {
+                        const newValues = updatedData[0];
+
+                        // Update each variable with its new value
+                        currentItem.variables.forEach((variable) => {
+                          if (newValues[variable.name] !== undefined) {
+                            useVariableStore
+                              .getState()
+                              .updateVariable(
+                                variable.id,
+                                newValues[variable.name]
+                              );
+                          }
+                        });
+                      }
+                    }
+                  }
+                }}
+                onSelectionChange={(selectedCells, selectedData) => {
+                  setSelection(selectedData); // Store for @selection
+                }}
+                onColumnsChange={(newColumns) => {
+                  console.log("Columns changed:", newColumns);
+                  const navigationItems = getNavigationItems();
+                  if (
+                    navigationItems.length > 0 &&
+                    currentTableIndex < navigationItems.length
+                  ) {
+                    const currentItem = navigationItems[currentTableIndex];
+
+                    // Only handle column changes for table variables
+                    if (currentItem.type === "table") {
+                      const currentColumns = currentItem.variable.columns || [];
+
+                      // Find new columns that need to be added
+                      const columnsToAdd = newColumns.filter(
+                        (col) => !currentColumns.includes(col)
+                      );
+
+                      // Add each new column to the table
+                      columnsToAdd.forEach((columnName) => {
+                        useVariableStore
+                          .getState()
+                          .addColumnToTable(
+                            currentItem.variable.id,
+                            columnName
+                          );
+                      });
+                    }
+
+                    // For input/intermediate variables, we don't allow column changes
+                    // since the columns represent the variable names themselves
+                  }
+                }}
+              />
+            </div>
           </CollapsibleBox>
           <div className="flex justify-center mb-4"></div>
         </main>

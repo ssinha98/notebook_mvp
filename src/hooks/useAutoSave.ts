@@ -73,7 +73,7 @@ export const useAutoSave = (options: AutoSaveOptions = {}) => {
   // Set up 60-second auto-save timer
   useEffect(() => {
     if (currentAgent && options.isEditMode && hasChanges) {
-      autoSaveInterval.current = setInterval(performAutoSave, 60000); // 60 seconds
+      autoSaveInterval.current = setInterval(performAutoSave, 180000); // 60 seconds
     }
 
     return () => {

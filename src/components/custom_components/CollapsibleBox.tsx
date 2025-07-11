@@ -65,7 +65,7 @@ interface CollapsibleBoxProps {
   onOpenTools?: () => void;
   isEditMode?: boolean;
   isRunning?: boolean;
-  onSavePrompts: (
+  onSavePrompts?: (
     blockNumber: number,
     systemPrompt: string,
     userPrompt: string,
@@ -108,6 +108,7 @@ const CollapsibleBox = forwardRef<
     [key: number]: boolean;
   }>({});
   const [hasRated, setHasRated] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false); // Default expanded
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -295,6 +296,7 @@ const CollapsibleBox = forwardRef<
             initialRegion={block.region}
             initialOutputVariable={block.outputVariable}
             onOpenTools={props.onOpenTools}
+            
           />
         );
       case "agent":
@@ -627,21 +629,34 @@ const CollapsibleBox = forwardRef<
       <div
         style={{
           ...boxStyle,
-          width: props.isRunning && !props.isEditMode ? "50%" : "100%",
+          width: "100%", // Always 100% width since we're always in edit mode
+          // COMMENTED OUT: width: props.isRunning && !props.isEditMode ? "50%" : "100%",
           transition: "width 0.3s ease-in-out",
         }}
       >
-        <div className="font-bold text-lg mb-2">
-          {!props.isEditMode && (
-            <div className="text-xl mb-4 text-blue-500">Start Flow</div>
-          )}
-          {props.title}
+        <div className="font-bold text-lg mb-2 flex items-center justify-between">
+          <div>
+            {props.title}
+            {isMinimized && blocks.length > 0 && (
+              <span className="text-gray-400 text-sm ml-2">
+                ({blocks.length} block{blocks.length > 1 ? "s" : ""})
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setIsMinimized(!isMinimized)}
+            className="text-gray-400 hover:text-white transition-colors"
+          >
+            {isMinimized ? <ExpandAltOutlined /> : <MinusOutlined />}
+          </button>
         </div>
-        <div style={contentStyle}>
-          {props.title === "Agent Flow" ? (
-            <>
-              <div style={blockContainerStyle}>
-                {props.isEditMode ? (
+        {!isMinimized && (
+          <div style={contentStyle}>
+            {props.title === "Agent Flow" ? (
+              <>
+                <div style={blockContainerStyle}>
+                  {/* ALWAYS SHOW EDIT MODE - COMMENTED OUT VIEW MODE CONDITION */}
+                  {/* {props.isEditMode ? ( */}
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -658,8 +673,9 @@ const CollapsibleBox = forwardRef<
                       ))}
                     </SortableContext>
                   </DndContext>
-                ) : (
-                  <>
+                  {/* ) : ( */}
+                  {/* COMMENTED OUT VIEW MODE - SINGLE BLOCK DISPLAY */}
+                  {/* <>
                     {blocks.length > 0 && renderBlock(blocks[0])}
                     {blocks.length > 1 && (
                       <div className="text-gray-400 text-sm mt-4 italic">
@@ -667,87 +683,18 @@ const CollapsibleBox = forwardRef<
                         {blocks.length > 2 ? "s" : ""}
                       </div>
                     )}
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            props.children
-          )}
-        </div>
+                  </> */}
+                  {/* )} */}
+                </div>
+              </>
+            ) : (
+              props.children
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Side Panel */}
-      {props.isRunning && !props.isEditMode && (
-        <div
-          className="w-1/2 bg-white rounded-lg shadow-lg fixed right-0 h-screen"
-          style={{
-            animation: "slideIn 0.3s ease-in-out",
-            top: "72px",
-            height: "calc(100vh - 72px)",
-          }}
-        >
-          <style jsx>{`
-            @keyframes slideIn {
-              from {
-                transform: translateX(100%);
-                opacity: 0;
-              }
-              to {
-                transform: translateX(0);
-                opacity: 1;
-              }
-            }
-          `}</style>
-          <div
-            className="absolute top-6 right-6 cursor-pointer text-black hover:text-gray-700 p-2 bg-gray-100 rounded-full"
-            onClick={() => props.onMinimize?.()}
-          >
-            <MinusOutlined style={{ fontSize: "24px" }} />
-          </div>
-          <div className="text-black p-6 flex flex-col h-full">
-            {props.currentBlock ? (
-              <div className="flex-grow flex items-center justify-center">
-                {props.isRunComplete ? (
-                  <RateAgentRun onRate={handleRatingSubmit} />
-                ) : (
-                  <BlockTypeDisplay
-                    blockType={props.currentBlock.type}
-                    blockNumber={props.currentBlock.blockNumber}
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="flex-grow flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">⏳</div>
-                  <div className="text-xl text-gray-700">
-                    Waiting to start...
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Pause/Close Button */}
-            <Button
-              className="w-full bg-[#09CE6B] hover:bg-[#07b55d] text-white rounded-lg py-6 mt-4 text-lg font-medium"
-              onClick={handleButtonClick}
-            >
-              {hasRated ? (
-                <>
-                  <CloseOutlined className="mr-2 text-xl" />
-                  Close
-                </>
-              ) : (
-                <>
-                  <PauseOutlined className="mr-2 text-xl" />
-                  Pause & Edit
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* COMMENTED OUT - SIDE PANEL (VIEW MODE ONLY) - will restore later if needed */}
     </div>
   );
 });

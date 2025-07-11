@@ -52,6 +52,7 @@ interface VariableStore {
   ) => Promise<void>;
   deleteTableRow: (tableId: string, rowId: string) => Promise<void>;
   addColumnToTable: (tableId: string, columnName: string) => Promise<void>;
+  removeColumnFromTable: (tableId: string, columnName: string) => Promise<void>;
 }
 
 export const useVariableStore = create<VariableStore>((set, get) => ({
@@ -389,6 +390,46 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
           },
         },
       }));
+    }
+  },
+
+  removeColumnFromTable: async (tableId: string, columnName: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const table = get().variables[tableId];
+      if (!table || table.type !== "table") return;
+
+      const columns = table.columns || [];
+      const updatedColumns = columns.filter((col) => col !== columnName);
+
+      // Remove the column from all rows while preserving TableRow structure
+      const currentRows = Array.isArray(table.value) ? table.value : [];
+      const updatedRows = currentRows.map((row) => {
+        const newRow = { ...row };
+        delete newRow[columnName];
+        return newRow;
+      });
+
+      await updateDoc(doc(db, `users/${userId}/variables`, tableId), {
+        columns: updatedColumns,
+        value: updatedRows,
+      });
+
+      set((state) => ({
+        variables: {
+          ...state.variables,
+          [tableId]: {
+            ...table,
+            columns: updatedColumns,
+            value: updatedRows,
+          },
+        },
+      }));
+    } catch (error) {
+      console.error("Error removing column:", error);
+      throw error;
     }
   },
 }));

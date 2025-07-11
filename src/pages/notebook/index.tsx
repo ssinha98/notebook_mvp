@@ -76,40 +76,40 @@ const mainStyle: CSSProperties = {
 };
 
 // Sample Firebase data structure
-const sampleFirebaseData = {
-  columns: [
-    "prospective_customers",
-    "description_of_needs",
-    "stage",
-    "summary_of_company_website",
-  ],
-  value: [
-    {
-      prospective_customers: "Windsurf (via BI)",
-      description_of_needs: "Looking for engineering leadership best practices",
-      stage: "Researching",
-      summary_of_company_website: "BI article highlights developer success",
-    },
-    {
-      prospective_customers: "Windsurf (via FC)",
-      description_of_needs: "Branding & marketing strategy",
-      stage: "Interest",
-      summary_of_company_website: "Feature on AI branding transformation",
-    },
-    {
-      prospective_customers: "Windsurf (via TC)",
-      description_of_needs: "Building AI assistants for dev workflows",
-      stage: "Engaged",
-      summary_of_company_website: "TC article details their AI roadmap",
-    },
-    {
-      prospective_customers: "AeroStack",
-      description_of_needs: "Needs help automating internal tooling with AI",
-      stage: "Qualified",
-      summary_of_company_website: "Early-stage SaaS for enterprise ops teams",
-    },
-  ],
-};
+// const sampleFirebaseData = {
+//   columns: [
+//     "prospective_customers",
+//     "description_of_needs",
+//     "stage",
+//     "summary_of_company_website",
+//   ],
+//   value: [
+//     {
+//       prospective_customers: "Windsurf (via BI)",
+//       description_of_needs: "Looking for engineering leadership best practices",
+//       stage: "Researching",
+//       summary_of_company_website: "BI article highlights developer success",
+//     },
+//     {
+//       prospective_customers: "Windsurf (via FC)",
+//       description_of_needs: "Branding & marketing strategy",
+//       stage: "Interest",
+//       summary_of_company_website: "Feature on AI branding transformation",
+//     },
+//     {
+//       prospective_customers: "Windsurf (via TC)",
+//       description_of_needs: "Building AI assistants for dev workflows",
+//       stage: "Engaged",
+//       summary_of_company_website: "TC article details their AI roadmap",
+//     },
+//     {
+//       prospective_customers: "AeroStack",
+//       description_of_needs: "Needs help automating internal tooling with AI",
+//       stage: "Qualified",
+//       summary_of_company_website: "Early-stage SaaS for enterprise ops teams",
+//     },
+//   ],
+// };
 
 // Define types for navigation items
 type NavigationItem =
@@ -1209,8 +1209,16 @@ export default function Notebook() {
       }
     }
 
-    // Fallback to sample data if no variables found
-    return sampleFirebaseData;
+    // Return placeholder data when no variables exist
+    return {
+      columns: ["no values yet"],
+      value: [
+        {
+          id: "placeholder-row",
+          "no values yet": "start adding variables to get started!",
+        },
+      ],
+    };
   };
 
   // Navigation functions (simplified)

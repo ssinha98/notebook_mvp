@@ -58,6 +58,10 @@ import GoogleDriveAgent from "@/components/custom_components/GoogleDriveAgent";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { toast } from "sonner";
 import EditableDataGrid from "../../components/custom_components/EditableDataGrid";
+import ChatSidebar from "../../components/custom_components/ChatSidebar";
+import ApolloAgent from "@/components/custom_components/ApolloAgent";
+import SearchPreviewDialog from "@/components/custom_components/SearchPreviewDialog";
+import { PreviewRow } from "@/types/types";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -250,6 +254,12 @@ export default function Notebook() {
 
   // Add this state near other useState hooks
   const [selection, setSelection] = useState<any[]>([]);
+  const [selectedColumn, setSelectedColumn] = useState<string | undefined>(
+    undefined
+  );
+
+  const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<any[]>([]);
 
   const renderBlock = (block: Block, index: number) => {
     switch (block.type) {
@@ -262,18 +272,19 @@ export default function Notebook() {
             key={block.blockNumber}
             blockNumber={block.blockNumber}
             onDeleteBlock={deleteBlock}
-            initialOutputVariable={
-              block.outputVariable
-                ? {
-                    id: block.outputVariable.id,
-                    name: block.outputVariable.name,
-                    type:
-                      block.outputVariable.type === "table"
-                        ? "intermediate"
-                        : block.outputVariable.type,
-                  }
-                : null
-            }
+            initialOutputVariable={block.outputVariable}
+            // initialOutputVariable={
+            //   block.outputVariable
+            //     ? {
+            //         id: block.outputVariable.id,
+            //         name: block.outputVariable.name,
+            //         type:
+            //           block.outputVariable.type === "table"
+            //             ? "intermediate"
+            //             : block.outputVariable.type,
+            //       }
+            //     : null
+            // }
             variables={variables}
             onAddVariable={handleAddVariable}
             onOpenTools={() => setIsToolsSheetOpen(true)}
@@ -352,6 +363,7 @@ export default function Notebook() {
             }
             onProcessingChange={setIsProcessing}
             onOpenTools={() => setIsToolsSheetOpen(true)}
+            // selectedResults={selection} // Pass selection to SearchAgent
           />
         );
       case "contact":
@@ -579,6 +591,25 @@ export default function Notebook() {
               updateBlockData(blockNumber, updates);
             }}
             initialPrompt={block.prompt}
+            isProcessing={
+              isProcessing && currentBlockIndex === block.blockNumber
+            }
+          />
+        );
+      case "apolloagent":
+        return (
+          <ApolloAgent
+            ref={(ref) => {
+              if (ref) blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={updateBlockData}
+            initialFullName={block.fullName}
+            initialCompany={block.company}
+            initialPrompt={block.prompt}
+            initialOutputVariable={block.outputVariable}
             isProcessing={
               isProcessing && currentBlockIndex === block.blockNumber
             }
@@ -999,6 +1030,13 @@ export default function Notebook() {
                 return;
               }
               break;
+            case "apolloagent":
+              success = await blockRef.processBlock();
+              if (!success) {
+                console.error("Apollo agent block failed, stopping execution");
+                return;
+              }
+              break;
           }
 
           // Handle output variable if present
@@ -1260,6 +1298,472 @@ export default function Notebook() {
     }
   }, [storeVariables, currentTableIndex]);
 
+  // Add this helper function before the onBlockExecute function
+  const handleSelectionExecution = async (block: Block, params: any) => {
+    console.log("Notebook: Running block with selection:", params.selectedData);
+
+    // Define how to extract input from selected rows for each block type
+    const getInputFromRow = (
+      row: any,
+      blockType: string,
+      selectedColumn?: string,
+      formParams?: any // Add formParams parameter
+    ) => {
+      console.log("getInputFromRow called with:", {
+        blockType,
+        selectedColumn,
+        rowKeys: Object.keys(row),
+        rowValues: Object.values(row).slice(0, 3), // Show first 3 values for debugging
+      });
+
+      switch (blockType) {
+        case "webagent":
+          if (selectedColumn) {
+            return row[selectedColumn] || "";
+          } else {
+            // Fallback to URL-like values or first available value
+            return (
+              row.url ||
+              row.link ||
+              row.countries ||
+              Object.values(row).find(
+                (v) => typeof v === "string" && v.startsWith("http")
+              ) ||
+              Object.values(row)[0] ||
+              ""
+            );
+          }
+        case "searchagent":
+          // Use the selected column if provided, otherwise fallback
+          console.log("searchagent case - selectedColumn:", selectedColumn);
+          console.log(
+            "searchagent case - row[selectedColumn]:",
+            selectedColumn ? row[selectedColumn] : "selectedColumn is undefined"
+          );
+          console.log(
+            "searchagent case - Object.values(row)[0]:",
+            Object.values(row)[0]
+          );
+
+          return selectedColumn
+            ? row[selectedColumn]
+            : Object.values(row)[0] || "";
+        case "agent":
+          return selectedColumn
+            ? row[selectedColumn]
+            : Object.values(row)[0] || "";
+        case "apolloagent":
+          // For Apollo agents, parse the form inputs to determine which columns to extract
+          const fullNameInput = formParams?.fullName || "";
+          const companyInput = formParams?.company || "";
+
+          console.log("Apollo form inputs:", { fullNameInput, companyInput });
+          console.log("Selected row data:", row);
+
+          // Extract name value based on form input
+          let nameValue = "";
+          if (fullNameInput === "@selection") {
+            // When @selection is used, we need to determine which column was actually selected
+            // The selectedData should contain the column information
+            const selectedColumn = formParams?.selectedColumn;
+            if (selectedColumn && row[selectedColumn] !== undefined) {
+              nameValue = String(row[selectedColumn]);
+            } else {
+              // Fallback to first available value
+              const firstValue = Object.values(row).find(
+                (v) => v !== null && v !== undefined
+              );
+              nameValue = firstValue ? String(firstValue) : "";
+            }
+          } else if (
+            fullNameInput.includes("{{") &&
+            fullNameInput.includes("}}")
+          ) {
+            // Parse table variable reference like "{{test_table.company}}"
+            const match = fullNameInput.match(/{{([^}]+)}}/);
+            if (match) {
+              const [tableName, columnName] = match[1].split(".");
+              // Use the column name directly from the row
+              const value = row[columnName];
+              nameValue = value !== undefined ? String(value) : "";
+            }
+          } else {
+            // Direct value
+            nameValue = fullNameInput;
+          }
+
+          // Extract company value based on form input
+          let companyValue = "";
+          if (companyInput === "@selection") {
+            // When @selection is used, we need to determine which column was actually selected
+            const selectedColumn = formParams?.selectedColumn;
+            if (selectedColumn && row[selectedColumn] !== undefined) {
+              companyValue = String(row[selectedColumn]);
+            } else {
+              // Fallback to second available value
+              const values = Object.values(row).filter(
+                (v) => v !== null && v !== undefined
+              );
+              companyValue = values.length > 1 ? String(values[1]) : "";
+            }
+          } else if (
+            companyInput.includes("{{") &&
+            companyInput.includes("}}")
+          ) {
+            // Parse table variable reference like "{{test_table.company}}"
+            const match = companyInput.match(/{{([^}]+)}}/);
+            if (match) {
+              const [tableName, columnName] = match[1].split(".");
+              // Use the column name directly from the row
+              const value = row[columnName];
+              companyValue = value !== undefined ? String(value) : "";
+            }
+          } else {
+            // Direct value
+            companyValue = companyInput;
+          }
+
+          console.log("Extracted Apollo values:", { nameValue, companyValue });
+
+          if (nameValue && companyValue) {
+            return `${nameValue}|${companyValue}`;
+          } else {
+            // Fallback to first two values if specific columns not found
+            const values = Object.values(row).filter(
+              (v) => v && String(v).trim()
+            );
+            if (values.length >= 2) {
+              return `${String(values[0])}|${String(values[1])}`;
+            }
+            return values[0] ? String(values[0]) : "";
+          }
+        default:
+          return row.countries || Object.values(row)[0] || "";
+      }
+    };
+
+    // Helper function to replace @selection placeholder with actual value
+    const replaceSelectionPlaceholder = (
+      query: string,
+      replacement: string
+    ) => {
+      return query.replace(/@selection/g, replacement);
+    };
+
+    // Define which API endpoint to call for each block type
+    const getApiCall = (blockType: string, input: string, params: any) => {
+      switch (blockType) {
+        case "webagent":
+          return api.post("/scrape", {
+            url: input,
+            prompt: params.prompt || "",
+          });
+        case "searchagent":
+          // Replace @selection placeholder with the actual input value
+          const processedQuery = replaceSelectionPlaceholder(
+            params.query || "",
+            input
+          );
+          return api.post("/api/search", {
+            query: processedQuery,
+            engine: params.engine || "search",
+            num: params.limit || 5,
+          });
+        case "agent":
+          return api.post("/api/call-model", {
+            userPrompt: params.userPrompt || "",
+            systemPrompt: params.systemPrompt || "",
+            // Add other agent params as needed
+          });
+        case "apolloagent":
+          // For Apollo agents, we need both name and company
+          // The input should contain both values separated by a delimiter
+          const [name, company] = input.split("|");
+          return api.post("/api/apollo_enrich", {
+            name: name || input,
+            company: company || "",
+            ...(params.prompt && { prompt: params.prompt }),
+          });
+        // Add more block types as needed
+        default:
+          throw new Error(
+            `Selection not supported for block type: ${blockType}`
+          );
+      }
+    };
+
+    // Check if preview mode is enabled
+    if (params.previewMode) {
+      console.log("Notebook: Preview mode enabled for selection execution");
+
+      // For each selected row, make a search and collect results
+      const previewRows: PreviewRow[] = [];
+
+      for (let i = 0; i < params.selectedData.length; i++) {
+        const selectedRow = params.selectedData[i];
+        const input = getInputFromRow(
+          selectedRow,
+          block.type,
+          params.selectedColumn,
+          params
+        );
+
+        if (input && selectedRow.id) {
+          try {
+            // Make API call for this row
+            const response = await getApiCall(block.type, input, params);
+
+            // Add to preview rows with the processed query
+            const processedQuery = replaceSelectionPlaceholder(
+              params.query || "",
+              input
+            );
+            previewRows.push({
+              rowId: selectedRow.id,
+              rowIndex: i,
+              searchQuery: processedQuery,
+              results: response.results || [],
+            });
+          } catch (error) {
+            console.error(`Error processing selection ${i + 1}:`, error);
+          }
+        }
+      }
+
+      // Show preview dialog with all results
+      setPreviewData(previewRows);
+      setIsPreviewDialogOpen(true);
+      return;
+    }
+
+    // For each selected item, run the block and save to that row
+    for (let i = 0; i < params.selectedData.length; i++) {
+      const selectedRow = params.selectedData[i];
+      console.log(`Notebook: Processing selection ${i + 1}:`, selectedRow);
+      console.log(
+        `Notebook: selectedColumn from params:`,
+        params.selectedColumn
+      );
+
+      const input = getInputFromRow(
+        selectedRow,
+        block.type,
+        params.selectedColumn,
+        params
+      );
+      console.log(`Notebook: Using input for selection ${i + 1}:`, input);
+
+      if (input && selectedRow.id) {
+        try {
+          // Make API call
+          const response = await getApiCall(block.type, input, params);
+
+          // Extract the result based on response structure
+          let result = "";
+          if (response.analysis) {
+            result = response.analysis;
+          } else if (response.markdown) {
+            result = response.markdown;
+          } else {
+            result =
+              typeof response === "string"
+                ? response
+                : JSON.stringify(response);
+          }
+
+          // SPECIAL HANDLING FOR APOLLO AGENTS
+          if (block.type === "apolloagent") {
+            console.log("=== APOLLO AGENT EXECUTION ===");
+            console.log("Selected row:", selectedRow);
+            console.log("Input:", input);
+            console.log("Full API response:", response);
+            console.log("Extracted result:", result);
+            console.log("Selected variable ID:", params.selectedVariableId);
+
+            // Save the result to the selected variable/column
+            if (params.selectedVariableId) {
+              if (params.selectedVariableId.includes(":")) {
+                // Table column selection
+                const [tableId, columnName] =
+                  params.selectedVariableId.split(":");
+                console.log(`Saving to table ${tableId}, column ${columnName}`);
+                await useVariableStore
+                  .getState()
+                  .updateTableRow(tableId, selectedRow.id, {
+                    [columnName]: result,
+                  });
+                console.log(
+                  `✅ Apollo: Saved result to table ${tableId}, column ${columnName}:`,
+                  result
+                );
+              } else {
+                // Regular variable
+                console.log(`Saving to variable ${params.selectedVariableId}`);
+                await useVariableStore
+                  .getState()
+                  .updateVariable(params.selectedVariableId, result);
+                console.log(
+                  `✅ Apollo: Saved result to variable ${params.selectedVariableId}:`,
+                  result
+                );
+              }
+            } else {
+              console.log("❌ Apollo: No selectedVariableId provided");
+            }
+            console.log("=== END APOLLO AGENT EXECUTION ===");
+          } else {
+            // Handle other block types (existing logic)
+            if (
+              block.outputVariable &&
+              block.outputVariable.type === "table" &&
+              block.outputVariable.columnName
+            ) {
+              await useVariableStore
+                .getState()
+                .updateTableRow(block.outputVariable.id, selectedRow.id, {
+                  [block.outputVariable.columnName]: result,
+                });
+            }
+          }
+        } catch (error) {
+          console.error(
+            `Notebook: Error processing selection ${i + 1}:`,
+            error
+          );
+
+          // Save the error to the row
+          if (
+            block.outputVariable &&
+            block.outputVariable.type === "table" &&
+            block.outputVariable.columnName
+          ) {
+            await useVariableStore
+              .getState()
+              .updateTableRow(block.outputVariable.id, selectedRow.id, {
+                [block.outputVariable.columnName]:
+                  `Error: ${error instanceof Error ? error.message : String(error)}`,
+              });
+          }
+        }
+      }
+    }
+  };
+
+  const handlePreviewConfirm = async (
+    selectedResults: {
+      [rowId: string]: string[];
+    },
+    targetVariableId: string
+  ) => {
+    console.log("Preview confirmed with results:", selectedResults);
+    console.log("Target variable ID:", targetVariableId);
+
+    try {
+      // Get all variables from the store for debugging
+      const allVariables = useVariableStore.getState().variables;
+      console.log("All available variables:", allVariables);
+
+      // Handle table column selection (format: "tableId:columnName")
+      let targetVariable;
+      let columnName = "search_results"; // default column name
+
+      if (targetVariableId.includes(":")) {
+        // This is a table column selection
+        const [tableId, selectedColumn] = targetVariableId.split(":");
+        targetVariable = allVariables[tableId];
+        columnName = selectedColumn;
+        console.log(
+          "Table column selection - Table ID:",
+          tableId,
+          "Column:",
+          selectedColumn
+        );
+      } else {
+        // This is a regular variable
+        targetVariable = allVariables[targetVariableId];
+        console.log("Regular variable selection");
+      }
+
+      console.log("Target variable:", targetVariable);
+      console.log("Column name:", columnName);
+
+      if (!targetVariable) {
+        console.error("Target variable not found:", targetVariableId);
+        console.error("Available variable IDs:", Object.keys(allVariables));
+        toast.error("Target variable not found");
+        return;
+      }
+
+      // For table variables, we need to determine which column to save to
+      if (targetVariable.type === "table" && targetVariable.columns) {
+        // Add the column if it doesn't exist
+        if (!targetVariable.columns.includes(columnName)) {
+          await useVariableStore
+            .getState()
+            .addColumnToTable(targetVariable.id, columnName);
+          console.log(
+            `Added column "${columnName}" to table "${targetVariable.name}"`
+          );
+        }
+
+        // Update each selected row with its corresponding URL (only the first one)
+        for (const [rowId, urls] of Object.entries(selectedResults)) {
+          if (urls.length > 0) {
+            // Take only the first URL from the selection (single result per row)
+            const singleUrl = urls[0];
+
+            // Use updateTableRow to update the existing row
+            await useVariableStore
+              .getState()
+              .updateTableRow(targetVariable.id, rowId, {
+                [columnName]: singleUrl,
+              });
+
+            console.log(`Updated row ${rowId} with URL: ${singleUrl}`);
+          }
+        }
+
+        const updatedRows = Object.keys(selectedResults).length;
+        console.log(`Updated ${updatedRows} rows with single URLs`);
+        toast.success(`Updated ${updatedRows} rows with search results`);
+      } else {
+        // For regular variables (intermediate, input), take only the first URL from the first row
+        const allSelectedUrls: string[] = [];
+        Object.values(selectedResults).forEach((urls) => {
+          if (urls.length > 0) {
+            allSelectedUrls.push(urls[0]); // Only take the first URL from each row
+          }
+        });
+
+        if (allSelectedUrls.length === 0) {
+          console.warn("No URLs selected");
+          toast.warning("No URLs selected");
+          return;
+        }
+
+        // For regular variables, we might want to concatenate multiple single URLs
+        const urlsString = allSelectedUrls.join(", ");
+        await useVariableStore
+          .getState()
+          .updateVariable(targetVariable.id, urlsString);
+
+        console.log(
+          `Updated variable "${targetVariable.name}" with ${allSelectedUrls.length} URLs`
+        );
+        toast.success(
+          `Updated variable "${targetVariable.name}" with ${allSelectedUrls.length} URLs`
+        );
+      }
+
+      // Close the dialog and clear the data
+      setIsPreviewDialogOpen(false);
+      setPreviewData([]);
+    } catch (error) {
+      console.error("Error saving selected URLs to variable:", error);
+      toast.error("Failed to save selected URLs to variable");
+    }
+  };
+
   return (
     <Layout>
       <div style={pageStyle}>
@@ -1415,99 +1919,653 @@ export default function Notebook() {
               )}
 
               {/* Full width table */}
-              <EditableDataGrid
-                firebaseData={getFirebaseDataFromVariables()}
-                tableWidth="100%"
-                // Add these new props
-                currentTableId={(() => {
-                  const navigationItems = getNavigationItems();
-                  if (
-                    navigationItems.length > 0 &&
-                    currentTableIndex < navigationItems.length
-                  ) {
-                    const currentItem = navigationItems[currentTableIndex];
-                    return currentItem.type === "table"
-                      ? currentItem.variable.id
-                      : undefined;
-                  }
-                  return undefined;
-                })()}
-                currentAgentId={agentId as string}
-                onAddVariable={handleAddVariable}
-                onDataChange={(updatedData) => {
-                  console.log("Data updated:", updatedData);
-                  const navigationItems = getNavigationItems();
-                  if (
-                    navigationItems.length > 0 &&
-                    currentTableIndex < navigationItems.length
-                  ) {
-                    const currentItem = navigationItems[currentTableIndex];
+              <div className="flex w-full h-[600px] gap-4">
+                <div className="flex-1 min-w-0">
+                  <EditableDataGrid
+                    firebaseData={getFirebaseDataFromVariables()}
+                    tableWidth="100%"
+                    currentTableId={(() => {
+                      const navigationItems = getNavigationItems();
+                      if (
+                        navigationItems.length > 0 &&
+                        currentTableIndex < navigationItems.length
+                      ) {
+                        const currentItem = navigationItems[currentTableIndex];
+                        return currentItem.type === "table"
+                          ? currentItem.variable.id
+                          : undefined;
+                      }
+                      return undefined;
+                    })()}
+                    currentAgentId={agentId as string}
+                    onAddVariable={handleAddVariable}
+                    onDataChange={(updatedData) => {
+                      console.log("Data updated:", updatedData);
+                      const navigationItems = getNavigationItems();
+                      if (
+                        navigationItems.length > 0 &&
+                        currentTableIndex < navigationItems.length
+                      ) {
+                        const currentItem = navigationItems[currentTableIndex];
 
-                    // Handle table variables (existing behavior)
-                    if (currentItem.type === "table") {
-                      useVariableStore
-                        .getState()
-                        .updateVariable(currentItem.variable.id, updatedData);
-                    }
+                        // Handle table variables (existing behavior)
+                        if (currentItem.type === "table") {
+                          useVariableStore
+                            .getState()
+                            .updateVariable(
+                              currentItem.variable.id,
+                              updatedData
+                            );
+                        }
 
-                    // Handle input/intermediate variables group
-                    else if (currentItem.type === "input_intermediate") {
-                      // Update each input/intermediate variable with its new value
-                      if (updatedData.length > 0) {
-                        const newValues = updatedData[0];
+                        // Handle input/intermediate variables group
+                        else if (currentItem.type === "input_intermediate") {
+                          // Update each input/intermediate variable with its new value
+                          if (updatedData.length > 0) {
+                            const newValues = updatedData[0];
 
-                        // Update each variable with its new value
-                        currentItem.variables.forEach((variable) => {
-                          if (newValues[variable.name] !== undefined) {
+                            // Update each variable with its new value
+                            currentItem.variables.forEach((variable) => {
+                              if (newValues[variable.name] !== undefined) {
+                                useVariableStore
+                                  .getState()
+                                  .updateVariable(
+                                    variable.id,
+                                    newValues[variable.name]
+                                  );
+                              }
+                            });
+                          }
+                        }
+                      }
+                    }}
+                    onSelectionChange={(
+                      selectedCells,
+                      selectedData,
+                      selectedColumn
+                    ) => {
+                      setSelection(selectedData); // Store for @selection
+                      setSelectedColumn(selectedColumn); // Store the selected column
+                    }}
+                    onColumnsChange={(newColumns) => {
+                      console.log("Columns changed:", newColumns);
+                      const navigationItems = getNavigationItems();
+                      if (
+                        navigationItems.length > 0 &&
+                        currentTableIndex < navigationItems.length
+                      ) {
+                        const currentItem = navigationItems[currentTableIndex];
+
+                        // Only handle column changes for table variables
+                        if (currentItem.type === "table") {
+                          const currentColumns =
+                            currentItem.variable.columns || [];
+
+                          // Find new columns that need to be added
+                          const columnsToAdd = newColumns.filter(
+                            (col) => !currentColumns.includes(col)
+                          );
+
+                          // Find columns that need to be removed
+                          const columnsToRemove = currentColumns.filter(
+                            (col) => !newColumns.includes(col)
+                          );
+
+                          // Add each new column to the table
+                          columnsToAdd.forEach((columnName) => {
                             useVariableStore
                               .getState()
-                              .updateVariable(
-                                variable.id,
-                                newValues[variable.name]
+                              .addColumnToTable(
+                                currentItem.variable.id,
+                                columnName
                               );
-                          }
-                        });
+                          });
+
+                          // Remove each deleted column from the table
+                          columnsToRemove.forEach((columnName) => {
+                            useVariableStore
+                              .getState()
+                              .removeColumnFromTable(
+                                currentItem.variable.id,
+                                columnName
+                              );
+                          });
+                        }
+
+                        // For input/intermediate variables, we don't allow column changes
+                        // since the columns represent the variable names themselves
                       }
-                    }
-                  }
-                }}
-                onSelectionChange={(selectedCells, selectedData) => {
-                  setSelection(selectedData); // Store for @selection
-                }}
-                onColumnsChange={(newColumns) => {
-                  console.log("Columns changed:", newColumns);
-                  const navigationItems = getNavigationItems();
-                  if (
-                    navigationItems.length > 0 &&
-                    currentTableIndex < navigationItems.length
-                  ) {
-                    const currentItem = navigationItems[currentTableIndex];
-
-                    // Only handle column changes for table variables
-                    if (currentItem.type === "table") {
-                      const currentColumns = currentItem.variable.columns || [];
-
-                      // Find new columns that need to be added
-                      const columnsToAdd = newColumns.filter(
-                        (col) => !currentColumns.includes(col)
+                    }}
+                  />
+                </div>
+                <div className="w-[350px] min-w-[300px] max-w-[400px] border-l border-gray-700 bg-gray-900">
+                  <ChatSidebar
+                    blocks={blocks}
+                    selectedData={selection}
+                    selectedColumn={selectedColumn}
+                    onBlockExecute={async (blockNameOrNumber, params) => {
+                      console.log(
+                        "Notebook: Executing block:",
+                        blockNameOrNumber,
+                        "with params:",
+                        params
                       );
 
-                      // Add each new column to the table
-                      columnsToAdd.forEach((columnName) => {
-                        useVariableStore
-                          .getState()
-                          .addColumnToTable(
-                            currentItem.variable.id,
-                            columnName
-                          );
-                      });
-                    }
+                      // Find the block
+                      let block = blocks.find(
+                        (b) =>
+                          (b.name &&
+                            b.name.toLowerCase() ===
+                              blockNameOrNumber.toLowerCase()) ||
+                          (b.type &&
+                            `${b.type} ${b.blockNumber}`.toLowerCase() ===
+                              blockNameOrNumber.toLowerCase())
+                      );
 
-                    // For input/intermediate variables, we don't allow column changes
-                    // since the columns represent the variable names themselves
-                  }
-                }}
-              />
+                      if (!block) {
+                        block = blocks.find(
+                          (b) =>
+                            String(b.blockNumber) === String(blockNameOrNumber)
+                        );
+                      }
+
+                      if (!block) {
+                        throw new Error(
+                          `Block "${blockNameOrNumber}" not found.`
+                        );
+                      }
+
+                      // Handle selection execution (works for all block types)
+                      if (
+                        params.selectedData &&
+                        params.selectedData.length > 0
+                      ) {
+                        await handleSelectionExecution(block, params);
+                        return; // Skip normal execution
+                      }
+
+                      // Normal execution (existing switch statement)
+                      switch (block.type) {
+                        case "webagent":
+                          if (
+                            params.url ||
+                            params.prompt ||
+                            params.outputVariable
+                          ) {
+                            updateBlockData(block.blockNumber, {
+                              url: params.url || "",
+                              prompt: params.prompt || "",
+                              outputVariable: params.outputVariable || null,
+                            });
+                          }
+                          break;
+                        case "searchagent":
+                          // Update block data with the query from chat
+                          if (params.query) {
+                            updateBlockData(block.blockNumber, {
+                              query: params.query,
+                              engine: params.engine || "search",
+                              limit: params.limit || 5,
+                            });
+                          }
+
+                          // Handle preview mode selected results (when user confirms from dialog)
+                          if (params.selectedResults) {
+                            // Execute with selected results
+                            let payload: any = {
+                              engine: params.engine || "search",
+                            };
+
+                            if (params.engine === "news") {
+                              if (params.topic) {
+                                payload.topic_token = params.topic;
+                                if (params.section)
+                                  payload.section_token = params.section;
+                              } else {
+                                payload.query = params.query;
+                                payload.num = params.limit || 5;
+                              }
+                            } else {
+                              payload.query = params.query;
+                              payload.num = params.limit || 5;
+                            }
+
+                            console.log("Notebook: Search payload:", payload);
+                            const searchResponse = await api.post(
+                              "/api/search",
+                              payload
+                            );
+                            console.log(
+                              "Notebook: Full search response:",
+                              searchResponse
+                            );
+
+                            // Check if preview mode is enabled
+                            if (params.previewMode) {
+                              console.log(
+                                "Notebook: Preview mode enabled, showing dialog"
+                              );
+                              // Transform search results into the expected format
+                              const previewRows: PreviewRow[] = [
+                                {
+                                  rowId: "0", // Single row for now
+                                  rowIndex: 0,
+                                  searchQuery: params.query || "",
+                                  results: searchResponse.results || [],
+                                },
+                              ];
+                              setPreviewData(previewRows);
+                              setIsPreviewDialogOpen(true);
+                              return; // Exit early, don't save results yet
+                            }
+
+                            // If not preview mode, save results immediately
+                            if (block.outputVariable && searchResponse) {
+                              try {
+                                const allUrls: string[] = [];
+                                Object.values(
+                                  params.selectedResults as {
+                                    [key: string]: string[];
+                                  }
+                                ).forEach((urls: string[]) => {
+                                  allUrls.push(...urls);
+                                });
+
+                                if (
+                                  block.outputVariable.type === "table" &&
+                                  block.outputVariable.columnName
+                                ) {
+                                  // Table variable - save as rows
+                                  for (const url of allUrls) {
+                                    if (url && url.trim()) {
+                                      await useVariableStore
+                                        .getState()
+                                        .addTableRow(block.outputVariable.id, {
+                                          [block.outputVariable.columnName]:
+                                            url.trim(),
+                                        });
+                                    }
+                                  }
+                                } else {
+                                  // Regular variable - save as comma-separated list
+                                  await useVariableStore
+                                    .getState()
+                                    .updateVariable(
+                                      block.outputVariable.id,
+                                      allUrls.join(", ")
+                                    );
+                                }
+                              } catch (error) {
+                                console.error(
+                                  "Error saving selected results to variable:",
+                                  error
+                                );
+                                toast.error(
+                                  "Failed to save selected results to variable"
+                                );
+                              }
+                            }
+                          } else {
+                            // Normal execution
+                            let payload: any = {
+                              engine: params.engine || "search",
+                            };
+                            if (params.engine === "news") {
+                              if (params.topic) {
+                                payload.topic_token = params.topic;
+                                if (params.section)
+                                  payload.section_token = params.section;
+                              } else {
+                                payload.query = params.query;
+                                payload.num = params.limit || 5;
+                              }
+                            } else {
+                              payload.query = params.query;
+                              payload.num = params.limit || 5;
+                            }
+
+                            console.log("Notebook: Search payload:", payload);
+                            const searchResponse = await api.post(
+                              "/api/search",
+                              payload
+                            );
+                            console.log(
+                              "Notebook: Full search response:",
+                              searchResponse
+                            );
+
+                            // Check if preview mode is enabled
+                            if (params.previewMode) {
+                              console.log(
+                                "Notebook: Preview mode enabled, showing dialog"
+                              );
+                              // Transform search results into the expected format
+                              const previewRows: PreviewRow[] = [
+                                {
+                                  rowId: "0", // Single row for now
+                                  rowIndex: 0,
+                                  searchQuery: params.query || "",
+                                  results: searchResponse.results || [],
+                                },
+                              ];
+                              setPreviewData(previewRows);
+                              setIsPreviewDialogOpen(true);
+                              return; // Exit early, don't save results yet
+                            }
+
+                            // If not preview mode, save results immediately
+                            if (block.outputVariable && searchResponse) {
+                              const results =
+                                searchResponse.results || searchResponse;
+                              console.log(
+                                "Notebook: Extracted results:",
+                                results
+                              );
+
+                              if (
+                                block.outputVariable.type === "table" &&
+                                block.outputVariable.columnName
+                              ) {
+                                const tableId = block.outputVariable.id;
+                                const columnName =
+                                  block.outputVariable.columnName;
+                                console.log(
+                                  "Notebook: Saving to table column:",
+                                  tableId,
+                                  columnName
+                                );
+
+                                if (Array.isArray(results)) {
+                                  console.log(
+                                    "Notebook: Processing",
+                                    results.length,
+                                    "results"
+                                  );
+                                  for (let i = 0; i < results.length; i++) {
+                                    const result = results[i];
+                                    console.log(
+                                      `Notebook: Processing result ${i + 1}:`,
+                                      result
+                                    );
+
+                                    // Handle nested news structure
+                                    if (
+                                      result.stories &&
+                                      Array.isArray(result.stories)
+                                    ) {
+                                      // For news results with stories, save only the FIRST story's link
+                                      const firstStory = result.stories[0];
+                                      if (firstStory) {
+                                        const valueToSave =
+                                          firstStory.link ||
+                                          firstStory.url ||
+                                          firstStory.title ||
+                                          String(firstStory);
+                                        console.log(
+                                          `Notebook: Adding table row ${i + 1} (from first story):`,
+                                          { [columnName]: valueToSave }
+                                        );
+                                        await useVariableStore
+                                          .getState()
+                                          .addTableRow(tableId, {
+                                            [columnName]: valueToSave,
+                                          });
+                                      } else {
+                                        console.log(
+                                          `Notebook: No first story found in result ${i + 1}`
+                                        );
+                                      }
+                                    } else {
+                                      // For regular results, use the direct link
+                                      const valueToSave =
+                                        result.link ||
+                                        result.url ||
+                                        result.title ||
+                                        String(result);
+                                      console.log(
+                                        `Notebook: Adding table row ${i + 1} (direct):`,
+                                        { [columnName]: valueToSave }
+                                      );
+                                      console.log(
+                                        `Notebook: Value being saved:`,
+                                        valueToSave
+                                      );
+                                      await useVariableStore
+                                        .getState()
+                                        .addTableRow(tableId, {
+                                          [columnName]: valueToSave,
+                                        });
+                                    }
+                                  }
+                                }
+                              } else {
+                                console.log(
+                                  "Notebook: Saving to regular variable:",
+                                  block.outputVariable.id,
+                                  results
+                                );
+                                await useVariableStore
+                                  .getState()
+                                  .updateVariable(
+                                    block.outputVariable.id,
+                                    results
+                                  );
+                              }
+                            }
+                          }
+                          break;
+
+                        case "deepresearchagent":
+                          if (params.topic) {
+                            updateBlockData(block.blockNumber, {
+                              topic: params.topic,
+                              searchEngine: params.searchEngine || "google",
+                            });
+                          }
+                          break;
+
+                        case "codeblock":
+                          if (params.code) {
+                            updateBlockData(block.blockNumber, {
+                              code: params.code,
+                              language: params.language || "python",
+                            });
+                          }
+                          break;
+
+                        case "instagramagent":
+                          if (params.url) {
+                            updateBlockData(block.blockNumber, {
+                              url: params.url,
+                              postCount: params.postCount || 10,
+                            });
+                          }
+                          break;
+
+                        case "excelagent":
+                        case "pipedriveagent":
+                        case "clickupagent":
+                        case "datavizagent":
+                        case "googledriveagent":
+                          if (params.prompt) {
+                            updateBlockData(block.blockNumber, {
+                              prompt: params.prompt,
+                              ...(block.type === "datavizagent" &&
+                                params.chartType && {
+                                  chartType: params.chartType,
+                                }),
+                            });
+                          }
+                          break;
+
+                        case "make":
+                          if (params.webhookUrl) {
+                            updateBlockData(block.blockNumber, {
+                              webhookUrl: params.webhookUrl,
+                              parameters: params.parameters || [],
+                            });
+                          }
+                          break;
+
+                        case "contact":
+                          if (params.recipient) {
+                            updateBlockData(block.blockNumber, {
+                              recipient: params.recipient,
+                              subject: params.subject || "",
+                              body: params.body || "",
+                              channel: params.channel || "email",
+                            });
+                          }
+                          break;
+                        case "apolloagent":
+                          if (
+                            params.fullName ||
+                            params.company ||
+                            params.prompt ||
+                            params.outputVariable
+                          ) {
+                            updateBlockData(block.blockNumber, {
+                              fullName: params.fullName || "",
+                              company: params.company || "",
+                              prompt: params.prompt || "",
+                              outputVariable: params.outputVariable || null,
+                            });
+                          }
+                          break;
+                      }
+
+                      // Wait a moment for the block to update
+                      await new Promise((resolve) => setTimeout(resolve, 500)); // Changed from 100 to 500ms
+
+                      // Get the block reference
+                      const ref = blockRefs.current[block.blockNumber];
+                      if (!ref || typeof ref.processBlock !== "function") {
+                        throw new Error(
+                          `Block "${blockNameOrNumber}" is not ready or cannot be executed.`
+                        );
+                      }
+
+                      // Execute the block
+                      console.log("Notebook: Executing block...");
+
+                      // SPECIAL HANDLING FOR APOLLO AGENT
+                      if (
+                        block.type === "apolloagent" &&
+                        params.selectedVariableId
+                      ) {
+                        console.log(
+                          "Notebook: Apollo Agent with selectedVariableId:",
+                          params.selectedVariableId
+                        );
+
+                        // Update the Apollo Agent's selectedVariableId before execution
+                        const apolloRef = ref as any;
+                        if (apolloRef && apolloRef.setSelectedVariableId) {
+                          apolloRef.setSelectedVariableId(
+                            params.selectedVariableId
+                          );
+                        }
+                      }
+
+                      // SPECIAL HANDLING FOR WEBAGENT
+                      if (block.type === "webagent" && params.outputVariable) {
+                        console.log(
+                          "Notebook: WebAgent with outputVariable:",
+                          params.outputVariable
+                        );
+
+                        // Update the WebAgent's outputVariable before execution
+                        const webAgentRef = ref as any;
+                        if (webAgentRef && webAgentRef.setOutputVariable) {
+                          webAgentRef.setOutputVariable(params.outputVariable);
+                        }
+                      }
+
+                      const success = await ref.processBlock();
+
+                      if (!success) {
+                        throw new Error(`Block execution failed`);
+                      }
+
+                      // Get the output from the block
+                      let output = null;
+                      if ("getOutput" in ref) {
+                        output = ref.getOutput();
+                        console.log("Notebook: Block output:", output);
+                      }
+
+                      // Handle output variable saving
+                      let variableSaved = null;
+                      const updatedBlock = useSourceStore
+                        .getState()
+                        .blocks.find(
+                          (b) => b.blockNumber === block.blockNumber
+                        );
+
+                      if (updatedBlock?.outputVariable && output !== null) {
+                        console.log(
+                          "Notebook: Saving output to variable:",
+                          updatedBlock.outputVariable
+                        );
+
+                        if (
+                          updatedBlock.outputVariable.type === "table" &&
+                          updatedBlock.outputVariable.columnName
+                        ) {
+                          // Save to table column
+                          const tableId = updatedBlock.outputVariable.id;
+                          const columnName =
+                            updatedBlock.outputVariable.columnName;
+                          let itemCount = 0;
+
+                          if (typeof output === "string" && output.trim()) {
+                            await useVariableStore
+                              .getState()
+                              .addTableRow(tableId, {
+                                [columnName]: output.trim(),
+                              });
+                            itemCount = 1;
+                          } else if (Array.isArray(output)) {
+                            for (const value of output) {
+                              if (value && String(value).trim()) {
+                                await useVariableStore
+                                  .getState()
+                                  .addTableRow(tableId, {
+                                    [columnName]: String(value).trim(),
+                                  });
+                                itemCount++;
+                              }
+                            }
+                          }
+
+                          variableSaved = {
+                            variableName: updatedBlock.outputVariable.name,
+                            variableType: "table",
+                            itemCount,
+                          };
+                        } else {
+                          // Save to regular variable
+                          await useVariableStore
+                            .getState()
+                            .updateVariable(
+                              updatedBlock.outputVariable.id,
+                              output
+                            );
+                          variableSaved = {
+                            variableName: updatedBlock.outputVariable.name,
+                            variableType: "variable",
+                            itemCount: 1,
+                          };
+                        }
+                      }
+
+                      console.log(
+                        "Notebook: Block execution completed successfully"
+                      );
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </CollapsibleBox>
           <div className="flex justify-center mb-4"></div>
@@ -1537,6 +2595,15 @@ export default function Notebook() {
           {/* <SourcesList /> */}
         </div>
       </div>
+
+      {/* Search Preview Dialog */}
+      <SearchPreviewDialog
+        open={isPreviewDialogOpen}
+        onOpenChange={setIsPreviewDialogOpen}
+        previewData={previewData}
+        onConfirm={handlePreviewConfirm}
+        agentId={agentId as string}
+      />
     </Layout>
   );
 }

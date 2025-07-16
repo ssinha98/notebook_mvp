@@ -33,6 +33,8 @@ import {
 import { Variable } from "@/types/types";
 import { auth } from "@/tools/firebase";
 import { api } from "@/tools/api";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 interface CheckInBlockProps {
   blockNumber: number;
@@ -65,6 +67,14 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
       Record<string, string>
     >({});
     const { variables, loadVariables, updateVariable } = useVariableStore();
+
+    // Add store hook for updating block names
+    const { updateBlockName } = useSourceStore();
+
+    // Get current block to display its name
+    const currentBlock = useSourceStore((state) =>
+      state.blocks.find((block) => block.blockNumber === props.blockNumber)
+    );
 
     // Add debug logs
     useEffect(() => {
@@ -216,9 +226,18 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
     return (
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">
-            Check-In Block #{props.blockNumber}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-white">
+              Check-In Block #{props.blockNumber}
+            </h3>
+            <BlockNameEditor
+              blockName={
+                currentBlock?.name || `Check-In Block ${props.blockNumber}`
+              }
+              blockNumber={props.blockNumber}
+              onNameUpdate={updateBlockName}
+            />
+          </div>
           <Popover>
             <PopoverTrigger>
               <span className="text-gray-400 hover:text-gray-200 cursor-pointer">

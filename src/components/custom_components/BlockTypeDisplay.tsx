@@ -110,6 +110,13 @@ const BLOCK_TYPE_CONFIGS = {
       },
     ],
   },
+  apolloagent: {
+    displays: [
+      { emoji: "🧑‍🚀", text: "Enriching contact..." },
+      { emoji: "🚀", text: "Calling Apollo API" },
+      { emoji: "🔎", text: "Searching for info" },
+    ],
+  },
 };
 
 interface BlockTypeDisplayProps {

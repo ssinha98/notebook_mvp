@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import BlockNameEditor from "./BlockNameEditor";
 
 interface ExcelAgentProps {
   blockNumber: number;
@@ -92,6 +93,14 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
       storage_path?: string;
     } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Add store hook for updating block names
+    const { updateBlockName } = useSourceStore();
+
+    // Get current block to display its name
+    const currentBlock = useSourceStore((state) =>
+      state.blocks.find((block) => block.blockNumber === blockNumber)
+    );
 
     useEffect(() => {
       if (!user) return;
@@ -343,9 +352,16 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <div className="flex items-center gap-2">
             <FaFileExcel className="text-blue-500 text-xl" />
-            <h3 className="text-lg font-semibold text-gray-100">
-              Excel Agent {blockNumber}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-100">
+                Excel Agent {blockNumber}
+              </h3>
+              <BlockNameEditor
+                blockName={currentBlock?.name || `Excel Agent ${blockNumber}`}
+                blockNumber={blockNumber}
+                onNameUpdate={updateBlockName}
+              />
+            </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button

@@ -42,6 +42,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ChevronDown, Download } from "lucide-react";
+import BlockNameEditor from "./BlockNameEditor";
 
 interface SearchAgentProps {
   blockNumber: number;
@@ -250,7 +251,7 @@ const ParsedResults = ({
   // console.log("ParsedResults received:", { engine, results, limit });
 
   if (!results) {
-    console.log("No results to display");
+    // console.log("No results to display");
     return <div>No results found</div>;
   }
 
@@ -772,6 +773,14 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       []
     );
 
+    // Add store hook for updating block names
+    const { updateBlockName } = useSourceStore();
+
+    // Get current block to display its name
+    const currentBlock = useSourceStore((state) =>
+      state.blocks.find((block) => block.blockNumber === props.blockNumber)
+    );
+
     // Add debounced query
     const debouncedQuery = useDebounce(query, 500);
 
@@ -930,7 +939,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
     // Engine change handler
     const handleEngineChange = (value: string) => {
-      console.log("Engine changing to:", value);
+      // console.log("Engine changing to:", value);
       setSearchEngine(
         value as "search" | "news" | "finance" | "markets" | "image"
       );
@@ -986,37 +995,54 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       }
 
       try {
-        const processedQuery = processVariablesInText(query);
-        const endpoint =
-          searchEngine === "image" ? "/api/image_search" : "/api/search";
+        // console.log("SearchAgent: handleSearch called with query:", query);
+        // console.log("SearchAgent: initialQuery prop:", props.initialQuery);
 
-        let payload: any = {
-          engine: searchEngine,
-        };
+        // Use prop values as fallback when internal state is empty
+        const queryToUse = query || props.initialQuery || "";
+        const engineToUse = searchEngine || props.initialEngine || "search";
+        const limitToUse = limit || props.initialLimit || 5;
 
-        if (searchEngine === "news") {
-          if (newsSearchType === "topic") {
-            // Topic search - newsTopic already contains the token!
-            payload.topic_token = newsTopic; // newsTopic is already the token
+        // console.log("SearchAgent: Using query:", queryToUse);
+        // console.log("SearchAgent: Using engine:", engineToUse);
+        // console.log("SearchAgent: Using limit:", limitToUse);
 
-            if (newsSection) {
-              payload.section_token = newsSection; // newsSection is already the token
-            }
-          } else {
-            // Query search - send the query
-            payload.query = processedQuery;
-            payload.num = limit || 5;
-          }
-        } else if (searchEngine === "image") {
-          payload.query = processedQuery;
-          payload.image_prompt = imagePrompt;
-          payload.num = limit || 5;
-        } else {
-          // Regular search - always use query
-          payload.query = processedQuery;
-          payload.num = limit || 5;
+        const processedQuery = processVariablesInText(queryToUse);
+        // console.log("SearchAgent: processedQuery:", processedQuery);
+
+        if (!processedQuery || processedQuery.trim() === "") {
+          // console.error("SearchAgent: Query is empty after processing");
+          toast.error("Search query is required");
+          return false;
         }
 
+        const endpoint =
+          engineToUse === "image" ? "/api/image_search" : "/api/search";
+
+        let payload: any = {
+          engine: engineToUse,
+        };
+
+        if (engineToUse === "news") {
+          if (newsSearchType === "topic") {
+            payload.topic_token = newsTopic;
+            if (newsSection) {
+              payload.section_token = newsSection;
+            }
+          } else {
+            payload.query = processedQuery;
+            payload.num = limitToUse;
+          }
+        } else if (engineToUse === "image") {
+          payload.query = processedQuery;
+          payload.image_prompt = imagePrompt;
+          payload.num = limitToUse;
+        } else {
+          payload.query = processedQuery;
+          payload.num = limitToUse;
+        }
+
+        // console.log("SearchAgent: Making API call with payload:", payload);
         const response = await api.post(endpoint, payload);
         setModelResponse(JSON.stringify(response, null, 2));
 
@@ -1024,20 +1050,41 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           try {
             // Extract URLs based on search engine type
             let urls: string[] = [];
-            if (searchEngine === "search") {
+            if (engineToUse === "search") {
               urls =
                 response.results?.map((result: SearchItem) => result.link) ||
                 [];
-            } else if (searchEngine === "news") {
-              urls = response.results?.map((result: any) => result.link) || [];
-            } else if (
-              searchEngine === "finance" ||
-              searchEngine === "markets"
-            ) {
+            } else if (engineToUse === "news") {
+              // Handle nested news structure like the chat execution does
+              const results = response.results || [];
+              // console.log("SearchAgent: Processing news results:", results);
+
+              for (const result of results) {
+                if (result.stories && Array.isArray(result.stories)) {
+                  // For news results with stories, use only the FIRST story's link
+                  const firstStory = result.stories[0];
+                  if (firstStory) {
+                    const valueToSave =
+                      firstStory.link ||
+                      firstStory.url ||
+                      firstStory.title ||
+                      String(firstStory);
+                    urls.push(valueToSave);
+                  }
+                } else {
+                  // For regular results, use the direct link
+                  const valueToSave =
+                    result.link || result.url || result.title || String(result);
+                  urls.push(valueToSave);
+                }
+              }
+            } else if (engineToUse === "finance" || engineToUse === "markets") {
               urls =
                 response.results?.[0]?.results?.map((item: any) => item.link) ||
                 [];
             }
+
+            // console.log("SearchAgent: Final URLs to save:", urls);
 
             // Check if it's a table variable (has ":")
             if (selectedVariableId.includes(":")) {
@@ -1283,12 +1330,75 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       updateVariableWithImages();
     }, [selectedImages, selectedVariableId]);
 
+    // Add this useEffect to sync query state with props
+    useEffect(() => {
+      // console.log(
+      //     "SearchAgent: initialQuery prop changed to:",
+      //     props.initialQuery
+      //   );
+      if (props.initialQuery !== undefined) {
+        // console.log(
+        //   "SearchAgent: Updating query state from:",
+        //   query,
+        //   "to:",
+        //   props.initialQuery
+        // );
+        setQuery(props.initialQuery);
+      }
+    }, [props.initialQuery]);
+
+    // Add similar useEffects for other props
+    useEffect(() => {
+      if (props.initialEngine !== undefined) {
+        setSearchEngine(props.initialEngine);
+      }
+    }, [props.initialEngine]);
+
+    useEffect(() => {
+      if (props.initialLimit !== undefined) {
+        setLimit(props.initialLimit);
+      }
+    }, [props.initialLimit]);
+
+    useEffect(() => {
+      if (props.initialTopic !== undefined) {
+        setNewsTopic(props.initialTopic);
+      }
+    }, [props.initialTopic]);
+
+    useEffect(() => {
+      if (props.initialSection !== undefined) {
+        setNewsSection(props.initialSection);
+      }
+    }, [props.initialSection]);
+
+    useEffect(() => {
+      if (props.initialTimeWindow !== undefined) {
+        setTimeWindow(props.initialTimeWindow);
+      }
+    }, [props.initialTimeWindow]);
+
+    useEffect(() => {
+      if (props.initialRegion !== undefined) {
+        setMarketsRegion(props.initialRegion);
+      }
+    }, [props.initialRegion]);
+
     return (
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">
-            Search Agent #{props.blockNumber}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-white">
+              Search Agent #{props.blockNumber}
+            </h3>
+            <BlockNameEditor
+              blockName={
+                currentBlock?.name || `Search Agent ${props.blockNumber}`
+              }
+              blockNumber={props.blockNumber}
+              onNameUpdate={updateBlockName}
+            />
+          </div>
           <Popover>
             <PopoverTrigger>
               <span className="text-gray-400 hover:text-gray-200 cursor-pointer">

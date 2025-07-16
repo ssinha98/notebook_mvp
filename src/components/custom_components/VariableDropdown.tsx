@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Copy, ChevronDown, Trash } from "lucide-react"; // Add Trash import
+import { Copy, ChevronDown, Trash, X } from "lucide-react"; // Add X import for clear icon
 import { toast } from "sonner";
 import { useVariableStore } from "@/lib/variableStore";
 import { Variable, TableVariable } from "@/types/types";
@@ -65,11 +65,33 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
     toast(`Variable "${variable.name}" created successfully!`);
   };
 
+  // Handle clearing the selected variable
+  const handleClearVariable = () => {
+    onValueChange(""); // Clear the selection
+    toast("Variable selection cleared - response will not be saved");
+  };
+
   const handleCopyVariable = () => {
     if (value) {
+      // Ensure value is a string before calling includes
+      let stringValue;
+      if (typeof value === "string") {
+        stringValue = value;
+      } else if (typeof value === "object" && value !== null) {
+        // Handle object format from Apollo agent
+        const objValue = value as any; // Type assertion to avoid TypeScript error
+        if (objValue.type === "table" && objValue.columnName) {
+          stringValue = `${objValue.id}:${objValue.columnName}`;
+        } else {
+          stringValue = objValue.id || "";
+        }
+      } else {
+        stringValue = String(value);
+      }
+
       // Check if it's a table column selection (contains ':')
-      if (value.includes(":") && !excludeTableVariables) {
-        const [tableId, columnName] = value.split(":");
+      if (stringValue.includes(":") && !excludeTableVariables) {
+        const [tableId, columnName] = stringValue.split(":");
         const tableVar = Object.values(variables).find((v) => v.id === tableId);
         if (tableVar && tableVar.type === "table") {
           const variableText = `{{${tableVar.name}.${columnName}}}`;
@@ -86,7 +108,7 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
 
       // Handle regular variables (intermediate, input, etc.)
       const selectedVariable = Object.values(variables).find(
-        (v) => v.id === value
+        (v) => v.id === stringValue
       ) as CombinedVariable;
       if (selectedVariable) {
         const variableText = `{{${selectedVariable.name}}}`;
@@ -136,16 +158,32 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
   const getSelectedName = () => {
     if (!value) return "Select variable";
 
+    // Ensure value is a string before calling includes
+    let stringValue;
+    if (typeof value === "string") {
+      stringValue = value;
+    } else if (typeof value === "object" && value !== null) {
+      // Handle object format from Apollo agent
+      const objValue = value as any; // Type assertion to avoid TypeScript error
+      if (objValue.type === "table" && objValue.columnName) {
+        stringValue = `${objValue.id}:${objValue.columnName}`;
+      } else {
+        stringValue = objValue.id || "";
+      }
+    } else {
+      stringValue = String(value);
+    }
+
     // Check if it's a table column selection (contains ':')
-    if (value.includes(":") && !excludeTableVariables) {
-      const [tableId, columnName] = value.split(":");
+    if (stringValue.includes(":") && !excludeTableVariables) {
+      const [tableId, columnName] = stringValue.split(":");
       const tableVar = Object.values(variables).find((v) => v.id === tableId);
       if (tableVar && tableVar.type === "table") {
         return `${tableVar.name}.${columnName}`;
       }
     }
 
-    const variable = Object.values(variables).find((v) => v.id === value);
+    const variable = Object.values(variables).find((v) => v.id === stringValue);
     if (!variable) return "Select variable";
     return variable.name;
   };
@@ -163,6 +201,19 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
           <DropdownMenuContent className="w-[220px]">
             {" "}
             {/* Increased width */}
+            {/* Clear option - only show if a variable is selected */}
+            {value && (
+              <>
+                <DropdownMenuItem
+                  onSelect={handleClearVariable}
+                  className="text-gray-400 hover:text-gray-600 flex items-center gap-2"
+                >
+                  <X className="h-3 w-3" />
+                  <span>Clear selection</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             {intermediateVariables.length > 0 && (
               <>
                 <DropdownMenuLabel>Intermediate Variables</DropdownMenuLabel>

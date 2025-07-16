@@ -5,6 +5,8 @@ import TransformCSV from "./TransformCSV";
 import { Dialog, DialogContent } from "../ui/dialog";
 import { Block } from "@/types/types";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 interface TransformBlockProps {
   blockNumber: number;
@@ -34,6 +36,16 @@ const TransformBlock: React.FC<TransformBlockProps> = ({
   onTransformationsUpdate,
   onDeleteBlock,
 }) => {
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Add store hook for updating block names
+  const { updateBlockName } = useSourceStore();
+
+  // Get current block to display its name
+  const currentBlock = useSourceStore((state) =>
+    state.blocks.find((block) => block.blockNumber === blockNumber)
+  );
+
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const renderTransformations = () => {
@@ -134,9 +146,18 @@ const TransformBlock: React.FC<TransformBlockProps> = ({
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <h3 className="text-lg font-semibold text-white">
-              Data + Transformations #{blockNumber}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-white">
+                Data + Transformations #{blockNumber}
+              </h3>
+              <BlockNameEditor
+                blockName={
+                  currentBlock?.name || `Data + Transformations ${blockNumber}`
+                }
+                blockNumber={blockNumber}
+                onNameUpdate={updateBlockName}
+              />
+            </div>
             <span className="px-2 py-1 rounded bg-gray-700 text-gray-300 text-sm">
               {fileType.toUpperCase()}
             </span>

@@ -21,6 +21,8 @@ import { Settings } from "lucide-react";
 import { useVariableStore } from "@/lib/variableStore";
 import VariableDropdown from "./VariableDropdown";
 import { useAgentStore } from "@/lib/agentStore";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 interface MakeBlockProps {
   blockNumber: number;
@@ -56,6 +58,14 @@ const MakeBlock = forwardRef<MakeBlockRef, MakeBlockProps>((props, ref) => {
   const [error, setError] = useState<string | null>(null);
 
   const currentAgent = useAgentStore((state) => state.currentAgent);
+
+  // Add store hook for updating block names
+  const { updateBlockName } = useSourceStore();
+
+  // Get current block to display its name
+  const currentBlock = useSourceStore((state) =>
+    state.blocks.find((block) => block.blockNumber === props.blockNumber)
+  );
 
   // Helper function to interpolate variables in a string
   const interpolateVariables = (text: string): string => {
@@ -255,9 +265,18 @@ print("Response:", response.text)
     <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
-          <h3 className="text-lg font-semibold text-white">
-            Make Block #{props.blockNumber}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-white">
+              Make Block #{props.blockNumber}
+            </h3>
+            <BlockNameEditor
+              blockName={
+                currentBlock?.name || `Make Block ${props.blockNumber}`
+              }
+              blockNumber={props.blockNumber}
+              onNameUpdate={updateBlockName}
+            />
+          </div>
           <Image
             src="https://images.ctfassets.net/un655fb9wln6/3xu9WYYJyMScG7FKnuVd1V/c4072d425c64525ea94ae9b60093fbaa/Make-Icon-Circle-Purple.svg"
             alt="Make.com"

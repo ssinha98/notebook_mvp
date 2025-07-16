@@ -31,6 +31,8 @@ import { api } from "@/tools/api";
 import VariableDropdown from "./VariableDropdown";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 // Define the available Pipedrive operations
 const PIPEDRIVE_OPERATIONS = [
@@ -91,6 +93,14 @@ const PipedriveAgent = forwardRef<PipedriveAgentRef, PipedriveAgentProps>(
 
     const variables = useVariableStore((state) => state.variables);
     const currentAgent = useAgentStore((state) => state.currentAgent);
+
+    // Add store hook for updating block names
+    const { updateBlockName } = useSourceStore();
+
+    // Get current block to display its name
+    const currentBlock = useSourceStore((state) =>
+      state.blocks.find((block) => block.blockNumber === blockNumber)
+    );
 
     const handleVariableSelect = (value: string) => {
       setSelectedVariableId(value);
@@ -211,9 +221,18 @@ const PipedriveAgent = forwardRef<PipedriveAgentRef, PipedriveAgentProps>(
               className="w-8 h-8 rounded"
             />
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-gray-100">
-                Pipedrive Agent {blockNumber}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-100">
+                  Pipedrive Agent {blockNumber}
+                </h3>
+                <BlockNameEditor
+                  blockName={
+                    currentBlock?.name || `Pipedrive Agent ${blockNumber}`
+                  }
+                  blockNumber={blockNumber}
+                  onNameUpdate={updateBlockName}
+                />
+              </div>
               <Badge
                 variant="secondary"
                 className="text-xs bg-blue-600 text-white"

@@ -27,6 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 interface WebAgentProps {
   blockNumber: number;
@@ -105,7 +107,16 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   const debouncedUrl = useDebounce(url, 500);
   const debouncedPrompt = useDebounce(prompt, 500);
 
+  const variables = useVariableStore((state) => state.variables);
   const currentAgent = useAgentStore((state) => state.currentAgent);
+
+  // Add store hook for updating block names
+  const { updateBlockName } = useSourceStore();
+
+  // Get current block to display its name
+  const currentBlock = useSourceStore((state) =>
+    state.blocks.find((block) => block.blockNumber === blockNumber)
+  );
 
   // Load variables when component mounts
   React.useEffect(() => {
@@ -114,6 +125,36 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       useVariableStore.getState().loadVariables(currentAgentId);
     }
   }, []);
+
+  // Update local state when props change
+  React.useEffect(() => {
+    setUrl(initialUrl);
+  }, [initialUrl]);
+
+  React.useEffect(() => {
+    setPrompt(initialPrompt);
+  }, [initialPrompt]);
+
+  // Update selection when initialOutputVariable changes
+  React.useEffect(() => {
+    // Handle the case where initialOutputVariable is null or undefined
+    if (!initialOutputVariable) {
+      setSelectedVariableId("");
+      return;
+    }
+
+    // If it's a table variable with column name, construct the proper value
+    if (
+      initialOutputVariable.type === "table" &&
+      initialOutputVariable.columnName
+    ) {
+      setSelectedVariableId(
+        `${initialOutputVariable.id}:${initialOutputVariable.columnName}`
+      );
+    } else {
+      setSelectedVariableId(initialOutputVariable.id);
+    }
+  }, [initialOutputVariable]);
 
   // Debounced update functions
   const debouncedUpdateBlock = useCallback(
@@ -138,23 +179,6 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       debouncedUpdateBlock({ prompt: debouncedPrompt });
     }
   }, [debouncedPrompt, initialPrompt, debouncedUpdateBlock]);
-
-  // Update selection when initialOutputVariable changes
-  React.useEffect(() => {
-    if (initialOutputVariable?.id) {
-      // If it's a table variable with column name, construct the proper value
-      if (
-        initialOutputVariable.type === "table" &&
-        initialOutputVariable.columnName
-      ) {
-        setSelectedVariableId(
-          `${initialOutputVariable.id}:${initialOutputVariable.columnName}`
-        );
-      } else {
-        setSelectedVariableId(initialOutputVariable.id);
-      }
-    }
-  }, [initialOutputVariable]);
 
   // Memoize expensive text processing function
   const formatTextWithVariables = useCallback((text: string) => {
@@ -312,7 +336,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
     return values;
   };
 
-  // Modify handleFetch to add logging
+  // Modify handleFetch to handle both block and chat execution patterns
   const handleFetch = async () => {
     console.log("handleFetch", url);
     if (!url.trim()) return;
@@ -427,11 +451,23 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
         setResponse(response);
         setOutput(response);
 
+        // Save to variable if selected
         if (selectedVariableId && response) {
           const contentToSave = response.analysis || response.markdown || "";
-          await useVariableStore
-            .getState()
-            .updateVariable(selectedVariableId, contentToSave);
+
+          // Check if it's a table variable (has ":")
+          if (selectedVariableId.includes(":")) {
+            // Table variable - save as new row
+            const [tableId, columnName] = selectedVariableId.split(":");
+            await useVariableStore
+              .getState()
+              .addTableRow(tableId, { [columnName]: contentToSave });
+          } else {
+            // Regular variable - save directly
+            await useVariableStore
+              .getState()
+              .updateVariable(selectedVariableId, contentToSave);
+          }
         }
       }
     } catch (error) {
@@ -560,14 +596,35 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       return true;
     },
     getOutput: () => output,
+    setOutputVariable: (outputVariable: any) => {
+      // Convert outputVariable object to string format for internal use
+      if (outputVariable && typeof outputVariable === "object") {
+        if (outputVariable.type === "table" && outputVariable.columnName) {
+          setSelectedVariableId(
+            `${outputVariable.id}:${outputVariable.columnName}`
+          );
+        } else {
+          setSelectedVariableId(outputVariable.id);
+        }
+      } else if (typeof outputVariable === "string") {
+        setSelectedVariableId(outputVariable);
+      }
+    },
   }));
 
   return (
     <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">
-          Web Agent {blockNumber}
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-white">
+            Web Agent {blockNumber}
+          </h3>
+          <BlockNameEditor
+            blockName={currentBlock?.name || `Web Agent ${blockNumber}`}
+            blockNumber={blockNumber}
+            onNameUpdate={updateBlockName}
+          />
+        </div>
         <Popover>
           <PopoverTrigger>
             <span className="text-gray-400 hover:text-gray-200 cursor-pointer">

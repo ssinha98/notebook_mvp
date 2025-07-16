@@ -19,6 +19,8 @@ import VariableDropdown from "./VariableDropdown";
 import { api } from "@/tools/api";
 import InstagramPostList from "./InstagramPostList";
 import { toast } from "sonner";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 interface SimplifiedPost {
   pk: string;
@@ -64,6 +66,14 @@ const InstagramAgent = forwardRef<InstagramAgentRef, InstagramAgentProps>(
     const [selectedPosts, setSelectedPosts] = useState<SimplifiedPost[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Add store hook for updating block names
+    const { updateBlockName } = useSourceStore();
+
+    // Get current block to display its name
+    const currentBlock = useSourceStore((state) =>
+      state.blocks.find((block) => block.blockNumber === props.blockNumber)
+    );
 
     // Expose processBlock to parent components
     useImperativeHandle(ref, () => ({
@@ -185,9 +195,18 @@ const InstagramAgent = forwardRef<InstagramAgentRef, InstagramAgentProps>(
     return (
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">
-            Instagram Agent #{props.blockNumber}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-white">
+              Instagram Agent #{props.blockNumber}
+            </h3>
+            <BlockNameEditor
+              blockName={
+                currentBlock?.name || `Instagram Agent ${props.blockNumber}`
+              }
+              blockNumber={props.blockNumber}
+              onNameUpdate={updateBlockName}
+            />
+          </div>
           <Popover>
             <PopoverTrigger>
               <span className="text-gray-400 hover:text-gray-200 cursor-pointer">

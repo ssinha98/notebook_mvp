@@ -62,6 +62,7 @@ import { format } from "date-fns";
 import router from "next/router";
 import InputVariablesSheet from "@/components/custom_components/InputVariablesSheet";
 import { PiChartScatterDuotone } from "react-icons/pi";
+import { FaRocket } from "react-icons/fa";
 
 const footerStyle: CSSProperties = {
   position: "sticky",
@@ -601,6 +602,28 @@ export default function Footer({
           saveAsCsv: false,
           prompt: "",
         }),
+    },
+    {
+      id: "apolloagent",
+      icon: <FaRocket className="text-blue-400" />,
+      label: "Apollo",
+      tooltip: "Add Apollo enrichment block",
+      onClick: () => {
+        const { addBlockToNotebook, nextBlockNumber } =
+          useSourceStore.getState();
+        addBlockToNotebook({
+          type: "apolloagent",
+          blockNumber: nextBlockNumber,
+          id: crypto.randomUUID(),
+          name: `Apollo Agent ${nextBlockNumber}`,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          fullName: "",
+          company: "",
+        });
+      },
     },
   ];
 

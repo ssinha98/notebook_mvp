@@ -19,6 +19,10 @@ export default function Settings() {
   const [hasCustomFirecrawlKey, setHasCustomFirecrawlKey] =
     useState<boolean>(false);
   const [savedFirecrawlKey, setSavedFirecrawlKey] = useState<string>("");
+  // Add Apollo API key state variables
+  const [apolloApiKey, setApolloApiKey] = useState<string>("");
+  const [hasCustomApolloKey, setHasCustomApolloKey] = useState<boolean>(false);
+  const [savedApolloKey, setSavedApolloKey] = useState<string>("");
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -78,6 +82,30 @@ export default function Settings() {
     };
 
     fetchFirecrawlKeyFromFirebase();
+  }, []);
+
+  // Add new useEffect for Apollo API key
+  useEffect(() => {
+    const fetchApolloKeyFromFirebase = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+
+      try {
+        const docSnap = await getDoc(userDoc);
+        if (docSnap.exists() && docSnap.data().Apollo_API_Key) {
+          const firebaseKey = docSnap.data().Apollo_API_Key;
+          setHasCustomApolloKey(true);
+          setSavedApolloKey(firebaseKey);
+        }
+      } catch (error) {
+        console.error("Error fetching Apollo API key from Firebase:", error);
+      }
+    };
+
+    fetchApolloKeyFromFirebase();
   }, []);
 
   const handleSubmitApiKey = async () => {
@@ -175,6 +203,47 @@ export default function Settings() {
     } catch (error) {
       console.error("Error removing FireCrawl API key:", error);
       alert("Failed to remove FireCrawl API key");
+    }
+  };
+
+  // Add Apollo API key handlers
+  const handleSubmitApolloKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("Please log in to save your Apollo API key");
+      return;
+    }
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(userDoc, { Apollo_API_Key: apolloApiKey }, { merge: true });
+
+      setHasCustomApolloKey(true);
+      setSavedApolloKey(apolloApiKey);
+      setApolloApiKey("");
+      alert("Apollo API key saved successfully!");
+    } catch (error) {
+      console.error("Error saving Apollo API key:", error);
+      alert("Failed to save Apollo API key");
+    }
+  };
+
+  const handleRemoveApolloKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(userDoc, { Apollo_API_Key: null }, { merge: true });
+
+      setHasCustomApolloKey(false);
+      setSavedApolloKey("");
+      alert("Apollo API key removed successfully!");
+    } catch (error) {
+      console.error("Error removing Apollo API key:", error);
+      alert("Failed to remove Apollo API key");
     }
   };
 
@@ -281,6 +350,39 @@ export default function Settings() {
                     className="block border border-zinc-700 rounded-lg p-3 text-gray-400 hover:text-gray-300 text-sm transition-colors"
                   >
                     How to grab a FireCrawl key →
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-zinc-800 pt-4 mt-4">
+              <div className="text-white mb-2">Apollo API Key</div>
+              {hasCustomApolloKey ? (
+                <div className="flex items-center justify-between bg-zinc-800 p-3 rounded">
+                  <span className="text-white">
+                    Custom API Key: {savedApolloKey.slice(0, 8)}...
+                  </span>
+                  <Button variant="destructive" onClick={handleRemoveApolloKey}>
+                    Remove Key
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Input
+                    type="password"
+                    placeholder="Enter your Apollo API key"
+                    className="w-full bg-zinc-800 border-zinc-700 text-white"
+                    value={apolloApiKey}
+                    onChange={(e) => setApolloApiKey(e.target.value)}
+                  />
+                  <Button onClick={handleSubmitApolloKey}>Save API Key</Button>
+                  <a
+                    href="https://developer.apollo.io/keys/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block border border-zinc-700 rounded-lg p-3 text-gray-400 hover:text-gray-300 text-sm transition-colors"
+                  >
+                    How to grab an Apollo key →
                   </a>
                 </div>
               )}

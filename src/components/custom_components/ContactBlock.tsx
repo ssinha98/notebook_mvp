@@ -19,6 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { Mail, Slack, MessageSquare } from "lucide-react";
 import { api } from "@/tools/api";
 import { useVariableStore } from "@/lib/variableStore";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 interface ContactBlockProps {
   blockNumber: number;
@@ -65,6 +67,14 @@ const ContactBlock = forwardRef<ContactBlockRef, ContactBlockProps>(
     const [subject, setSubject] = useState(initialSubject);
     const [body, setBody] = useState(initialBody);
     const storeVariables = useVariableStore((state) => state.variables);
+
+    // Add store hook for updating block names
+    const { updateBlockName } = useSourceStore();
+
+    // Get current block to display its name
+    const currentBlock = useSourceStore((state) =>
+      state.blocks.find((block) => block.blockNumber === blockNumber)
+    );
 
     // Add helper function to process variables in text
     const processVariablesInText = (text: string): string => {
@@ -179,9 +189,16 @@ const ContactBlock = forwardRef<ContactBlockRef, ContactBlockProps>(
     return (
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">
-            Contact Block #{blockNumber}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-white">
+              Contact Block #{blockNumber}
+            </h3>
+            <BlockNameEditor
+              blockName={currentBlock?.name || `Contact Block ${blockNumber}`}
+              blockNumber={blockNumber}
+              onNameUpdate={updateBlockName}
+            />
+          </div>
           <Popover>
             <PopoverTrigger>
               <span className="text-gray-400 hover:text-gray-200 cursor-pointer">

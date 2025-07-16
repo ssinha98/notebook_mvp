@@ -53,6 +53,11 @@ interface VariableStore {
   deleteTableRow: (tableId: string, rowId: string) => Promise<void>;
   addColumnToTable: (tableId: string, columnName: string) => Promise<void>;
   removeColumnFromTable: (tableId: string, columnName: string) => Promise<void>;
+  renameColumnInTable: (
+    tableId: string,
+    oldColumnName: string,
+    newColumnName: string
+  ) => Promise<void>; // Add this
 }
 
 export const useVariableStore = create<VariableStore>((set, get) => ({
@@ -429,6 +434,89 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
       }));
     } catch (error) {
       console.error("Error removing column:", error);
+      throw error;
+    }
+  },
+
+  renameColumnInTable: async (
+    tableId: string,
+    oldColumnName: string,
+    newColumnName: string
+  ) => {
+    console.log("=== renameColumnInTable called ===", {
+      tableId,
+      oldColumnName,
+      newColumnName,
+    });
+
+    try {
+      console.log("Starting renameColumnInTable:", {
+        tableId,
+        oldColumnName,
+        newColumnName,
+      });
+
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        console.error("No user logged in");
+        throw new Error("No user logged in");
+      }
+
+      const table = get().variables[tableId];
+      if (!table || table.type !== "table") {
+        console.error("Invalid table variable:", { tableId, table });
+        return;
+      }
+
+      console.log("Current table state:", {
+        columns: table.columns,
+        rowCount: Array.isArray(table.value) ? table.value.length : 0,
+      });
+
+      const columns = table.columns || [];
+      const updatedColumns = columns.map((col) =>
+        col === oldColumnName ? newColumnName : col
+      );
+
+      // Update the data rows to use the new column name
+      const currentRows = Array.isArray(table.value) ? table.value : [];
+      const updatedRows = currentRows.map((row) => {
+        const newRow = { ...row };
+        if (newRow[oldColumnName] !== undefined) {
+          newRow[newColumnName] = newRow[oldColumnName];
+          delete newRow[oldColumnName];
+        }
+        return newRow;
+      });
+
+      console.log("Updating Firebase with:", {
+        columns: updatedColumns,
+        rowCount: updatedRows.length,
+      });
+
+      await updateDoc(doc(db, `users/${userId}/variables`, tableId), {
+        columns: updatedColumns,
+        value: updatedRows,
+        updatedAt: new Date().toISOString(),
+      });
+
+      console.log("Firebase update completed successfully");
+
+      set((state) => ({
+        variables: {
+          ...state.variables,
+          [tableId]: {
+            ...table,
+            columns: updatedColumns,
+            value: updatedRows,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }));
+
+      console.log("Local state updated successfully");
+    } catch (error) {
+      console.error("Error renaming column:", error);
       throw error;
     }
   },

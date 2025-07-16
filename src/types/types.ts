@@ -100,7 +100,8 @@ export type BlockType =
   | "pipedriveagent"
   | "datavizagent"
   | "clickupagent"
-  | "googledriveagent";
+  | "googledriveagent"
+  | "apolloagent";
 
 /* OLD Block interface
 export interface Block {
@@ -261,6 +262,13 @@ export interface ClickUpAgentBlock extends BaseBlock {
   prompt?: string;
 }
 
+export interface PreviewRow {
+  rowId: string;
+  rowIndex: number;
+  searchQuery: string;
+  results: any[];
+}
+
 // Update Block union type
 export type Block =
   | AgentBlock
@@ -277,7 +285,8 @@ export type Block =
   | PipedriveAgentBlock
   | DataVizAgentBlock
   | ClickUpAgentBlock
-  | GoogleDriveAgentBlock;
+  | GoogleDriveAgentBlock
+  | ApolloAgentBlock;
 
 export interface Agent {
   id: string;
@@ -385,6 +394,19 @@ export interface AgentTask {
 export interface GoogleDriveAgentBlock extends BaseBlock {
   type: "googledriveagent";
   prompt?: string;
+}
+
+export interface ApolloAgentBlock extends BaseBlock {
+  type: "apolloagent";
+  fullName: string;
+  company: string;
+  prompt?: string;
+  outputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate" | "table";
+    columnName?: string;
+  } | null;
 }
 
 // Base variable interface

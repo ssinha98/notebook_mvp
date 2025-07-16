@@ -28,6 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import VariableDropdown from "./VariableDropdown";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 const GOOGLE_DRIVE_OPERATIONS = [
   {
@@ -93,6 +95,14 @@ const GoogleDriveAgent = forwardRef<GoogleDriveAgentRef, GoogleDriveAgentProps>(
     const variables = useVariableStore((state) => state.variables);
     const currentAgent = useAgentStore((state) => state.currentAgent);
 
+    // Add store hook for updating block names
+    const { updateBlockName } = useSourceStore();
+
+    // Get current block to display its name
+    const currentBlock = useSourceStore((state) =>
+      state.blocks.find((block) => block.blockNumber === blockNumber)
+    );
+
     const handleVariableSelect = (value: string) => {
       setSelectedVariableId(value);
     };
@@ -150,9 +160,18 @@ const GoogleDriveAgent = forwardRef<GoogleDriveAgentRef, GoogleDriveAgentProps>(
               className="w-8 h-8"
             />
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-gray-100">
-                Google Drive Agent {blockNumber}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-100">
+                  Google Drive Agent {blockNumber}
+                </h3>
+                <BlockNameEditor
+                  blockName={
+                    currentBlock?.name || `Google Drive Agent ${blockNumber}`
+                  }
+                  blockNumber={blockNumber}
+                  onNameUpdate={updateBlockName}
+                />
+              </div>
               <Badge
                 variant="secondary"
                 className="text-xs bg-blue-600 text-white"

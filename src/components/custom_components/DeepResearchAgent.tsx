@@ -32,6 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 interface SearchResult {
   date?: string | null;
@@ -126,6 +128,14 @@ const DeepResearchAgent = forwardRef<
 
     const variables = useVariableStore((state) => state.variables);
     const currentAgent = useAgentStore((state) => state.currentAgent);
+
+    // Add store hook for updating block names
+    const { updateBlockName } = useSourceStore();
+
+    // Get current block to display its name
+    const currentBlock = useSourceStore((state) =>
+      state.blocks.find((block) => block.blockNumber === blockNumber)
+    );
 
     // Debounced update function
     const debouncedUpdateBlock = React.useCallback(
@@ -302,9 +312,18 @@ const DeepResearchAgent = forwardRef<
               className="w-8 h-8 rounded"
             />
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-gray-100">
-                Deep Research Agent {blockNumber}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-100">
+                  Deep Research Agent {blockNumber}
+                </h3>
+                <BlockNameEditor
+                  blockName={
+                    currentBlock?.name || `Deep Research Agent ${blockNumber}`
+                  }
+                  blockNumber={blockNumber}
+                  onNameUpdate={updateBlockName}
+                />
+              </div>
               <Badge
                 variant="secondary"
                 className="text-xs bg-blue-600 text-white"

@@ -131,8 +131,8 @@ export default function AgentHeader({
       const blocksToSave = useSourceStore.getState().blocks;
 
       // Debug: Log the blocks to see what's actually being saved
-      console.log("=== DEBUG: Blocks being saved ===");
-      console.log("Total blocks:", blocksToSave.length);
+      // console.log("=== DEBUG: Blocks being saved ===");
+      // console.log("Total blocks:", blocksToSave.length);
       blocksToSave.forEach((block, index) => {
         console.log(`Block ${index + 1} (${block.type}):`, {
           blockNumber: block.blockNumber,

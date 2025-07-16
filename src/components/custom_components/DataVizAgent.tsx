@@ -42,6 +42,8 @@ import { FiMap } from "react-icons/fi";
 import VariableDropdown from "./VariableDropdown";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
+import { useSourceStore } from "@/lib/store";
+import BlockNameEditor from "./BlockNameEditor";
 
 const DATA_VIZ_BLOCK_DESCRIPTION =
   "Data visualization blocks allow your agent to create visual representations of data. They can generate charts, graphs, and other visualizations to help understand and communicate data insights.";
@@ -119,6 +121,14 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
     const variables = useVariableStore((state) => state.variables);
     const currentAgent = useAgentStore((state) => state.currentAgent);
 
+    // Add store hook for updating block names
+    const { updateBlockName } = useSourceStore();
+
+    // Get current block to display its name
+    const currentBlock = useSourceStore((state) =>
+      state.blocks.find((block) => block.blockNumber === props.blockNumber)
+    );
+
     const selectedChart =
       CHART_OPTIONS.find((opt) => opt.value === selectedChartType) ||
       CHART_OPTIONS[0];
@@ -192,9 +202,16 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
       <div className="bg-gray-900 rounded-lg p-6 border border-gray-700 mb-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <h3 className="text-lg font-semibold text-white">
-              Block #{props.blockNumber}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-white">
+                Block #{props.blockNumber}
+              </h3>
+              <BlockNameEditor
+                blockName={currentBlock?.name || `Block ${props.blockNumber}`}
+                blockNumber={props.blockNumber}
+                onNameUpdate={updateBlockName}
+              />
+            </div>
             <AlertDialog>
               <AlertDialogTrigger>
                 <Badge

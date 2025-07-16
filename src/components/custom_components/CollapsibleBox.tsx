@@ -53,6 +53,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import SortableBlock from "./SortableBlock";
+import ApolloAgent from "./ApolloAgent";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -296,7 +297,6 @@ const CollapsibleBox = forwardRef<
             initialRegion={block.region}
             initialOutputVariable={block.outputVariable}
             onOpenTools={props.onOpenTools}
-            
           />
         );
       case "agent":
@@ -605,6 +605,22 @@ const CollapsibleBox = forwardRef<
             }}
             initialPrompt={(block as GoogleDriveAgentBlock).prompt}
             isProcessing={processingBlocks[block.blockNumber] || false}
+          />
+        );
+      case "apolloagent":
+        return (
+          <ApolloAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs)
+                props.blockRefs.current[block.blockNumber] = ref;
+            }}
+            key={block.blockNumber}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={updateBlock}
+            initialFullName={block.fullName}
+            initialCompany={block.company}
+            isProcessing={processingBlocks[block.blockNumber]}
           />
         );
       default:

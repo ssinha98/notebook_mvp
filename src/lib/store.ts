@@ -54,6 +54,7 @@ interface SourceStore {
   clearVariables: () => void;
   clearSources: () => void;
   reorderBlocks: (startIndex: number, endIndex: number) => void;
+  updateBlockName: (blockNumber: number, newName: string) => void;
 }
 
 const usePromptStore = create<PromptStore>()(
@@ -308,6 +309,15 @@ export const useSourceStore = create<SourceStore>()(
           });
           return { blocks };
         });
+      },
+      updateBlockName: (blockNumber: number, newName: string) => {
+        set((state) => ({
+          blocks: state.blocks.map((block) =>
+            block.blockNumber === blockNumber
+              ? { ...block, name: newName }
+              : block
+          ),
+        }));
       },
     }),
     {

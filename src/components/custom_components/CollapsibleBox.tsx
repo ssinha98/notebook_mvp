@@ -668,7 +668,7 @@ const CollapsibleBox = forwardRef<
         </div>
         {!isMinimized && (
           <div style={contentStyle}>
-            {props.title === "Agent Flow" ? (
+            {props.title === "Workflow and Tools" ? (
               <>
                 <div style={blockContainerStyle}>
                   {/* ALWAYS SHOW EDIT MODE - COMMENTED OUT VIEW MODE CONDITION */}

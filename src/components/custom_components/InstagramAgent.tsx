@@ -36,8 +36,8 @@ interface SimplifiedPost {
 
 interface InstagramAgentProps {
   blockNumber: number;
-  variables: Array<Variable>;
   onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
   onUpdateBlock: (
     blockNumber: number,
     updates: Partial<InstagramAgentBlock>
@@ -48,6 +48,7 @@ interface InstagramAgentProps {
   onProcessingChange?: (isProcessing: boolean) => void;
   initialUrl?: string;
   initialPostCount?: number;
+  variables: Variable[]; // Add this line
 }
 
 export interface InstagramAgentRef {
@@ -219,6 +220,12 @@ const InstagramAgent = forwardRef<InstagramAgentRef, InstagramAgentProps>(
                 onClick={() => props.onDeleteBlock(props.blockNumber)}
               >
                 Delete Block
+              </button>
+              <button
+                className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+                onClick={() => props.onCopyBlock?.(props.blockNumber)}
+              >
+                Copy Block
               </button>
             </PopoverContent>
           </Popover>

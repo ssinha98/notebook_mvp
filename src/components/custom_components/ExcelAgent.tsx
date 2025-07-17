@@ -33,6 +33,7 @@ import BlockNameEditor from "./BlockNameEditor";
 interface ExcelAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
   onUpdateBlock: (
     blockNumber: number,
     updates: Partial<ExcelAgentBlock>
@@ -58,6 +59,7 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
     {
       blockNumber,
       onDeleteBlock,
+      onCopyBlock,
       onUpdateBlock,
       initialPrompt = "",
       isProcessing = false,
@@ -290,20 +292,20 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
 
         // Process variables in the prompt
         const processedPrompt = processVariablesInText(userPrompt.trim());
-        console.log("Excel Agent - Original prompt:", userPrompt);
-        console.log("Excel Agent - Processed prompt:", processedPrompt);
+        // console.log("Excel Agent - Original prompt:", userPrompt);
+        // console.log("Excel Agent - Processed prompt:", processedPrompt);
 
         const requestBody = {
           prompt: processedPrompt,
           user_id: user?.uid || "user1234",
         };
 
-        console.log("Excel Agent - Request body:", requestBody);
+        // console.log("Excel Agent - Request body:", requestBody);
 
         // Use api.post instead of direct fetch
         const response = await api.post("/api/excel_agent", requestBody);
 
-        console.log("Excel Agent - Response:", response);
+        // console.log("Excel Agent - Response:", response);
 
         // Save the result
         setResult(response);
@@ -408,6 +410,12 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
                 onClick={() => onDeleteBlock(blockNumber)}
               >
                 Delete Block
+              </button>
+              <button
+                className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+                onClick={() => onCopyBlock?.(blockNumber)}
+              >
+                Copy Block
               </button>
             </PopoverContent>
           </Popover>

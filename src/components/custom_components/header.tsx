@@ -86,8 +86,8 @@ const Header: React.FC<HeaderProps> = ({
     <header style={headerStyle}>
       <div style={containerStyle}>
         <div style={logoStyle}>
-          <ExperimentOutlined style={{ fontSize: "24px" }} />
-          <span>lab</span>
+          {/* <ExperimentOutlined style={{ fontSize: "24px" }} /> */}
+          {/* <span>lab</span> */}
         </div>
         <nav style={navStyle}>
           <Button

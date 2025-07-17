@@ -64,7 +64,7 @@ export default function Home() {
     if (agentId) {
       router.push(`/notebook?agentId=${agentId}`);
     } else {
-      router.push("/notebook");
+      router.push("/agents");
     }
   }, [router, agentId]);
 

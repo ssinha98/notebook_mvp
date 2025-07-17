@@ -33,6 +33,7 @@ import BlockNameEditor from "./BlockNameEditor";
 interface WebAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
   onUpdateBlock: (blockNumber: number, updates: Partial<any>) => void;
   onAddVariable: (newVariable: Variable) => void;
   initialUrl?: string;
@@ -79,6 +80,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   const {
     blockNumber,
     onDeleteBlock,
+    onCopyBlock,
     onUpdateBlock,
     onAddVariable,
     initialUrl = "",
@@ -91,6 +93,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   const [prompt, setPrompt] = useState(initialPrompt);
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<WebResponse | null>(null);
+  const [isOutputExpanded, setIsOutputExpanded] = useState(false);
   const [selectedVariableId, setSelectedVariableId] = useState<string>(() => {
     // Initialize with table column format if needed
     if (
@@ -310,35 +313,35 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   // Add this helper function to handle table variables
   const getTableColumnValues = (variableName: string): string[] => {
     const cleanVariableName = variableName.replace(/[{}]/g, "");
-    console.log("Clean variable name:", cleanVariableName);
+    // console.log("Clean variable name:", cleanVariableName);
 
     const [tableName, columnName] = cleanVariableName.split(".");
-    console.log("Table name:", tableName, "Column name:", columnName);
+    // console.log("Table name:", tableName, "Column name:", columnName);
 
     const variables = useVariableStore.getState().variables;
-    console.log("All variables:", variables);
+    // console.log("All variables:", variables);
 
     const tableVar = Object.values(variables).find((v) => v.name === tableName);
-    console.log("Found table:", tableVar);
+    // console.log("Found table:", tableVar);
 
     if (
       !tableVar ||
       tableVar.type !== "table" ||
       !Array.isArray(tableVar.value)
     ) {
-      console.log("Table not found or invalid:", { tableName, tableVar });
+      // console.log("Table not found or invalid:", { tableName, tableVar });
       return [];
     }
 
     // Use the columnName from the variable reference
     const values = tableVar.value.map((row) => row[columnName]).filter(Boolean);
-    console.log("Extracted values:", values);
+    // console.log("Extracted values:", values);
     return values;
   };
 
   // Modify handleFetch to handle both block and chat execution patterns
   const handleFetch = async () => {
-    console.log("handleFetch", url);
+    // console.log("handleFetch", url);
     if (!url.trim()) return;
     setIsLoading(true);
     setResponse(null);
@@ -348,7 +351,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       if (url.match(/{{.*?}}/)) {
         const [tableName, columnName] = url.replace(/[{}]/g, "").split(".");
         const tableUrls = getTableColumnValues(`${tableName}.${columnName}`);
-        console.log("Retrieved URLs:", tableUrls);
+        // console.log("Retrieved URLs:", tableUrls);
 
         if (tableUrls.length === 0) {
           setResponse({ error: "No URLs found in table column" });
@@ -361,7 +364,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
 
         // Process URLs sequentially with individual error handling
         for (const processedUrl of tableUrls) {
-          console.log("Processing URL:", processedUrl);
+          // console.log("Processing URL:", processedUrl);
 
           // Wrap each URL processing in its own try-catch to ensure isolation
           try {
@@ -638,6 +641,12 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
             >
               Delete Block
             </button>
+            <button
+              className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+              onClick={() => onCopyBlock?.(blockNumber)}
+            >
+              Copy Block
+            </button>
           </PopoverContent>
         </Popover>
       </div>
@@ -681,10 +690,24 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
 
         <Card className="bg-gray-900 border-gray-700">
           <CardContent className="p-4">
-            <div className="text-sm text-gray-400 mb-2">{url}</div>
-            <div className="text-white prose prose-invert max-w-none h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
-              {renderContent()}
+            <div
+              className="text-sm text-gray-400 mb-2 flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors"
+              onClick={() => setIsOutputExpanded(!isOutputExpanded)}
+            >
+              <span
+                className={`transition-transform duration-200 ${
+                  isOutputExpanded ? "rotate-90" : "rotate-0"
+                }`}
+              >
+                ▶
+              </span>
+              <span>{url || "No URL specified"}</span>
             </div>
+            {isOutputExpanded && (
+              <div className="text-white prose prose-invert max-w-none h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
+                {renderContent()}
+              </div>
+            )}
           </CardContent>
         </Card>
 

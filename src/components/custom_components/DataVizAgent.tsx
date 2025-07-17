@@ -1,6 +1,7 @@
 import React, { useState, useImperativeHandle, forwardRef } from "react";
 import { Button } from "@/components/ui/button";
-import { api } from "@/tools/api";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -44,6 +45,22 @@ import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
+import { Variable } from "@/types/types";
+import { api } from "@/tools/api";
+
+// Add the missing type import
+interface DataVizAgentBlock {
+  type: string;
+  blockNumber: number;
+  prompt?: string;
+  chartType?: string;
+  outputVariable?: {
+    id: string;
+    name: string;
+    type: "input" | "intermediate" | "table";
+    columnName?: string;
+  } | null;
+}
 
 const DATA_VIZ_BLOCK_DESCRIPTION =
   "Data visualization blocks allow your agent to create visual representations of data. They can generate charts, graphs, and other visualizations to help understand and communicate data insights.";
@@ -93,7 +110,11 @@ const CHART_OPTIONS = [
 interface DataVizAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
-  onUpdateBlock: (blockNumber: number, updates: any) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
+  onUpdateBlock: (
+    blockNumber: number,
+    updates: Partial<DataVizAgentBlock>
+  ) => void;
   initialPrompt?: string;
   initialChartType?: string;
   isProcessing?: boolean;
@@ -250,6 +271,12 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
                 onClick={handleDeleteBlock}
               >
                 Delete Block
+              </button>
+              <button
+                className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+                onClick={() => props.onCopyBlock?.(props.blockNumber)}
+              >
+                Copy Block
               </button>
             </PopoverContent>
           </Popover>

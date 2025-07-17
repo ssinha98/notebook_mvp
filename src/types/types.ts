@@ -317,6 +317,7 @@ export interface AgentStore {
     targetUserId: string,
     blocks?: Block[]
   ) => Promise<Agent>;
+  copyAgent: (agentId: string, newName: string) => Promise<Agent>;
   checkMasterRole: () => Promise<boolean>;
   saveAgent: (blocks: Block[]) => Promise<void>;
   loadAgent: (agentId: string) => Promise<void>;

@@ -24,19 +24,18 @@ import BlockNameEditor from "./BlockNameEditor";
 
 interface ContactBlockProps {
   blockNumber: number;
-  onDeleteBlock?: (blockNumber: number) => void;
-  onSave?: (values: {
+  onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
+  onSave: (values: {
     channel: string;
     recipient: string;
     subject: string;
     body: string;
   }) => void;
-  onClose?: () => void;
   initialChannel?: string;
   initialRecipient?: string;
   initialSubject?: string;
   initialBody?: string;
-  onRun?: () => void;
   isProcessing?: boolean;
   onProcessingChange?: (isProcessing: boolean) => void;
 }
@@ -51,8 +50,8 @@ const ContactBlock = forwardRef<ContactBlockRef, ContactBlockProps>(
     {
       blockNumber,
       onDeleteBlock,
+      onCopyBlock,
       onSave,
-      onClose,
       initialChannel = "email",
       initialRecipient = "",
       initialSubject = "",
@@ -148,9 +147,6 @@ const ContactBlock = forwardRef<ContactBlockRef, ContactBlockProps>(
       if (onSave) {
         onSave({ channel, recipient, subject, body });
       }
-      if (onClose) {
-        onClose();
-      }
     };
 
     const handleProcessBlock = async () => {
@@ -211,6 +207,12 @@ const ContactBlock = forwardRef<ContactBlockRef, ContactBlockProps>(
                 onClick={handleDeleteBlock}
               >
                 Delete Block
+              </button>
+              <button
+                className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+                onClick={() => onCopyBlock?.(blockNumber)}
+              >
+                Copy Block
               </button>
             </PopoverContent>
           </Popover>

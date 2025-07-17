@@ -40,6 +40,7 @@ interface CheckInBlockProps {
   blockNumber: number;
   agentId: string;
   onDeleteBlock?: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
   variables: Variable[];
   editedVariableNames: string[];
   onSaveVariables?: (
@@ -78,14 +79,14 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
 
     // Add debug logs
     useEffect(() => {
-      console.log("CheckInBlock mounted with agentId:", props.agentId);
+      // console.log("CheckInBlock mounted with agentId:", props.agentId);
       const loadData = async () => {
         try {
           setIsLoading(true);
           setError(null);
           await loadVariables(props.agentId);
-          console.log("Variables loaded:", variables);
-          console.log("Current agentId:", props.agentId);
+          // console.log("Variables loaded:", variables);
+          // console.log("Current agentId:", props.agentId);
         } catch (err) {
           setError("Failed to load variables");
           console.error("Error loading variables:", err);
@@ -98,16 +99,16 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
 
     // Filter variables for this agent
     const agentVariables = Object.values(variables).filter((variable) => {
-      console.log(
-        "Checking variable:",
-        variable,
-        "against agentId:",
-        props.agentId
-      );
+      // console.log(
+      //   "Checking variable:",
+      //   variable,
+      //   "against agentId:",
+      //   props.agentId
+      // );
       return variable.agentId === props.agentId;
     });
 
-    console.log("Filtered agent variables:", agentVariables);
+    // console.log("Filtered agent variables:", agentVariables);
 
     // Initialize edited variables only when dialog opens
     useEffect(() => {
@@ -136,35 +137,35 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
       ref,
       () => ({
         processBlock: async () => {
-          console.log(`CheckInBlock ${props.blockNumber} processBlock called`);
+          // console.log(`CheckInBlock ${props.blockNumber} processBlock called`);
 
           try {
             // Send email notification
             const currentUser = auth.currentUser;
-            console.log("Current user data:", {
-              email: currentUser?.email,
-              uid: currentUser?.uid,
-              displayName: currentUser?.displayName,
-            });
+            // console.log("Current user data:", {
+                // email: currentUser?.email,
+                // uid: currentUser?.uid,
+                // displayName: currentUser?.displayName,
+            // });
 
             if (currentUser?.email) {
-              console.log("Sending check-in email to:", currentUser.email);
+              // console.log("Sending check-in email to:", currentUser.email);
               const response = await api.get(
                 `/api/send-checkin-email?email=${encodeURIComponent(currentUser.email)}`
               );
               if (response.success) {
-                console.log(
-                  "Check-in email sent successfully to:",
-                  response.sent_to
-                );
+                // console.log(
+                //   "Check-in email sent successfully to:",
+                //   response.sent_to
+                // );
               } else {
-                console.log("Email send failed:", response);
+                // console.log("Email send failed:", response);
               }
             } else {
-              console.log("No user email available for check-in notification");
+              // console.log("No user email available for check-in notification");
             }
           } catch (error) {
-            console.error("Error sending check-in email:", error);
+            // console.error("Error sending check-in email:", error);
             // Continue with block processing even if email fails
           }
 
@@ -215,12 +216,18 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
     };
 
     const onContinueClick = () => {
-      console.log(`Continuing from block ${props.blockNumber}`);
+      // console.log(`Continuing from block ${props.blockNumber}`);
       props.onResume?.();
     };
 
     const onStopClick = () => {
-      console.log("Stop clicked");
+      // console.log("Stop clicked");
+    };
+
+    const handleCopyBlock = () => {
+      if (props.onCopyBlock) {
+        props.onCopyBlock(props.blockNumber);
+      }
     };
 
     return (
@@ -245,6 +252,12 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
               </span>
             </PopoverTrigger>
             <PopoverContent className="w-40 p-0 bg-black border border-red-500">
+              <button
+                className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+                onClick={handleCopyBlock}
+              >
+                Copy Block
+              </button>
               <button
                 className="w-full px-4 py-2 text-red-500 hover:bg-red-950 text-left transition-colors"
                 onClick={handleDeleteBlock}

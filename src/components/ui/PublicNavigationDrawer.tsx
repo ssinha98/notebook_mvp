@@ -1,4 +1,11 @@
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { LuMenu } from "react-icons/lu";
 import { ExperimentOutlined } from "@ant-design/icons";
@@ -31,6 +38,12 @@ export function PublicNavigationDrawer() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
+      <SheetHeader>
+        <SheetTitle>Navigation</SheetTitle>
+        <SheetDescription>
+          Navigate to the different pages of the app.
+        </SheetDescription>
+      </SheetHeader>
       <SheetTrigger asChild>
         <Button
           variant="outline"

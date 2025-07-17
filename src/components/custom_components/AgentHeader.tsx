@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Block } from "@/types/types";
 import { toast } from "sonner";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { useVariableStore } from "@/lib/variableStore";
 
 interface AgentHeaderProps {
   isEditMode: boolean;
@@ -79,14 +80,14 @@ export default function AgentHeader({
   // Add this useEffect to log when an agent is loaded
   useEffect(() => {
     if (currentAgent) {
-      console.log("Agent loaded:", {
-        name: currentAgent.name,
-        id: currentAgent.id,
-        blocks: currentAgent.blocks.length,
-        rawData: currentAgent, // Log the entire object
-      });
+      // console.log("Agent loaded:", {
+      //   name: currentAgent.name,
+      //   id: currentAgent.id,
+      //   blocks: currentAgent.blocks.length,
+      //   rawData: currentAgent, // Log the entire object
+      // });
     } else {
-      console.log("No current agent");
+      // console.log("No current agent");
     }
   }, [currentAgent]);
 
@@ -134,28 +135,34 @@ export default function AgentHeader({
       // console.log("=== DEBUG: Blocks being saved ===");
       // console.log("Total blocks:", blocksToSave.length);
       blocksToSave.forEach((block, index) => {
-        console.log(`Block ${index + 1} (${block.type}):`, {
-          blockNumber: block.blockNumber,
-          type: block.type,
-          outputVariable: block.outputVariable,
-          hasOutputVariable: !!block.outputVariable,
-          ...(block.type === "agent" && {
-            sourceInfo: block.sourceInfo,
-            hasSourceInfo: !!block.sourceInfo,
-          }),
-        });
+        //   console.log(`Block ${index + 1} (${block.type}):`, {
+        //     blockNumber: block.blockNumber,
+        //     type: block.type,
+        //     outputVariable: block.outputVariable,
+        //     hasOutputVariable: !!block.outputVariable,
+        //     ...(block.type === "agent" && {
+        //       sourceInfo: block.sourceInfo,
+        //       hasSourceInfo: !!block.sourceInfo,
+        //     }),
+        //   });
       });
-      console.log("=== END DEBUG ===");
+      // console.log("=== END DEBUG ===");
 
       if (target === "other" && targetUserId.trim()) {
+        // Get current variables count for logging
+        const currentVariables = Object.values(
+          useVariableStore.getState().variables
+        ).filter((v) => v.agentId === currentAgent?.id);
+
         // Create new agent for another user with current blocks
         const newAgent = await createAgentForUser(
           currentAgent!.name,
           targetUserId,
           blocksToSave // Pass the blocks here!
         );
+
         toast.success(
-          `Agent with ${blocksToSave.length} blocks saved successfully for user: ${targetUserId}`
+          `Agent with ${blocksToSave.length} blocks and ${currentVariables.length} variables saved successfully for user: ${targetUserId}`
         );
       } else {
         // Save to current user (existing functionality)
@@ -330,17 +337,17 @@ export default function AgentHeader({
           </>
         )}
         {/* <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-lg"> */}
-          {/* <span
+        {/* <span
             className={`text-sm ${!isEditMode ? "text-white" : "text-gray-400"}`}
           >
             View
           </span> */}
-          {/* <Switch
+        {/* <Switch
             checked={isEditMode}
             onCheckedChange={onEditModeChange}
             className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-600 h-6 w-11 [&>span]:h-5 [&>span]:w-5 [&>span]:bg-white"
           /> */}
-          {/* <span
+        {/* <span
             className={`text-sm ${isEditMode ? "text-white" : "text-gray-400"}`}
           >
             Edit

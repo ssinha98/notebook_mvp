@@ -53,7 +53,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         ...doc.data(),
       }));
       set({ agents: agents as Agent[] });
-      console.log("Agents loaded:", agents);
+      // console.log("Agents loaded:", agents);
     } catch (error) {
       console.error("Error loading agents:", error);
       throw error; // Let the SessionHandler component handle the error
@@ -89,20 +89,20 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       // console.log("Total blocks received:", blocks.length);
 
       // Find and log contact blocks specifically
-      const contactBlocks = blocks.filter((block) => block.type === "contact");
-      console.log("Contact blocks found:", contactBlocks.length);
-      contactBlocks.forEach((block, index) => {
-        console.log(`Contact Block ${index + 1}:`, {
-          blockNumber: block.blockNumber,
-          type: block.type,
-          subject: (block as any).subject,
-          recipient: (block as any).recipient,
-          body: (block as any).body,
-          channel: (block as any).channel,
-          fullBlock: block,
-        });
-      });
-      console.log("=== END INITIAL DEBUG ===");
+      // const contactBlocks = blocks.filter((block) => block.type === "contact");
+      // console.log("Contact blocks found:", contactBlocks.length);
+      // contactBlocks.forEach((block, index) => {
+      //   console.log(`Contact Block ${index + 1}:`, {
+      //     blockNumber: block.blockNumber,
+      //     type: block.type,
+      //     subject: (block as any).subject,
+      //     recipient: (block as any).recipient,
+      //     body: (block as any).body,
+      //     channel: (block as any).channel,
+      //     fullBlock: block,
+      //   });
+      // });
+      // console.log("=== END INITIAL DEBUG ===");
 
       const cleanBlocks = blocks.map((block) => {
         if (block.type === "searchagent") {
@@ -295,8 +295,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               saveAsCsv: contactBlock.saveAsCsv || false,
             } as ContactBlock;
 
-            console.log("Prepared contact block:", preparedBlock);
-            console.log("=== END CONTACT DEBUG ===");
+            // console.log("Prepared contact block:", preparedBlock);
+            // console.log("=== END CONTACT DEBUG ===");
 
             logUndefinedFields(
               preparedBlock,
@@ -381,7 +381,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       // Final check for any undefined values
       logUndefinedFields(cleanAgent, "Final Agent Object");
 
-      console.log("Final agent data to save:", cleanAgent);
+      // console.log("Final agent data to save:", cleanAgent);
 
       await setDoc(
         doc(db, `users/${userId}/agents`, currentAgent.id),
@@ -402,14 +402,14 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
   loadAgent: async (agentId: string) => {
     try {
-      console.log("Starting to load agent:", agentId);
+      // console.log("Starting to load agent:", agentId);
       const userId = auth.currentUser?.uid;
       if (!userId) throw new Error("No user logged in");
 
       const agentDoc = await getDoc(doc(db, `users/${userId}/agents`, agentId));
       if (agentDoc.exists()) {
         const agent = { id: agentDoc.id, ...agentDoc.data() } as Agent;
-        console.log("Successfully loaded agent:", agent);
+        // console.log("Successfully loaded agent:", agent);
 
         // Process blocks to ensure all fields are properly set
         const processedBlocks = agent.blocks.map((block) => {
@@ -567,6 +567,10 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       // Check if current user has master role
       const isMaster = await get().checkMasterRole();
       if (!isMaster) throw new Error("Insufficient permissions");
+
+      // Get current agent ID to filter variables
+      const currentAgentId = get().currentAgent?.id;
+      if (!currentAgentId) throw new Error("No current agent selected");
 
       // Use the exact same block cleaning logic as saveAgent
       const cleanBlocks = blocks
@@ -824,18 +828,80 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         agentId: newAgentId,
       }));
 
+      // Get all variables for the current agent
+      // console.log("Fetching variables for agent:", currentAgentId);
+      const currentUserVariablesRef = collection(
+        db,
+        `users/${currentUserId}/variables`
+      );
+      const variablesQuery = query(
+        currentUserVariablesRef,
+        where("agentId", "==", currentAgentId)
+      );
+      const variablesSnapshot = await getDocs(variablesQuery);
+
+      const variablesToTransfer = variablesSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Array<{
+        id: string;
+        name: string;
+        type: "input" | "intermediate" | "table";
+        value: string | any[];
+        updatedAt: string;
+        agentId: string;
+        columns?: string[];
+      }>;
+
+      // console.log(
+      //   `Found ${variablesToTransfer.length} variables to transfer:`,
+      //   variablesToTransfer
+      // );
+
+      // Create new variables for the target user with SAME IDs
+      const targetUserVariablesRef = collection(
+        db,
+        `users/${targetUserId}/variables`
+      );
+      const variableTransferPromises = variablesToTransfer.map(
+        async (originalVariable) => {
+          // Use the original variable ID instead of generating a new one
+          const newVariableRef = doc(
+            targetUserVariablesRef,
+            originalVariable.id
+          );
+          const newVariable = {
+            id: originalVariable.id, // Keep the same ID
+            name: originalVariable.name,
+            type: originalVariable.type,
+            value: originalVariable.value,
+            updatedAt: new Date().toISOString(),
+            agentId: newAgentId, // Point to the new agent
+            ...(originalVariable.columns && {
+              columns: originalVariable.columns,
+            }),
+          };
+
+          await setDoc(newVariableRef, newVariable);
+          return newVariable;
+        }
+      );
+
+      // Wait for all variables to be created
+      const createdVariables = await Promise.all(variableTransferPromises);
+
       const newAgent: Agent = {
         id: newAgentId,
         name,
         userId: targetUserId,
         createdAt: new Date().toISOString(),
-        blocks: blocksWithCorrectAgentId as Block[],
+        blocks: blocksWithCorrectAgentId as Block[], // No need to update variable references!
       };
 
       // Final check for any undefined values
       logUndefinedFields(newAgent, "Final Agent Object for Other User");
 
-      console.log("Final agent data to save for other user:", newAgent);
+      // console.log("Final agent data to save for other user:", newAgent);
 
       // Save to target user's agents subcollection
       await setDoc(
@@ -843,11 +909,126 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         newAgent
       );
 
-      console.log(`Agent created for user ${targetUserId}:`, newAgent);
+      // console.log(`Agent created for user ${targetUserId}:`, newAgent);
+      // console.log(`Variables transferred: ${createdVariables.length}`);
 
       return newAgent;
     } catch (error) {
       console.error("Error creating agent for user:", error);
+      throw error;
+    }
+  },
+
+  copyAgent: async (agentId: string, newName: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      // Get the agent to copy
+      const agentDoc = await getDoc(doc(db, `users/${userId}/agents`, agentId));
+      if (!agentDoc.exists()) throw new Error("Agent not found");
+
+      const agentToCopy = { id: agentDoc.id, ...agentDoc.data() } as Agent;
+
+      // Generate new agent ID
+      const newAgentId = doc(collection(db, `users/${userId}/agents`)).id;
+
+      // Copy blocks and update agentId references
+      const copiedBlocks = agentToCopy.blocks.map((block) => ({
+        ...block,
+        id: crypto.randomUUID(), // Generate new block IDs
+        agentId: newAgentId,
+      }));
+
+      // Get all variables for the original agent
+      const variablesRef = collection(db, `users/${userId}/variables`);
+      const variablesQuery = query(
+        variablesRef,
+        where("agentId", "==", agentId)
+      );
+      const variablesSnapshot = await getDocs(variablesQuery);
+
+      const variablesToCopy = variablesSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Array<{
+        id: string;
+        name: string;
+        type: "input" | "intermediate" | "table";
+        value: string | any[];
+        updatedAt: string;
+        agentId: string;
+        columns?: string[];
+      }>;
+
+      // Create new variables with new IDs and empty values
+      const variableCopyPromises = variablesToCopy.map(
+        async (originalVariable) => {
+          const newVariableId = crypto.randomUUID();
+          const newVariableRef = doc(variablesRef, newVariableId);
+          const newVariable = {
+            id: newVariableId,
+            name: originalVariable.name,
+            type: originalVariable.type,
+            value: originalVariable.type === "table" ? [] : "", // Empty array for tables, empty string for others
+            updatedAt: new Date().toISOString(),
+            agentId: newAgentId,
+            ...(originalVariable.columns && {
+              columns: originalVariable.columns, // Keep the column structure for tables
+            }),
+          };
+
+          await setDoc(newVariableRef, newVariable);
+          return newVariable;
+        }
+      );
+
+      // Wait for all variables to be created
+      await Promise.all(variableCopyPromises);
+
+      // Create the new agent - only include properties that are not undefined
+      const newAgent: Agent = {
+        id: newAgentId,
+        name: newName,
+        userId,
+        createdAt: new Date().toISOString(),
+        blocks: copiedBlocks as Block[],
+        // Only copy properties that are not undefined
+        ...(agentToCopy.agent_rating_thumbs_up !== undefined && {
+          agent_rating_thumbs_up: agentToCopy.agent_rating_thumbs_up,
+        }),
+        ...(agentToCopy.agent_rating_thumbs_down !== undefined && {
+          agent_rating_thumbs_down: agentToCopy.agent_rating_thumbs_down,
+        }),
+        ...(agentToCopy.start_method && {
+          start_method: agentToCopy.start_method,
+        }),
+        ...(agentToCopy.deploymentType && {
+          deploymentType: agentToCopy.deploymentType,
+        }),
+        ...(agentToCopy.start_date && {
+          start_date: agentToCopy.start_date,
+        }),
+        ...(agentToCopy.start_time && {
+          start_time: agentToCopy.start_time,
+        }),
+        ...(agentToCopy.sourceInfo && {
+          sourceInfo: agentToCopy.sourceInfo,
+        }),
+      };
+
+      // Save the new agent
+      await setDoc(doc(db, `users/${userId}/agents`, newAgent.id), newAgent);
+
+      // Update local state
+      set((state) => ({
+        agents: [...state.agents, newAgent],
+      }));
+
+      // console.log(`Agent copied successfully: ${newAgent.name}`);
+      return newAgent;
+    } catch (error) {
+      console.error("Error copying agent:", error);
       throw error;
     }
   },

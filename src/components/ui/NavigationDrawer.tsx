@@ -1,4 +1,11 @@
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 // import {
 //   Menu,
@@ -48,12 +55,6 @@ export function NavigationDrawer({
 
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      // Command + / to open
-      if ((event.metaKey || event.ctrlKey) && event.key === "/") {
-        event.preventDefault(); // Prevent default browser behavior
-        console.log("open");
-        setOpen(true);
-      }
       // Escape to close
       if (event.key === "Escape") {
         setOpen(false);
@@ -174,6 +175,11 @@ export function NavigationDrawer({
         side="left"
         className="w-[300px] sm:w-[400px] flex flex-col bg-black border-r border-border/40"
       >
+        <SheetHeader className="mb-6">
+          <SheetTitle className="text-white">Solari</SheetTitle>
+          <SheetDescription className="text-gray-300"></SheetDescription>
+        </SheetHeader>
+
         <div className="flex-grow">
           {/* {renderPageActions()} */}
           {/* <div className="h-px bg-border my-4" /> */}
@@ -208,9 +214,11 @@ export function NavigationDrawer({
                   {user?.displayName?.[0]?.toUpperCase() || "👤"}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-grow">
-                <h3 className="font-bold">{user?.displayName || "User"}</h3>
-                <p className="text-sm text-muted-foreground">
+              <div className="flex-grow min-w-0">
+                <h3 className="font-bold truncate">
+                  {user?.displayName || "User"}
+                </h3>
+                <p className="text-sm text-muted-foreground truncate">
                   {user?.email || ""}
                 </p>
               </div>

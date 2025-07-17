@@ -25,6 +25,7 @@ interface TransformBlockProps {
   };
   onTransformationsUpdate: (newTransformations: Partial<Block>) => void;
   onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
 }
 
 const TransformBlock: React.FC<TransformBlockProps> = ({
@@ -35,6 +36,7 @@ const TransformBlock: React.FC<TransformBlockProps> = ({
   transformations,
   onTransformationsUpdate,
   onDeleteBlock,
+  onCopyBlock,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
 
@@ -138,6 +140,12 @@ const TransformBlock: React.FC<TransformBlockProps> = ({
       onDeleteBlock(blockNumber);
     } else {
       console.error("onDeleteBlock is not properly defined");
+    }
+  };
+
+  const handleCopyBlock = () => {
+    if (onCopyBlock) {
+      onCopyBlock(blockNumber);
     }
   };
 

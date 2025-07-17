@@ -34,7 +34,8 @@ import BlockNameEditor from "./BlockNameEditor";
 interface CodeBlockProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
-  onUpdateBlock: (blockNumber: number, updates: any) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
+  onUpdateBlock: (blockNumber: number, updates: Partial<CodeBlockType>) => void;
   onAddVariable: (variable: Variable) => void;
   onOpenTools?: () => void;
   isProcessing?: boolean;
@@ -86,7 +87,7 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
     const loadVars = async () => {
       const currentAgentId = currentAgent?.id;
       if (currentAgentId) {
-        console.log("Loading variables for agent:", currentAgentId);
+        // console.log("Loading variables for agent:", currentAgentId);
         await useVariableStore.getState().loadVariables(currentAgentId);
       }
     };
@@ -274,8 +275,8 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
         }
       }
 
-      console.log("Original code:", code);
-      console.log("Interpolated code:", interpolatedCode);
+      // console.log("Original code:", code);
+      // console.log("Interpolated code:", interpolatedCode);
 
       // Send the interpolated code to the backend endpoint
       const response = await api.post("/api/run_code_local", {
@@ -283,7 +284,7 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
         code: interpolatedCode,
       });
 
-      console.log("API Response:", response); // Log the response for debugging
+      // console.log("API Response:", response); // Log the response for debugging
 
       let outputText = "";
       // Check if we have a success response
@@ -311,11 +312,11 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
             ...selectedVariable,
             value: outputText,
           });
-          console.log("Variable updated:", {
-            id: selectedVariableId,
-            value: outputText,
-            name: selectedVariable.name,
-          });
+          // console.log("Variable updated:", {
+          //   id: selectedVariableId,
+          //   value: outputText,
+          //   name: selectedVariable.name,
+          // });
         }
       }
 
@@ -362,6 +363,12 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
               onClick={() => props.onDeleteBlock(props.blockNumber)}
             >
               Delete Block
+            </button>
+            <button
+              className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+              onClick={() => props.onCopyBlock?.(props.blockNumber)}
+            >
+              Copy Block
             </button>
           </PopoverContent>
         </Popover>

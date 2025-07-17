@@ -92,6 +92,9 @@ interface CollapsibleBoxProps {
   onMinimize?: () => void;
   currentBlock?: Block | null;
   isRunComplete?: boolean;
+  blockElementRefs?: React.MutableRefObject<{
+    [blockId: string]: HTMLDivElement | null;
+  }>;
 }
 
 const CollapsibleBox = forwardRef<
@@ -223,405 +226,551 @@ const CollapsibleBox = forwardRef<
     gap: "16px", // This adds padding between blocks
   };
 
+  const copyBlock = useSourceStore((state) => state.copyBlockAfter);
+
   const renderBlock = (block: Block) => {
     switch (block.type) {
       case "transform":
         return (
-          <TransformBlock
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            originalFilePath={block.originalFilePath || ""}
-            sourceName={block.sourceName || ""}
-            fileType={block.fileType || "csv"}
-            transformations={{
-              filterCriteria: block.transformations?.filterCriteria || [],
-              columns: block.transformations?.columns || [],
-              previewData: block.transformations?.previewData || [],
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
+              }
             }}
-            onTransformationsUpdate={(updates) =>
-              updateBlock(block.blockNumber, updates)
-            }
-            onDeleteBlock={(blockNumber) => {
-              deleteBlock(blockNumber);
-              props.onDeleteBlock?.(blockNumber);
-            }}
-          />
+          >
+            <TransformBlock
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              originalFilePath={block.originalFilePath || ""}
+              sourceName={block.sourceName || ""}
+              fileType={block.fileType || "csv"}
+              transformations={{
+                filterCriteria: block.transformations?.filterCriteria || [],
+                columns: block.transformations?.columns || [],
+                previewData: block.transformations?.previewData || [],
+              }}
+              onTransformationsUpdate={(updates) =>
+                updateBlock(block.blockNumber, updates)
+              }
+              onDeleteBlock={(blockNumber) => {
+                deleteBlock(blockNumber);
+                props.onDeleteBlock?.(blockNumber);
+              }}
+              onCopyBlock={copyBlock}
+            />
+          </div>
         );
       case "checkin":
         return (
-          <CheckInBlock
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            agentId={props.agentId || ""}
-            onDeleteBlock={(blockNumber) => {
-              deleteBlock(blockNumber);
-              props.onDeleteBlock?.(blockNumber);
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
+              }
             }}
-            variables={props.variables || []}
-            editedVariableNames={[]}
-            onContinue={props.onContinue}
-            onStop={props.onStop}
-            isProcessing={props.isProcessing}
-          />
+          >
+            <CheckInBlock
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              agentId={props.agentId || ""}
+              onDeleteBlock={(blockNumber) => {
+                deleteBlock(blockNumber);
+                props.onDeleteBlock?.(blockNumber);
+              }}
+              onCopyBlock={copyBlock}
+              variables={props.variables || []}
+              editedVariableNames={[]}
+              onContinue={props.onContinue}
+              onStop={props.onStop}
+              isProcessing={props.isProcessing}
+            />
+          </div>
         );
       case "searchagent":
         return (
-          <SearchAgent
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={(blockNumber) => {
-              deleteBlock(blockNumber);
-              props.onDeleteBlock?.(blockNumber);
-            }}
-            onUpdateBlock={(blockNumber, updates) => {
-              updateBlock(blockNumber, updates);
-            }}
-            variables={props.variables || []}
-            onAddVariable={props.onAddVariable || (() => {})}
+          <div
             ref={(el) => {
-              if (el && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = el;
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-            onProcessingChange={(isProcessing) =>
-              handleProcessingChange(block.blockNumber, isProcessing)
-            }
-            initialQuery={block.query}
-            initialEngine={block.engine}
-            initialLimit={block.limit}
-            initialTopic={block.topic}
-            initialSection={block.section}
-            initialTimeWindow={block.timeWindow}
-            initialTrend={block.trend}
-            initialRegion={block.region}
-            initialOutputVariable={block.outputVariable}
-            onOpenTools={props.onOpenTools}
-          />
+          >
+            <SearchAgent
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={(blockNumber) => {
+                deleteBlock(blockNumber);
+                props.onDeleteBlock?.(blockNumber);
+              }}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlock(blockNumber, updates);
+              }}
+              variables={props.variables || []}
+              onAddVariable={props.onAddVariable || (() => {})}
+              ref={(el) => {
+                if (el && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = el;
+                }
+              }}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+              onProcessingChange={(isProcessing) =>
+                handleProcessingChange(block.blockNumber, isProcessing)
+              }
+              initialQuery={block.query}
+              initialEngine={block.engine}
+              initialLimit={block.limit}
+              initialTopic={block.topic}
+              initialSection={block.section}
+              initialTimeWindow={block.timeWindow}
+              initialTrend={block.trend}
+              initialRegion={block.region}
+              initialOutputVariable={block.outputVariable}
+              onOpenTools={props.onOpenTools}
+            />
+          </div>
         );
       case "agent":
         return (
-          <AgentBlock
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            variables={props.variables || []}
-            initialOutputVariable={block.outputVariable}
-            onAddVariable={props.onAddVariable || (() => {})}
-            onOpenTools={props.onOpenTools}
-            onSavePrompts={(
-              blockNumber,
-              systemPrompt,
-              userPrompt,
-              saveAsCsv,
-              sourceInfo,
-              outputVariable
-            ) => {
-              updateBlock(block.blockNumber, {
-                ...block,
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
+              }
+            }}
+          >
+            <AgentBlock
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              variables={props.variables || []}
+              initialOutputVariable={block.outputVariable}
+              onAddVariable={props.onAddVariable || (() => {})}
+              onOpenTools={props.onOpenTools}
+              onSavePrompts={(
+                blockNumber,
                 systemPrompt,
                 userPrompt,
                 saveAsCsv,
                 sourceInfo,
-                outputVariable: outputVariable,
-                type: "agent",
-                agentId: props.agentId || "",
-              });
-            }}
-            ref={(el) => {
-              if (el && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = el;
+                outputVariable
+              ) => {
+                updateBlock(block.blockNumber, {
+                  ...block,
+                  systemPrompt,
+                  userPrompt,
+                  saveAsCsv,
+                  sourceInfo,
+                  outputVariable: outputVariable,
+                  type: "agent",
+                  agentId: props.agentId || "",
+                });
+              }}
+              ref={(el) => {
+                if (el && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = el;
+                }
+              }}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+              onProcessingChange={(isProcessing) =>
+                handleProcessingChange(block.blockNumber, isProcessing)
               }
-            }}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-            onProcessingChange={(isProcessing) =>
-              handleProcessingChange(block.blockNumber, isProcessing)
-            }
-            onProcessedPrompts={(system, user) => {
-              console.log(`Block ${block.blockNumber} processed:`, {
-                system,
-                user,
-              });
-            }}
-            onDeleteBlock={(blockNumber) => {
-              deleteBlock(blockNumber);
-              props.onDeleteBlock?.(blockNumber);
-            }}
-            initialSystemPrompt={block.systemPrompt || ""}
-            initialUserPrompt={block.userPrompt || ""}
-            initialSaveAsCsv={block.saveAsCsv || false}
-          />
+              onProcessedPrompts={(system, user) => {
+                console.log(`Block ${block.blockNumber} processed:`, {
+                  system,
+                  user,
+                });
+              }}
+              onDeleteBlock={(blockNumber) => {
+                deleteBlock(blockNumber);
+                props.onDeleteBlock?.(blockNumber);
+              }}
+              onCopyBlock={copyBlock}
+              initialSystemPrompt={block.systemPrompt || ""}
+              initialUserPrompt={block.userPrompt || ""}
+              initialSaveAsCsv={block.saveAsCsv || false}
+            />
+          </div>
         );
       case "contact":
         return (
-          <ContactBlock
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onSave={(values) => {
-              updateBlock(block.blockNumber, {
-                ...values,
-                type: "contact",
-                agentId: props.agentId || "",
-                systemPrompt: "",
-                userPrompt: "",
-                saveAsCsv: false,
-              });
-            }}
-            initialChannel={block.channel}
-            initialRecipient={block.recipient}
-            initialSubject={block.subject}
-            initialBody={block.body}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-            onProcessingChange={(isProcessing) =>
-              handleProcessingChange(block.blockNumber, isProcessing)
-            }
-          />
+          >
+            <ContactBlock
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onSave={(values) => {
+                updateBlock(block.blockNumber, {
+                  ...values,
+                  type: "contact",
+                  agentId: props.agentId || "",
+                  systemPrompt: "",
+                  userPrompt: "",
+                  saveAsCsv: false,
+                });
+              }}
+              initialChannel={block.channel}
+              initialRecipient={block.recipient}
+              initialSubject={block.subject}
+              initialBody={block.body}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+              onProcessingChange={(isProcessing) =>
+                handleProcessingChange(block.blockNumber, isProcessing)
+              }
+            />
+          </div>
         );
       case "webagent":
         return (
-          <WebAgent
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber, updates) => {
-              updateBlock(blockNumber, updates);
-            }}
-            onAddVariable={props.onAddVariable || (() => {})}
-            onOpenTools={props.onOpenTools}
-            initialUrl={block.url}
-            initialPrompt={block.prompt}
-            initialSelectedVariableId={block.selectedVariableId}
-            initialOutputVariable={block.outputVariable}
-          />
+          >
+            <WebAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlock(blockNumber, updates);
+              }}
+              onAddVariable={props.onAddVariable || (() => {})}
+              onOpenTools={props.onOpenTools}
+              initialUrl={block.url}
+              initialPrompt={block.prompt}
+              initialSelectedVariableId={block.selectedVariableId}
+              initialOutputVariable={block.outputVariable}
+            />
+          </div>
         );
       case "codeblock":
         return (
-          <CodeBlock
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber: number, updates: any) => {
-              updateBlock(blockNumber, updates);
-            }}
-            onAddVariable={props.onAddVariable || (() => {})}
-            onOpenTools={props.onOpenTools}
-            initialLanguage={block.language}
-            initialCode={block.code}
-            initialOutputVariable={
-              block.outputVariable
-                ? {
-                    id: block.outputVariable.id,
-                    name: block.outputVariable.name,
-                    type:
-                      block.outputVariable.type === "table"
-                        ? "intermediate"
-                        : block.outputVariable.type,
-                  }
-                : null
-            }
-            initialStatus={block.status}
-          />
+          >
+            <CodeBlock
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber: number, updates: any) => {
+                updateBlock(blockNumber, updates);
+              }}
+              onAddVariable={props.onAddVariable || (() => {})}
+              onOpenTools={props.onOpenTools}
+              initialLanguage={block.language}
+              initialCode={block.code}
+              initialOutputVariable={
+                block.outputVariable
+                  ? {
+                      id: block.outputVariable.id,
+                      name: block.outputVariable.name,
+                      type:
+                        block.outputVariable.type === "table"
+                          ? "intermediate"
+                          : block.outputVariable.type,
+                    }
+                  : null
+              }
+              initialStatus={block.status}
+            />
+          </div>
         );
       case "make":
         return (
-          <MakeBlock
-            onAddVariable={props.onAddVariable || (() => {})}
-            variables={props.variables || []}
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber, updates) => {
-              updateBlock(blockNumber, updates);
-            }}
-            initialWebhookUrl={block.webhookUrl}
-            initialParameters={block.parameters}
-            onOpenTools={props.onOpenTools}
-          />
+          >
+            <MakeBlock
+              onAddVariable={props.onAddVariable || (() => {})}
+              variables={props.variables || []}
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlock(blockNumber, updates);
+              }}
+              initialWebhookUrl={block.webhookUrl}
+              initialParameters={block.parameters}
+              onOpenTools={props.onOpenTools}
+            />
+          </div>
         );
       case "excelagent":
         return (
-          <ExcelAgent
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(
-              blockNumber: number,
-              updates: Partial<ExcelAgentBlock>
-            ) => {
-              updateBlock(blockNumber, updates);
-            }}
-            initialPrompt={block.prompt}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-            onOpenTools={props.onOpenTools}
-            onProcessingChange={(isProcessing) =>
-              handleProcessingChange(block.blockNumber, isProcessing)
-            }
-            initialOutputVariable={block.outputVariable}
-          />
+          >
+            <ExcelAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(
+                blockNumber: number,
+                updates: Partial<ExcelAgentBlock>
+              ) => {
+                updateBlock(blockNumber, updates);
+              }}
+              initialPrompt={block.prompt}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+              onOpenTools={props.onOpenTools}
+              onProcessingChange={(isProcessing) =>
+                handleProcessingChange(block.blockNumber, isProcessing)
+              }
+              initialOutputVariable={block.outputVariable}
+            />
+          </div>
         );
       case "instagramagent":
         return (
-          <InstagramAgent
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber, updates) => {
-              updateBlock(blockNumber, updates);
-            }}
-            variables={props.variables || []}
-            onAddVariable={props.onAddVariable || (() => {})}
-            onOpenTools={props.onOpenTools}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-            onProcessingChange={(isProcessing) =>
-              handleProcessingChange(block.blockNumber, isProcessing)
-            }
-            initialUrl={block.url}
-            initialPostCount={block.postCount}
-          />
+          >
+            <InstagramAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlock(blockNumber, updates);
+              }}
+              variables={props.variables || []}
+              onAddVariable={props.onAddVariable || (() => {})}
+              onOpenTools={props.onOpenTools}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+              onProcessingChange={(isProcessing) =>
+                handleProcessingChange(block.blockNumber, isProcessing)
+              }
+              initialUrl={block.url}
+              initialPostCount={block.postCount}
+            />
+          </div>
         );
       case "deepresearchagent":
         return (
-          <DeepResearchAgent
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber, updates) => {
-              updateBlock(blockNumber, updates);
-            }}
-            initialTopic={block.topic}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-            onOpenTools={props.onOpenTools}
-            initialSearchEngine={block.searchEngine}
-            initialOutputVariable={block.outputVariable}
-          />
+          >
+            <DeepResearchAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlock(blockNumber, updates);
+              }}
+              initialTopic={block.topic}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+              onOpenTools={props.onOpenTools}
+              initialSearchEngine={block.searchEngine}
+              initialOutputVariable={block.outputVariable}
+            />
+          </div>
         );
       case "pipedriveagent":
         return (
-          <PipedriveAgent
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber, updates) => {
-              updateBlock(blockNumber, updates);
-            }}
-            initialPrompt={block.prompt}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-          />
+          >
+            <PipedriveAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlock(blockNumber, updates);
+              }}
+              initialPrompt={block.prompt}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+            />
+          </div>
         );
       case "datavizagent":
         return (
-          <DataVizAgent
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber, updates) => {
-              updateBlock(blockNumber, updates);
-            }}
-            initialPrompt={block.prompt}
-            initialChartType={block.chartType}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-            onProcessingChange={(isProcessing) =>
-              handleProcessingChange(block.blockNumber, isProcessing)
-            }
-            onOpenTools={props.onOpenTools}
-          />
+          >
+            <DataVizAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlock(blockNumber, updates as Partial<Block>);
+              }}
+              initialPrompt={block.prompt}
+              initialChartType={block.chartType}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+              onProcessingChange={(isProcessing) =>
+                handleProcessingChange(block.blockNumber, isProcessing)
+              }
+              onOpenTools={props.onOpenTools}
+            />
+          </div>
         );
       case "clickupagent":
         return (
-          <ClickUpAgent
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber, updates) => {
-              updateBlock(blockNumber, updates);
-            }}
-            initialPrompt={(block as ClickUpAgentBlock).prompt}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-          />
+          >
+            <ClickUpAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlock(blockNumber, updates);
+              }}
+              initialPrompt={(block as ClickUpAgentBlock).prompt}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+            />
+          </div>
         );
       case "googledriveagent":
         return (
-          <GoogleDriveAgent
-            ref={(ref) => {
-              if (ref && props.blockRefs) {
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
               }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={(blockNumber, updates) => {
-              updateBlock(blockNumber, updates);
-            }}
-            initialPrompt={(block as GoogleDriveAgentBlock).prompt}
-            isProcessing={processingBlocks[block.blockNumber] || false}
-          />
+          >
+            <GoogleDriveAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlock(blockNumber, updates);
+              }}
+              initialPrompt={(block as GoogleDriveAgentBlock).prompt}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+            />
+          </div>
         );
       case "apolloagent":
         return (
-          <ApolloAgent
-            ref={(ref) => {
-              if (ref && props.blockRefs)
-                props.blockRefs.current[block.blockNumber] = ref;
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
+              }
             }}
-            key={block.blockNumber}
-            blockNumber={block.blockNumber}
-            onDeleteBlock={deleteBlock}
-            onUpdateBlock={updateBlock}
-            initialFullName={block.fullName}
-            initialCompany={block.company}
-            isProcessing={processingBlocks[block.blockNumber]}
-          />
+          >
+            <ApolloAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs)
+                  props.blockRefs.current[block.blockNumber] = ref;
+              }}
+              key={block.blockNumber}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={updateBlock}
+              initialFullName={block.fullName}
+              initialCompany={block.company}
+              isProcessing={processingBlocks[block.blockNumber]}
+            />
+          </div>
         );
       default:
         return null;

@@ -262,11 +262,11 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
 
   // Update rows when firebaseData changes
   useEffect(() => {
-    console.log("useEffect triggered - firebaseData.value changed:", {
-      isUpdatingLocally,
-      firebaseDataValue: firebaseData.value?.length,
-      currentRows: rows.length,
-    });
+    // console.log("useEffect triggered - firebaseData.value changed:", {
+    //   isUpdatingLocally,
+    //   firebaseDataValue: firebaseData.value?.length,
+    //   currentRows: rows.length,
+    // });
     if (!isUpdatingLocally) {
       setRows(firebaseData.value || []);
     }
@@ -274,11 +274,11 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
 
   // Update local columns when firebaseData changes
   useEffect(() => {
-    console.log("useEffect triggered - firebaseData.columns changed:", {
-      isUpdatingLocally,
-      firebaseDataColumns: firebaseData.columns,
-      currentLocalColumns: localColumns,
-    });
+    // console.log("useEffect triggered - firebaseData.columns changed:", {
+    //   isUpdatingLocally,
+    //   firebaseDataColumns: firebaseData.columns,
+    //   currentLocalColumns: localColumns,
+    // });
     if (!isUpdatingLocally) {
       setLocalColumns(firebaseData.columns || []);
     }
@@ -369,17 +369,17 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
       return;
     }
 
-    console.log("Renaming column:", {
-      tableId: currentTableId,
-      agentId: currentAgentId,
-      oldName: editingColumnName.oldName,
-      newName: editingColumnName.newName,
-      isUpdatingLocally: isUpdatingLocally,
-    });
+    // console.log("Renaming column:", {
+    //   tableId: currentTableId,
+    //   agentId: currentAgentId,
+    //   oldName: editingColumnName.oldName,
+    //   newName: editingColumnName.newName,
+    //   isUpdatingLocally: isUpdatingLocally,
+    // });
 
     // Set flag to prevent useEffect from overwriting
     setIsUpdatingLocally(true);
-    console.log("Set isUpdatingLocally to true");
+    // console.log("Set isUpdatingLocally to true");
 
     const newColumns = localColumns.map((col) =>
       col === editingColumnName.oldName ? editingColumnName.newName : col
@@ -395,22 +395,22 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
       return newRow;
     });
 
-    console.log("Updated local state:", {
-      newColumns,
-      updatedRowsCount: updatedRows.length,
-    });
+    // console.log("Updated local state:", {
+    //   newColumns,
+    //   updatedRowsCount: updatedRows.length,
+    // });
 
     // Update immediately for real-time feedback
     setRows(updatedRows);
     setLocalColumns(newColumns);
 
     // Update the variable store directly
-    console.log("About to call renameColumnInTable...");
+    // console.log("About to call renameColumnInTable...");
     const variableStore = useVariableStore.getState();
-    console.log("Variable store state:", {
-      variables: Object.keys(variableStore.variables),
-      currentTable: variableStore.variables[currentTableId],
-    });
+    // console.log("Variable store state:", {
+    //   variables: Object.keys(variableStore.variables),
+    //   currentTable: variableStore.variables[currentTableId],
+    // });
 
     try {
       const promise = variableStore.renameColumnInTable(
@@ -419,14 +419,14 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
         editingColumnName.newName
       );
 
-      console.log("renameColumnInTable promise created:", promise);
+    //   console.log("renameColumnInTable promise created:", promise);
 
       promise
         .then(() => {
           console.log("Column renamed successfully in Firebase");
           // Reset the flag after successful Firebase update
           setTimeout(() => {
-            console.log("Resetting isUpdatingLocally to false");
+            // console.log("Resetting isUpdatingLocally to false");
             setIsUpdatingLocally(false);
           }, 1000); // Wait longer for Firebase to propagate
         })
@@ -434,7 +434,7 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
           console.error("Error renaming column in Firebase:", error);
           // Reset the flag even on error
           setTimeout(() => {
-            console.log("Resetting isUpdatingLocally to false (error case)");
+            // console.log("Resetting isUpdatingLocally to false (error case)");
             setIsUpdatingLocally(false);
           }, 1000);
         });
@@ -442,7 +442,7 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
       console.error("Error calling renameColumnInTable:", error);
       // Reset the flag even on error
       setTimeout(() => {
-        console.log("Resetting isUpdatingLocally to false (catch case)");
+        // console.log("Resetting isUpdatingLocally to false (catch case)");
         setIsUpdatingLocally(false);
       }, 1000);
     }

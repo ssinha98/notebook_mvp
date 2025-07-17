@@ -11,11 +11,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Copy, ChevronDown, Trash, X } from "lucide-react"; // Add X import for clear icon
+import { Copy, ChevronDown, Trash, X, Save, Check } from "lucide-react"; // Add Save and Check icons
 import { toast } from "sonner";
 import { useVariableStore } from "@/lib/variableStore";
 import { Variable, TableVariable } from "@/types/types";
 import AddVariableDialog from "./AddVariableDialog";
+// Add tooltip imports
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type CombinedVariable = Variable | TableVariable;
 
@@ -23,18 +30,31 @@ interface VariableDropdownProps {
   value: string;
   onValueChange: (value: string) => void;
   agentId?: string | null;
-  onAddNew?: () => void; // Keep this for backward compatibility but make it optional
+  onAddNew?: () => void;
   className?: string;
   excludeTableVariables?: boolean;
+  // Add new props for save functionality
+  showSaveButton?: boolean;
+  onSave?: (variableId: string) => Promise<void>;
+  isSaving?: boolean;
+  hasSaved?: boolean;
+  // Add prop to indicate component type
+  isSearchAgent?: boolean;
 }
 
 const VariableDropdown: React.FC<VariableDropdownProps> = ({
   value,
   onValueChange,
   agentId,
-  onAddNew, // This will be ignored in favor of our internal dialog
+  onAddNew,
   className = "",
   excludeTableVariables = false,
+  // Add new props
+  showSaveButton = false,
+  onSave,
+  isSaving = false,
+  hasSaved = false,
+  isSearchAgent = false,
 }) => {
   const variables = useVariableStore((state) => state.variables);
 
@@ -69,6 +89,11 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
   const handleClearVariable = () => {
     onValueChange(""); // Clear the selection
     toast("Variable selection cleared - response will not be saved");
+    setTimeout(() => {
+      toast(
+        "To save the results to a chosen variable, choose a variable from the dropdown and hit the save icon"
+      );
+    }, 3000); // 1 second delay
   };
 
   const handleCopyVariable = () => {
@@ -120,6 +145,13 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
           },
         });
       }
+    }
+  };
+
+  // Add save handler
+  const handleSaveToVariable = async () => {
+    if (onSave && value) {
+      await onSave(value);
     }
   };
 
@@ -188,14 +220,25 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
     return variable.name;
   };
 
+  // Get tooltip text based on component type
+  const getTooltipText = () => {
+    if (isSearchAgent) {
+      return "Save the chosen results to the selected variable";
+    }
+    return "Save the results to the selected variable";
+  };
+
   return (
-    <>
+    <TooltipProvider>
       <div className={`flex items-center gap-2 ${className}`}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-[180px] justify-between">
-              {getSelectedName()}
-              <ChevronDown className="ml-2 h-4 w-4" />
+            <Button
+              variant="outline"
+              className="min-w-[180px] max-w-[400px] w-auto justify-between"
+            >
+              <span className="truncate pr-2">{getSelectedName()}</span>
+              <ChevronDown className="h-4 w-4 flex-shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-[220px]">
@@ -223,7 +266,9 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
                     onSelect={() => onValueChange(v.id)}
                     className="flex items-center justify-between group"
                   >
-                    <span>{v.name}</span>
+                    <span className="truncate" title={v.name}>
+                      {v.name}
+                    </span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -231,7 +276,7 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
                         useVariableStore.getState().deleteVariable(v.id);
                         toast(`Variable "${v.name}" deleted`);
                       }}
-                      className="opacity-0 group-hover:opacity-100 h-4 w-4 p-0 text-muted-foreground hover:text-red-500 transition-colors"
+                      className="opacity-0 group-hover:opacity-100 h-4 w-4 p-0 text-muted-foreground hover:text-red-500 transition-colors flex-shrink-0"
                     >
                       <Trash className="h-3 w-3" />
                     </button>
@@ -246,7 +291,9 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
                 {Object.entries(tableVariables).map(([tableName, table]) => (
                   <DropdownMenuSub key={table.id}>
                     <DropdownMenuSubTrigger className="flex items-center justify-between group">
-                      <span>{tableName}</span>
+                      <span className="truncate" title={tableName}>
+                        {tableName}
+                      </span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -254,7 +301,7 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
                           useVariableStore.getState().deleteVariable(table.id);
                           toast(`Table "${tableName}" deleted`);
                         }}
-                        className="opacity-0 group-hover:opacity-100 h-4 w-4 p-0 text-muted-foreground hover:text-red-500 transition-colors mr-2"
+                        className="opacity-0 group-hover:opacity-100 h-4 w-4 p-0 text-muted-foreground hover:text-red-500 transition-colors mr-2 flex-shrink-0"
                       >
                         <Trash className="h-3 w-3" />
                       </button>
@@ -266,7 +313,9 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
                           onSelect={() => onValueChange(column.value)}
                           className="flex items-center justify-between group"
                         >
-                          <span>{column.name}</span>
+                          <span className="truncate" title={column.name}>
+                            {column.name}
+                          </span>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -278,7 +327,7 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
                                 `Column "${column.name}" deleted from table "${tableName}"`
                               );
                             }}
-                            className="opacity-0 group-hover:opacity-100 h-4 w-4 p-0 text-muted-foreground hover:text-red-500 transition-colors"
+                            className="opacity-0 group-hover:opacity-100 h-4 w-4 p-0 text-muted-foreground hover:text-red-500 transition-colors flex-shrink-0"
                           >
                             <Trash className="h-3 w-3" />
                           </button>
@@ -308,6 +357,32 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
         >
           <Copy className="h-4 w-4" />
         </Button>
+
+        {/* Add save button with tooltip */}
+        {showSaveButton && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleSaveToVariable}
+                disabled={!value || isSaving}
+              >
+                {isSaving ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                ) : hasSaved ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{getTooltipText()}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       {/* Add the AddVariableDialog */}
@@ -318,7 +393,7 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
         defaultType="intermediate"
         currentAgentId={agentId || ""}
       />
-    </>
+    </TooltipProvider>
   );
 };
 

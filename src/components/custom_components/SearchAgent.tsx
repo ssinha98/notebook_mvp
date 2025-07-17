@@ -48,6 +48,7 @@ interface SearchAgentProps {
   blockNumber: number;
   variables: Array<Variable>;
   onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void;
   onUpdateBlock: (
     blockNumber: number,
     updates: Partial<SearchAgentBlock>
@@ -89,6 +90,10 @@ interface ParsedResultsProps {
   selectedImages: ImageSearchResult[];
   setSelectedImages: React.Dispatch<React.SetStateAction<ImageSearchResult[]>>;
   handleImageSelection: (image: ImageSearchResult) => void;
+  selectedItems: Set<string>;
+  handleItemSelect: (id: string, selected: boolean) => void;
+  handleSelectAll: () => void;
+  handleClearAll: () => void;
 }
 
 interface FinanceItem {
@@ -131,68 +136,98 @@ interface ImageSearchResult {
   };
 }
 
-const SearchCard: React.FC<SearchItem> = ({
+const SearchCard: React.FC<
+  SearchItem & {
+    isSelected: boolean;
+    onSelect: (id: string, selected: boolean) => void;
+  }
+> = ({
   title,
   snippet,
   displayed_link,
   position,
   link,
+  isSelected,
+  onSelect,
 }) => (
-  <a
-    href={link}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="block p-4 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors relative"
-  >
+  <div className="relative p-4 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors">
     <div className="absolute top-2 left-2 bg-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-sm text-gray-300">
       {position}
     </div>
-    <div className="pl-8">
-      <div className="text-lg font-semibold text-blue-400 hover:underline">
+    <div className="absolute top-2 right-2">
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={(checked) => onSelect(link, checked as boolean)}
+        className="bg-gray-700 border-gray-600"
+      />
+    </div>
+    <div className="pl-8 pr-8">
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-lg font-semibold text-blue-400 hover:underline"
+      >
         {title}
-      </div>
+      </a>
       <div className="text-sm text-gray-400 mb-2">{displayed_link}</div>
       <div className="text-sm text-gray-300 line-clamp-2">{snippet}</div>
     </div>
-  </a>
+  </div>
 );
 
-const FinanceCard: React.FC<FinanceItem> = ({
-  name,
-  stock,
-  price,
-  price_movement,
-  link,
-}) => (
-  <a
-    href={link}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="block p-4 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
-  >
-    <div className="text-lg font-semibold text-gray-200">{name}</div>
-    <div className="text-sm text-gray-400">{stock}</div>
-    <div className="my-2 border-t border-gray-700" />
-    <div className="flex items-center justify-between">
-      <div className="text-gray-300">Price: {price}</div>
-      <div
-        className={`flex items-center ${price_movement.movement === "Up" ? "text-green-500" : "text-red-500"}`}
+const FinanceCard: React.FC<
+  FinanceItem & {
+    isSelected: boolean;
+    onSelect: (id: string, selected: boolean) => void;
+  }
+> = ({ name, stock, price, price_movement, link, isSelected, onSelect }) => (
+  <div className="relative p-4 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors">
+    <div className="absolute top-2 right-2">
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={(checked) => onSelect(link, checked as boolean)}
+        className="bg-gray-700 border-gray-600"
+      />
+    </div>
+    <div className="pr-8">
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-lg font-semibold text-gray-200 hover:underline"
       >
-        {price_movement.movement === "Up" ? "↑" : "↓"}
-        <span className="ml-1">{price_movement.percentage.toFixed(2)}%</span>
+        {name}
+      </a>
+      <div className="text-sm text-gray-400">{stock}</div>
+      <div className="my-2 border-t border-gray-700" />
+      <div className="flex items-center justify-between">
+        <div className="text-gray-300">Price: {price}</div>
+        <div
+          className={`flex items-center ${price_movement.movement === "Up" ? "text-green-500" : "text-red-500"}`}
+        >
+          {price_movement.movement === "Up" ? "↑" : "↓"}
+          <span className="ml-1">{price_movement.percentage.toFixed(2)}%</span>
+        </div>
       </div>
     </div>
-  </a>
+  </div>
 );
 
-const MarketsCard: React.FC<MarketItem> = ({
+const MarketsCard: React.FC<
+  MarketItem & {
+    isSelected: boolean;
+    onSelect: (id: string, selected: boolean) => void;
+  }
+> = ({
   name = "",
   stock = "",
   price = "",
   price_movement,
   link = "#",
+  isSelected,
+  onSelect,
 }) => {
-  // Early check for price_movement validity
   const isValidPriceMovement =
     price_movement &&
     typeof price_movement === "object" &&
@@ -201,41 +236,50 @@ const MarketsCard: React.FC<MarketItem> = ({
     "value" in price_movement;
 
   return (
-    <a
-      href={link}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block p-4 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors border border-gray-700"
-    >
-      <div className="text-lg font-semibold text-gray-200 line-clamp-2">
-        {name}
+    <div className="relative p-4 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors border border-gray-700">
+      <div className="absolute top-2 right-2">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(checked) => onSelect(link, checked as boolean)}
+          className="bg-gray-700 border-gray-600"
+        />
       </div>
-      <div className="text-sm text-gray-400">{stock}</div>
-      <div className="my-2 border-t border-gray-700" />
-      <div className="flex items-center justify-between">
-        <div className="text-gray-300">{price}</div>
-        {isValidPriceMovement && (
-          <div className="flex flex-col items-end">
-            <div
-              className={`flex items-center ${
-                price_movement.movement === "Up"
-                  ? "text-green-500"
-                  : "text-red-500"
-              }`}
-            >
-              {price_movement.movement === "Up" ? "↑" : "↓"}
-              <span className="ml-1">
-                {price_movement.percentage.toFixed(2)}%
-              </span>
+      <div className="pr-8">
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-lg font-semibold text-gray-200 hover:underline line-clamp-2"
+        >
+          {name}
+        </a>
+        <div className="text-sm text-gray-400">{stock}</div>
+        <div className="my-2 border-t border-gray-700" />
+        <div className="flex items-center justify-between">
+          <div className="text-gray-300">{price}</div>
+          {isValidPriceMovement && (
+            <div className="flex flex-col items-end">
+              <div
+                className={`flex items-center ${
+                  price_movement.movement === "Up"
+                    ? "text-green-500"
+                    : "text-red-500"
+                }`}
+              >
+                {price_movement.movement === "Up" ? "↑" : "↓"}
+                <span className="ml-1">
+                  {price_movement.percentage.toFixed(2)}%
+                </span>
+              </div>
+              <div className="text-sm text-gray-400">
+                {price_movement.movement === "Up" ? "+" : "-"}$
+                {Math.abs(price_movement.value).toFixed(2)}
+              </div>
             </div>
-            <div className="text-sm text-gray-400">
-              {price_movement.movement === "Up" ? "+" : "-"}$
-              {Math.abs(price_movement.value).toFixed(2)}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </a>
+    </div>
   );
 };
 
@@ -247,25 +291,43 @@ const ParsedResults = ({
   selectedImages,
   setSelectedImages,
   handleImageSelection,
+  selectedItems,
+  handleItemSelect,
+  handleSelectAll,
+  handleClearAll,
 }: ParsedResultsProps) => {
-  // console.log("ParsedResults received:", { engine, results, limit });
-
-  if (!results) {
-    // console.log("No results to display");
-    return <div>No results found</div>;
-  }
-
-  const getLimitedResults = (items: any[]) => items.slice(0, limit);
+  // Add selection controls for non-image results
+  const renderSelectionControls = () => (
+    <div className="flex justify-between items-center mb-4">
+      <div className="text-sm text-gray-400">
+        {selectedItems.size} items selected
+      </div>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={handleSelectAll}>
+          Select All
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleClearAll}>
+          Clear All
+        </Button>
+      </div>
+    </div>
+  );
 
   switch (engine) {
     case "search":
       const searchData =
         typeof results === "string" ? JSON.parse(results) : results;
-      const searchResults = getLimitedResults(searchData.results || []);
+      const searchResults = searchData.results?.slice(0, limit) || [];
       return (
         <div className="space-y-4">
+          {renderSelectionControls()}
           {searchResults.map((item: SearchItem) => (
-            <SearchCard key={item.position} {...item} />
+            <SearchCard
+              key={item.link}
+              {...item}
+              isSelected={selectedItems.has(item.link)}
+              onSelect={handleItemSelect}
+            />
           ))}
         </div>
       );
@@ -274,36 +336,57 @@ const ParsedResults = ({
         typeof results === "string" ? JSON.parse(results) : results;
       return (
         <div className="space-y-4">
-          {newsData.results?.map((result: any) => (
-            <NewsCard key={result.position} result={result} />
-          ))}
+          {renderSelectionControls()}
+          {newsData.results?.map((result: any) => {
+            // Get the link for selection
+            const linkForSelection = result.stories
+              ? result.stories[0].link
+              : result.link;
+            return (
+              <NewsCard
+                key={result.position}
+                result={result}
+                isSelected={selectedItems.has(linkForSelection)}
+                onSelect={handleItemSelect}
+              />
+            );
+          })}
         </div>
       );
     case "finance":
       const items = results.results?.discover_more?.[0]?.items || [];
       const financeItems = items.slice(0, limit);
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {financeItems.map((item: FinanceItem, index: number) => (
-            <FinanceCard key={index} {...item} />
-          ))}
+        <div className="space-y-4">
+          {renderSelectionControls()}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {financeItems.map((item: FinanceItem, index: number) => (
+              <FinanceCard
+                key={item.link}
+                {...item}
+                isSelected={selectedItems.has(item.link)}
+                onSelect={handleItemSelect}
+              />
+            ))}
+          </div>
         </div>
       );
     case "markets":
       const marketItems = results.results?.[0]?.results || [];
       const marketItemsLimited = marketItems.slice(0, limit);
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {marketItemsLimited.map((item: MarketItem, index: number) => (
-            <MarketsCard
-              key={index}
-              name={item.name}
-              stock={item.stock}
-              price={item.price}
-              price_movement={item.price_movement}
-              link={item.link}
-            />
-          ))}
+        <div className="space-y-4">
+          {renderSelectionControls()}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {marketItemsLimited.map((item: MarketItem, index: number) => (
+              <MarketsCard
+                key={item.link}
+                {...item}
+                isSelected={selectedItems.has(item.link)}
+                onSelect={handleItemSelect}
+              />
+            ))}
+          </div>
         </div>
       );
     case "image":
@@ -622,77 +705,104 @@ const NEWS_TOPICS = {
   },
 } as const;
 
-function NewsCard({ result }: { result: any }) {
+function NewsCard({
+  result,
+  isSelected,
+  onSelect,
+}: {
+  result: any;
+  isSelected: boolean;
+  onSelect: (id: string, selected: boolean) => void;
+}) {
   try {
     // Handle both individual news items and grouped stories
     const isGroupedStories = result.stories !== undefined;
+
+    // Get the link for selection
+    const linkForSelection = isGroupedStories
+      ? result.stories[0].link
+      : result.link;
 
     if (isGroupedStories) {
       // For grouped stories, display the main title and first story
       const mainStory = result.stories[0];
       return (
-        <a
-          href={mainStory.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block mb-4"
-        >
-          <Card className="hover:bg-gray-700/50 transition-colors bg-gray-800 border border-gray-700">
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-3">
-                <div className="bg-gray-700 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0">
-                  {result.position}
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <h3 className="text-blue-400 hover:text-blue-300 font-medium">
-                    {result.title}
-                  </h3>
-                  <p className="text-sm text-gray-400">{mainStory.title}</p>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span>{mainStory.source.name}</span>
-                    {mainStory.source.authors?.length > 0 && (
-                      <span>• {mainStory.source.authors.join(", ")}</span>
-                    )}
-                    <span>• {mainStory.date}</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </a>
-      );
-    }
-
-    // For individual news items
-    return (
-      <a
-        href={result.link}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block mb-4"
-      >
-        <Card className="hover:bg-gray-700/50 transition-colors bg-gray-800 border border-gray-700">
+        <Card className="hover:bg-gray-700/50 transition-colors bg-gray-800 border border-gray-700 relative">
           <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
+            <div className="absolute top-2 right-2">
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={(checked) =>
+                  onSelect(linkForSelection, checked as boolean)
+                }
+                className="bg-gray-700 border-gray-600"
+              />
+            </div>
+            <div className="flex items-start gap-3 pr-8">
               <div className="bg-gray-700 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0">
                 {result.position}
               </div>
               <div className="flex flex-col gap-1.5">
-                <h3 className="text-blue-400 hover:text-blue-300 font-medium">
+                <a
+                  href={mainStory.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 font-medium"
+                >
                   {result.title}
-                </h3>
+                </a>
+                <p className="text-sm text-gray-400">{mainStory.title}</p>
                 <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <span>{result.source.name}</span>
-                  {result.source.authors?.length > 0 && (
-                    <span>• {result.source.authors.join(", ")}</span>
+                  <span>{mainStory.source.name}</span>
+                  {mainStory.source.authors?.length > 0 && (
+                    <span>• {mainStory.source.authors.join(", ")}</span>
                   )}
-                  <span>• {result.date}</span>
+                  <span>• {mainStory.date}</span>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
-      </a>
+      );
+    }
+
+    // For individual news items
+    return (
+      <Card className="hover:bg-gray-700/50 transition-colors bg-gray-800 border border-gray-700 relative">
+        <CardContent className="pt-6">
+          <div className="absolute top-2 right-2">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={(checked) =>
+                onSelect(linkForSelection, checked as boolean)
+              }
+              className="bg-gray-700 border-gray-600"
+            />
+          </div>
+          <div className="flex items-start gap-3 pr-8">
+            <div className="bg-gray-700 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0">
+              {result.position}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <a
+                href={result.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 font-medium"
+              >
+                {result.title}
+              </a>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>{result.source.name}</span>
+                {result.source.authors?.length > 0 && (
+                  <span>• {result.source.authors.join(", ")}</span>
+                )}
+                <span>• {result.date}</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     );
   } catch (error) {
     return (
@@ -732,7 +842,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     );
     const [limit, setLimit] = useState(props.initialLimit || 5);
     const [newsSearchType, setNewsSearchType] = React.useState<
-      "query" | "topic" /* | "publication" */
+      "query" | "topic"
     >("query");
     const [newsTopic, setNewsTopic] = useState<string>(
       props.initialTopic || ""
@@ -744,7 +854,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       props.initialSection || ""
     );
     const [selectedVariableId, setSelectedVariableId] = useState<string>(() => {
-      // If we have an initial output variable with a column name, construct the proper value
+      // Initialize with table column format if needed
       if (
         props.initialOutputVariable?.type === "table" &&
         props.initialOutputVariable.columnName
@@ -772,6 +882,10 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     const [selectedImages, setSelectedImages] = useState<ImageSearchResult[]>(
       []
     );
+
+    // Add save state for the dropdown
+    const [isSaving, setIsSaving] = useState(false);
+    const [hasSaved, setHasSaved] = useState(false);
 
     // Add store hook for updating block names
     const { updateBlockName } = useSourceStore();
@@ -958,9 +1072,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       });
     };
 
-    const handleNewsSearchTypeChange = (
-      type: "query" | "topic" /* | "publication" */
-    ) => {
+    const handleNewsSearchTypeChange = (type: "query" | "topic") => {
       setNewsSearchType(type);
       // Clear other values when switching tabs
       debouncedUpdateBlock({
@@ -989,6 +1101,115 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       } as Partial<SearchAgentBlock>);
     };
 
+    // Add selected items state
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+
+    // Add selection handlers
+    const handleItemSelect = (itemId: string, isSelected: boolean) => {
+      setSelectedItems((prev) => {
+        const newSet = new Set(prev);
+        if (isSelected) {
+          newSet.add(itemId);
+        } else {
+          newSet.delete(itemId);
+        }
+        return newSet;
+      });
+    };
+
+    const handleSelectAll = () => {
+      if (!modelResponse) return;
+
+      try {
+        const parsedResponse =
+          typeof modelResponse === "string"
+            ? JSON.parse(modelResponse)
+            : modelResponse;
+        const allIds = new Set<string>();
+
+        switch (searchEngine) {
+          case "search":
+            parsedResponse.results?.forEach((item: SearchItem) => {
+              allIds.add(item.link);
+            });
+            break;
+          case "news":
+            parsedResponse.results?.forEach((result: any) => {
+              if (result.stories && Array.isArray(result.stories)) {
+                const firstStory = result.stories[0];
+                if (firstStory) {
+                  allIds.add(firstStory.link || firstStory.url);
+                }
+              } else {
+                allIds.add(result.link || result.url);
+              }
+            });
+            break;
+          case "finance":
+            parsedResponse.results?.[0]?.results?.forEach(
+              (item: FinanceItem) => {
+                allIds.add(item.link);
+              }
+            );
+            break;
+          case "markets":
+            parsedResponse.results?.[0]?.results?.forEach(
+              (item: MarketItem) => {
+                allIds.add(item.link);
+              }
+            );
+            break;
+        }
+
+        setSelectedItems(allIds);
+      } catch (error) {
+        console.error("Error selecting all items:", error);
+      }
+    };
+
+    // Add the save handler function
+    const handleSaveToVariable = async (variableId: string) => {
+      if (!modelResponse) {
+        toast.error("No results to save");
+        return;
+      }
+
+      if (selectedItems.size === 0) {
+        toast.error("No items selected. Please select items to save.");
+        return;
+      }
+
+      setIsSaving(true);
+      try {
+        const selectedItemsArray = Array.from(selectedItems);
+
+        if (variableId.includes(":")) {
+          // Table variable - save as rows
+          const [tableId, columnName] = variableId.split(":");
+          for (const item of selectedItemsArray) {
+            await useVariableStore.getState().addTableRow(tableId, {
+              [columnName]: item,
+            });
+          }
+        } else {
+          // Regular variable - save as comma-separated list
+          const value = selectedItemsArray.join(", ");
+          await useVariableStore.getState().updateVariable(variableId, value);
+        }
+
+        setHasSaved(true);
+        toast.success(
+          `${selectedItems.size} selected results saved to variable!`
+        );
+      } catch (error) {
+        console.error("Error saving to variable:", error);
+        toast.error("Failed to save results to variable");
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    // Keep the original handleSearch function but remove automatic saving
     const handleSearch = async (): Promise<boolean> => {
       if (props.onProcessingChange) {
         props.onProcessingChange(true);
@@ -1010,9 +1231,26 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         const processedQuery = processVariablesInText(queryToUse);
         // console.log("SearchAgent: processedQuery:", processedQuery);
 
-        if (!processedQuery || processedQuery.trim() === "") {
+        // Updated validation: allow news search with topic without requiring query
+        const isNewsWithTopic =
+          engineToUse === "news" && newsSearchType === "topic" && newsTopic;
+
+        if (
+          !isNewsWithTopic &&
+          (!processedQuery || processedQuery.trim() === "")
+        ) {
           // console.error("SearchAgent: Query is empty after processing");
           toast.error("Search query is required");
+          return false;
+        }
+
+        // Additional validation for news with topic - ensure we have a topic
+        if (
+          engineToUse === "news" &&
+          newsSearchType === "topic" &&
+          !newsTopic
+        ) {
+          toast.error("Please select a news topic");
           return false;
         }
 
@@ -1046,75 +1284,13 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         const response = await api.post(endpoint, payload);
         setModelResponse(JSON.stringify(response, null, 2));
 
-        if (selectedVariableId) {
-          try {
-            // Extract URLs based on search engine type
-            let urls: string[] = [];
-            if (engineToUse === "search") {
-              urls =
-                response.results?.map((result: SearchItem) => result.link) ||
-                [];
-            } else if (engineToUse === "news") {
-              // Handle nested news structure like the chat execution does
-              const results = response.results || [];
-              // console.log("SearchAgent: Processing news results:", results);
+        // Reset save state for new results
+        setIsSaving(false);
+        setHasSaved(false);
 
-              for (const result of results) {
-                if (result.stories && Array.isArray(result.stories)) {
-                  // For news results with stories, use only the FIRST story's link
-                  const firstStory = result.stories[0];
-                  if (firstStory) {
-                    const valueToSave =
-                      firstStory.link ||
-                      firstStory.url ||
-                      firstStory.title ||
-                      String(firstStory);
-                    urls.push(valueToSave);
-                  }
-                } else {
-                  // For regular results, use the direct link
-                  const valueToSave =
-                    result.link || result.url || result.title || String(result);
-                  urls.push(valueToSave);
-                }
-              }
-            } else if (engineToUse === "finance" || engineToUse === "markets") {
-              urls =
-                response.results?.[0]?.results?.map((item: any) => item.link) ||
-                [];
-            }
-
-            // console.log("SearchAgent: Final URLs to save:", urls);
-
-            // Check if it's a table variable (has ":")
-            if (selectedVariableId.includes(":")) {
-              // Table variable - save as rows (append each URL as a new row)
-              const [tableId, columnName] = selectedVariableId.split(":");
-              for (const url of urls) {
-                if (url && url.trim()) {
-                  await useVariableStore
-                    .getState()
-                    .addTableRow(tableId, { [columnName]: url.trim() });
-                }
-              }
-            } else {
-              // Regular variable - save as comma-separated list
-              await useVariableStore
-                .getState()
-                .updateVariable(selectedVariableId, urls.join(", "));
-            }
-          } catch (error) {
-            console.error("Error saving results to variable:", error);
-            toast.error("Failed to save results to variable");
-          }
-        }
         return true;
       } catch (error: any) {
         console.error("5. Search error:", error);
-        if (error.response) {
-          console.error("5a. Error response data:", error.response.data);
-          console.error("5b. Error response status:", error.response.status);
-        }
         toast.error(
           `Search failed: ${error.message || "Unknown error occurred"}`
         );
@@ -1125,6 +1301,13 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         }
       }
     };
+
+    // Move the useEffect outside of renderResults and place it with other hooks at the top level
+    useEffect(() => {
+      if (modelResponse) {
+        setSelectedItems(new Set());
+      }
+    }, [modelResponse]);
 
     const renderResults = () => {
       if (!modelResponse) {
@@ -1189,6 +1372,10 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                   selectedImages={selectedImages}
                   setSelectedImages={setSelectedImages}
                   handleImageSelection={handleImageSelection}
+                  selectedItems={selectedItems}
+                  handleItemSelect={handleItemSelect}
+                  handleSelectAll={handleSelectAll}
+                  handleClearAll={handleClearAll}
                 />
               </TabsContent>
               <TabsContent value="full">
@@ -1333,9 +1520,16 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     // Add this useEffect to sync query state with props
     useEffect(() => {
       // console.log(
-      //     "SearchAgent: initialQuery prop changed to:",
-      //     props.initialQuery
-      //   );
+      //   "SearchAgent: initialQuery prop changed to:",
+      //   props.initialQuery
+      // );
+      // console.log("SearchAgent: blockNumber:", props.blockNumber);
+      // console.log("SearchAgent: initialEngine:", props.initialEngine);
+      // console.log("SearchAgent: initialLimit:", props.initialLimit);
+      // console.log("SearchAgent: initialTopic:", props.initialTopic);
+      // console.log("SearchAgent: initialSection:", props.initialSection);
+      // console.log("SearchAgent: initialTimeWindow:", props.initialTimeWindow);
+      // console.log("SearchAgent: initialRegion:", props.initialRegion);
       if (props.initialQuery !== undefined) {
         // console.log(
         //   "SearchAgent: Updating query state from:",
@@ -1384,6 +1578,10 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       }
     }, [props.initialRegion]);
 
+    const handleClearAll = () => {
+      setSelectedItems(new Set());
+    };
+
     return (
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between">
@@ -1411,6 +1609,12 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                 onClick={() => props.onDeleteBlock(props.blockNumber)}
               >
                 Delete Block
+              </button>
+              <button
+                className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+                onClick={() => props.onCopyBlock?.(props.blockNumber)}
+              >
+                Copy Block
               </button>
             </PopoverContent>
           </Popover>
@@ -1466,9 +1670,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                   defaultValue="query"
                   value={newsSearchType}
                   onValueChange={(value) =>
-                    handleNewsSearchTypeChange(
-                      value as "query" | "topic" /* | "publication" */
-                    )
+                    handleNewsSearchTypeChange(value as "query" | "topic")
                   }
                   className="w-full"
                 >
@@ -1704,22 +1906,13 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                 onValueChange={handleVariableSelect}
                 agentId={currentAgent?.id || null}
                 onAddNew={props.onOpenTools}
+                // Add the save button functionality
+                showSaveButton={!!modelResponse}
+                onSave={handleSaveToVariable}
+                isSaving={isSaving}
+                hasSaved={hasSaved}
+                isSearchAgent={true}
               />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const variable = Object.values(storeVariables).find(
-                    (v) => v.id === selectedVariableId
-                  );
-                  console.log("Selected Variable Value:", variable?.value);
-                  toast.info(
-                    `Variable Value: ${variable?.value || "No value set"}`
-                  );
-                }}
-              >
-                Show Value
-              </Button>
             </div>
 
             {/* Search button */}

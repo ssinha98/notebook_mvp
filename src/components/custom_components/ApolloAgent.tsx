@@ -30,6 +30,7 @@ import { doc, getDoc, getFirestore } from "firebase/firestore";
 interface ApolloAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
   onUpdateBlock: (
     blockNumber: number,
     updates: Partial<ApolloAgentBlock>
@@ -53,6 +54,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
     {
       blockNumber,
       onDeleteBlock,
+      onCopyBlock,
       onUpdateBlock,
       initialFullName = "",
       initialCompany = "",
@@ -181,12 +183,12 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
         setIsLoading(true);
 
         // DEBUG: Log the initial state
-        console.log("=== APOLLO DEBUG START ===");
-        console.log("selectedVariableId:", selectedVariableId);
-        console.log("fullName:", fullName);
-        console.log("company:", company);
-        console.log("prompt:", prompt);
-        console.log("selectedData:", selectedData);
+        // console.log("=== APOLLO DEBUG START ===");
+        // console.log("selectedVariableId:", selectedVariableId);
+        // console.log("fullName:", fullName);
+        // console.log("company:", company);
+        // console.log("prompt:", prompt);
+        // console.log("selectedData:", selectedData);
 
         // Get Apollo API key from Firebase
         const apolloApiKey = await getApolloApiKey();
@@ -207,18 +209,18 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
 
         if (variableIdToUse && variableIdToUse.includes(":")) {
           [tableId, outputColumn] = variableIdToUse.split(":");
-          console.log("Apollo: Using table variable:", {
-            tableId,
-            outputColumn,
-            variableIdToUse,
-          });
+          // console.log("Apollo: Using table variable:", {
+          //   tableId,
+          //   outputColumn,
+          //   variableIdToUse,
+          // });
         } else if (variableIdToUse) {
           // Regular variable selected
-          console.log("Apollo: Using regular variable:", variableIdToUse);
+          // console.log("Apollo: Using regular variable:", variableIdToUse);
         } else {
-          console.log(
-            "Apollo: No output variable selected - will display result only"
-          );
+          // console.log(
+          //   "Apollo: No output variable selected - will display result only"
+          // );
         }
 
         // Check if we're using table variables
@@ -226,15 +228,15 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
         const companyIsTableVar = isTableVariable(company);
         const hasSelection = selectedData && selectedData.length > 0;
 
-        console.log("Apollo: Variable analysis:", {
-          nameIsTableVar,
-          companyIsTableVar,
-          hasSelection,
-        });
+        // console.log("Apollo: Variable analysis:", {
+        //   nameIsTableVar,
+        //   companyIsTableVar,
+        //   hasSelection,
+        // });
 
         // Case 1: Both are table variables
         if (nameIsTableVar && companyIsTableVar) {
-          console.log("Apollo: Executing Case 1 - Both table variables");
+          //   console.log("Apollo: Executing Case 1 - Both table variables");
           const nameRef = parseTableColumn(fullName);
           const companyRef = parseTableColumn(company);
 
@@ -262,10 +264,10 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
             filteredRows = rows.filter((row) => selectionIds.has(row.id));
           }
 
-          console.log("Apollo: Processing rows:", {
-            totalRows: rows.length,
-            filteredRows: filteredRows.length,
-          });
+          //   console.log("Apollo: Processing rows:", {
+          //     totalRows: rows.length,
+          //     filteredRows: filteredRows.length,
+          //   });
 
           let successCount = 0;
           let allResults: string[] = [];
@@ -297,10 +299,10 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
               }
 
               // DEBUG: Print the whole response
-              console.log(
-                `Apollo response for ${nameValue} at ${companyValue}:`,
-                responseData
-              );
+              //   console.log(
+              //     `Apollo response for ${nameValue} at ${companyValue}:`,
+              //     responseData
+              //   );
 
               const valueToSave =
                 typeof responseData === "object" && responseData.analysis
@@ -317,7 +319,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
 
               // Save to variable if selected
               if (tableId && outputColumn) {
-                console.log("Apollo: Saving to table row");
+                // console.log("Apollo: Saving to table row");
                 await useVariableStore
                   .getState()
                   .updateTableRow(tableId, row.id, {
@@ -325,7 +327,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
                   });
               } else if (variableIdToUse) {
                 // Save to regular variable
-                console.log("Apollo: Saving to regular variable");
+                // console.log("Apollo: Saving to regular variable");
                 await useVariableStore
                   .getState()
                   .updateVariable(variableIdToUse, valueToSave);
@@ -357,7 +359,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
 
           const resultMessage = `Processed ${successCount} row(s).\n\n${allResults.join("\n\n")}`;
           setResult(resultMessage);
-          console.log("=== APOLLO DEBUG END ===");
+        //   console.log("=== APOLLO DEBUG END ===");
           return true;
         }
 
@@ -471,10 +473,10 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
               }
 
               // DEBUG: Print the whole response
-              console.log(
-                `Apollo response for ${nameValue} at ${companyValue} using API key ${apolloApiKey}:`,
-                responseData
-              );
+            //   console.log(
+            //     `Apollo response for ${nameValue} at ${companyValue} using API key ${apolloApiKey}:`,
+            //     responseData
+            //   );
 
               const valueToSave =
                 typeof responseData === "object" && responseData.analysis
@@ -530,7 +532,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
           return false;
         }
 
-        console.log("Apollo: Executing Case 3 - Single value mode");
+        // console.log("Apollo: Executing Case 3 - Single value mode");
 
         const response = await fetch(`${API_URL}/api/apollo_enrich`, {
           method: "POST",
@@ -550,10 +552,10 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
         if (contentType && contentType.includes("application/json")) {
           responseData = await response.json();
           // DEBUG: Print the whole response
-          console.log(
-            `Apollo response for ${fullName} at ${company}:`,
-            responseData
-          );
+          // console.log(
+          //   `Apollo response for ${fullName} at ${company}:`,
+          //   responseData
+          // );
         } else {
           const textResponse = await response.text();
           responseData = { message: textResponse };
@@ -570,10 +572,10 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
         }
         setResult(displayMessage);
 
-        console.log("Apollo: Single value mode - saving to variable:", {
-          selectedVariableId,
-          displayMessage,
-        });
+        // console.log("Apollo: Single value mode - saving to variable:", {
+        //   selectedVariableId,
+        //   displayMessage,
+        // });
 
         // Save to variable if selected
         if (selectedVariableId) {
@@ -581,24 +583,24 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
             (v) => v.id === selectedVariableId
           );
           if (selectedVariable) {
-            console.log(
-              "Apollo: Found selected variable, updating:",
-              selectedVariableId
-            );
+            // console.log(
+            //   "Apollo: Found selected variable, updating:",
+            //   selectedVariableId
+            // );
             await useVariableStore
               .getState()
               .updateVariable(selectedVariableId, displayMessage);
           } else {
-            console.log(
-              "Apollo: Selected variable not found:",
-              selectedVariableId
-            );
+            // console.log(
+            //   "Apollo: Selected variable not found:",
+            //   selectedVariableId
+            // );
           }
         } else {
-          console.log("Apollo: No selectedVariableId provided");
+          // console.log("Apollo: No selectedVariableId provided");
         }
 
-        console.log("=== APOLLO DEBUG END ===");
+        // console.log("=== APOLLO DEBUG END ===");
         return true;
       } catch (err: any) {
         console.error("Apollo: Error in processBlock:", err);
@@ -672,7 +674,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
             </AlertDialog>
           </div>
           <Popover>
-            <PopoverTrigger>
+            <PopoverTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
@@ -682,12 +684,20 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-40 p-0 bg-black border border-red-500">
-              <button
-                className="w-full px-4 py-2 text-red-500 hover:bg-red-950 text-left transition-colors"
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-red-500 hover:bg-red-950 hover:text-red-400"
                 onClick={() => onDeleteBlock(blockNumber)}
               >
                 Delete Block
-              </button>
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-blue-500 hover:bg-blue-950 hover:text-blue-400"
+                onClick={() => onCopyBlock?.(blockNumber)}
+              >
+                Copy Block
+              </Button>
             </PopoverContent>
           </Popover>
         </div>

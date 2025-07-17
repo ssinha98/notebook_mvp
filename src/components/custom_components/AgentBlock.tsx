@@ -89,6 +89,8 @@ interface AgentBlockProps {
   isProcessing: boolean;
   onProcessingChange: (isProcessing: boolean) => void;
   onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
+  onEdit?: () => void; // Add this line
   initialSystemPrompt?: string;
   initialUserPrompt?: string;
   initialSaveAsCsv?: boolean;
@@ -835,6 +837,13 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     ]
   );
 
+  // Add the copy block handler function
+  const handleCopyBlock = () => {
+    if (props.onCopyBlock) {
+      props.onCopyBlock(props.blockNumber);
+    }
+  };
+
   return (
     <>
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
@@ -875,6 +884,12 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
               </span>
             </PopoverTrigger>
             <PopoverContent className="w-40 p-0 bg-black border border-red-500">
+              <button
+                className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+                onClick={handleCopyBlock}
+              >
+                Copy Block
+              </button>
               <button
                 className="w-full px-4 py-2 text-red-500 hover:bg-red-950 text-left transition-colors"
                 onClick={handleDeleteBlock}

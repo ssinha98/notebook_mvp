@@ -27,18 +27,22 @@ import BlockNameEditor from "./BlockNameEditor";
 interface MakeBlockProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
-  onUpdateBlock: (blockNumber: number, updates: any) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
+  onUpdateBlock: (blockNumber: number, updates: Partial<MakeBlock>) => void;
   onAddVariable: (variable: Variable) => void;
   variables: Variable[];
+  onOpenTools?: () => void;
   initialWebhookUrl?: string;
-  initialParameters?: Array<{ key: string; value: string }>;
+  initialParameters?: Array<{
+    key: string;
+    value: string;
+  }>;
   initialOutputVariable?: {
     id: string;
     name: string;
     type: "input" | "intermediate";
   } | null;
   isProcessing?: boolean;
-  onOpenTools?: () => void;
 }
 
 export interface MakeBlockRef {
@@ -296,6 +300,12 @@ print("Response:", response.text)
               onClick={() => props.onDeleteBlock(props.blockNumber)}
             >
               Delete Block
+            </button>
+            <button
+              className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+              onClick={() => props.onCopyBlock?.(props.blockNumber)}
+            >
+              Copy Block
             </button>
           </PopoverContent>
         </Popover>

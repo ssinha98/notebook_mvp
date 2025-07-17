@@ -7,6 +7,7 @@ import { useState } from "react";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -593,6 +594,9 @@ export default function AgentPerformancePage() {
               <SheetTitle className="text-white">
                 Edit Agent Performance
               </SheetTitle>
+              <SheetDescription>
+                Edit the performance of the agent for the selected blocks.
+              </SheetDescription>
             </SheetHeader>
 
             <div className="flex-1 mt-6 space-y-6 overflow-y-auto">

@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/select";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 
 interface SearchResult {
   date?: string | null;
@@ -50,6 +52,7 @@ export interface ResearchResponse {
 interface DeepResearchAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
   onUpdateBlock: (
     blockNumber: number,
     updates: Partial<DeepResearchAgentBlock>
@@ -95,6 +98,7 @@ const DeepResearchAgent = forwardRef<
     {
       blockNumber,
       onDeleteBlock,
+      onCopyBlock,
       onUpdateBlock,
       initialTopic = "",
       isProcessing = false,
@@ -122,6 +126,11 @@ const DeepResearchAgent = forwardRef<
     const [searchEngine, setSearchEngine] = useState<
       "perplexity" | "firecrawl"
     >(initialSearchEngine);
+
+    // Add these state variables after the existing state
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+    const [isSaving, setIsSaving] = useState(false);
+    const [hasSaved, setHasSaved] = useState(false);
 
     // Debounce the topic to avoid excessive updates
     const debouncedTopic = useDebounce(topic, 500);
@@ -206,6 +215,74 @@ const DeepResearchAgent = forwardRef<
       }
     };
 
+    // Add selection handlers
+    const handleItemSelect = (itemId: string, isSelected: boolean) => {
+      setSelectedItems((prev) => {
+        const newSet = new Set(prev);
+        if (isSelected) {
+          newSet.add(itemId);
+        } else {
+          newSet.delete(itemId);
+        }
+        return newSet;
+      });
+    };
+
+    const handleSelectAll = () => {
+      if (researchResults?.search_results) {
+        const allUrls = new Set(
+          researchResults.search_results.map((result) => result.url)
+        );
+        setSelectedItems(allUrls);
+      }
+    };
+
+    const handleClearAll = () => {
+      setSelectedItems(new Set());
+    };
+
+    // Add save handler
+    const handleSaveToVariable = async (variableId: string) => {
+      if (!researchResults?.search_results) {
+        toast.error("No results to save");
+        return;
+      }
+
+      if (selectedItems.size === 0) {
+        toast.error("No items selected. Please select items to save.");
+        return;
+      }
+
+      setIsSaving(true);
+      try {
+        const selectedItemsArray = Array.from(selectedItems);
+
+        if (variableId.includes(":")) {
+          // Table variable - save as rows
+          const [tableId, columnName] = variableId.split(":");
+          for (const url of selectedItemsArray) {
+            await useVariableStore.getState().addTableRow(tableId, {
+              [columnName]: url,
+            });
+          }
+        } else {
+          // Regular variable - save as comma-separated list
+          const value = selectedItemsArray.join(", ");
+          await useVariableStore.getState().updateVariable(variableId, value);
+        }
+
+        setHasSaved(true);
+        toast.success(
+          `${selectedItems.size} selected results saved to variable!`
+        );
+      } catch (error) {
+        console.error("Error saving to variable:", error);
+        toast.error("Failed to save results to variable");
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
     // Update selection when initialOutputVariable changes
     React.useEffect(() => {
       if (initialOutputVariable?.id) {
@@ -222,6 +299,14 @@ const DeepResearchAgent = forwardRef<
         }
       }
     }, [initialOutputVariable]);
+
+    // Add useEffect to reset selected items when new results come in
+    React.useEffect(() => {
+      if (researchResults) {
+        setSelectedItems(new Set());
+        setHasSaved(false);
+      }
+    }, [researchResults]);
 
     const processBlock = async () => {
       try {
@@ -254,33 +339,7 @@ const DeepResearchAgent = forwardRef<
           };
           setResearchResults(formattedResponse);
 
-          if (selectedVariableId) {
-            console.log("Selected variable ID:", selectedVariableId);
-            const urls = response.search_results.map(
-              (result: SearchResult) => result.url
-            );
-            console.log("URLs extracted:", urls);
-
-            if (selectedVariableId.includes(":")) {
-              // Table variable - save as rows (append each URL as a new row)
-              const [tableId, columnName] = selectedVariableId.split(":");
-              for (const url of urls) {
-                if (url && url.trim()) {
-                  await useVariableStore
-                    .getState()
-                    .addTableRow(tableId, { [columnName]: url.trim() });
-                }
-              }
-            } else {
-              // Regular variable - save as comma-separated list
-              await useVariableStore
-                .getState()
-                .updateVariable(selectedVariableId, urls.join(", "));
-            }
-          } else {
-            console.log("No selectedVariableId");
-          }
-
+          // Remove the automatic saving logic - now handled by save button
           return true;
         } else {
           console.error("Unexpected response structure:", response);
@@ -373,6 +432,12 @@ const DeepResearchAgent = forwardRef<
               >
                 Delete Block
               </button>
+              <button
+                className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+                onClick={() => onCopyBlock?.(blockNumber)}
+              >
+                Copy Block
+              </button>
             </PopoverContent>
           </Popover>
         </div>
@@ -419,6 +484,11 @@ const DeepResearchAgent = forwardRef<
               onValueChange={handleVariableSelect}
               agentId={currentAgent?.id || null}
               onAddNew={onOpenTools}
+              showSaveButton={!!researchResults}
+              onSave={handleSaveToVariable}
+              isSaving={isSaving}
+              hasSaved={hasSaved}
+              isSearchAgent={true}
             />
           </div>
 
@@ -434,44 +504,76 @@ const DeepResearchAgent = forwardRef<
                 <div className="prose prose-invert max-w-none">
                   <ReactMarkdown>{researchResults.message}</ReactMarkdown>
                 </div>
-                {selectedVariableId && (
-                  <div className="mt-2 text-sm text-green-400">
-                    Saved as{" "}
-                    {
-                      Object.values(variables).find(
-                        (v) => v.id === selectedVariableId
-                      )?.name
-                    }
-                  </div>
-                )}
               </div>
 
-              {/* Search Results Section */}
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-gray-300">Sources</h4>
+              {/* Search Results Section with Selection */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-gray-300">Sources</h4>
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-400">
+                      {selectedItems.size} sources selected
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSelectAll}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleClearAll}
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex gap-4 overflow-x-auto pb-4">
                   {researchResults.search_results.map((result, index) => (
-                    <a
+                    <div
                       key={index}
-                      href={result.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-shrink-0 w-72 p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors"
+                      className="flex-shrink-0 w-72 p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors relative"
                     >
-                      <div className="space-y-2">
+                      <div className="absolute top-2 right-2">
+                        <Checkbox
+                          checked={selectedItems.has(result.url)}
+                          onCheckedChange={(checked) =>
+                            handleItemSelect(result.url, checked as boolean)
+                          }
+                          className="bg-gray-700 border-gray-600"
+                        />
+                      </div>
+                      <div className="space-y-2 pr-6">
                         {result.date && (
                           <div className="text-xs text-gray-400">
                             {new Date(result.date).toLocaleDateString()}
                           </div>
                         )}
-                        <h5 className="text-sm font-medium text-gray-200 line-clamp-2">
-                          {result.title}
-                        </h5>
+                        <a
+                          href={result.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <h5 className="text-sm font-medium text-blue-400 hover:text-blue-300 line-clamp-2">
+                            {result.title}
+                          </h5>
+                        </a>
                         <div className="text-xs text-gray-400 truncate">
                           {result.url}
                         </div>
+                        {result.description && (
+                          <div className="text-xs text-gray-300 line-clamp-2">
+                            {result.description}
+                          </div>
+                        )}
                       </div>
-                    </a>
+                    </div>
                   ))}
                 </div>
               </div>

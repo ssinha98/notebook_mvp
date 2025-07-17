@@ -61,6 +61,7 @@ const GOOGLE_DRIVE_OPERATIONS = [
 interface GoogleDriveAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
+  onCopyBlock?: (blockNumber: number) => void; // Add this line
   onUpdateBlock: (
     blockNumber: number,
     updates: Partial<GoogleDriveAgentBlock>
@@ -78,6 +79,7 @@ const GoogleDriveAgent = forwardRef<GoogleDriveAgentRef, GoogleDriveAgentProps>(
     {
       blockNumber,
       onDeleteBlock,
+      onCopyBlock,
       onUpdateBlock,
       initialPrompt = "",
       isProcessing = false,
@@ -223,6 +225,12 @@ const GoogleDriveAgent = forwardRef<GoogleDriveAgentRef, GoogleDriveAgentProps>(
                 onClick={() => onDeleteBlock(blockNumber)}
               >
                 Delete Block
+              </button>
+              <button
+                className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
+                onClick={() => onCopyBlock?.(blockNumber)}
+              >
+                Copy Block
               </button>
             </PopoverContent>
           </Popover>

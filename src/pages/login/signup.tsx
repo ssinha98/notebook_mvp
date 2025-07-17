@@ -28,10 +28,14 @@ const SignUp = () => {
   const createUserDocument = async (uid: string, email: string) => {
     try {
       const userRef = doc(db, "users", uid);
-      await setDoc(userRef, {
-        email,
-        createdAt: new Date().toISOString(),
-      });
+      await setDoc(
+        userRef,
+        {
+          email,
+          createdAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     } catch (error: any) {
       console.error("Error creating user document:", error);
       setError("Failed to create user profile");

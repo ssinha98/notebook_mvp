@@ -25,6 +25,7 @@ interface SourceStore {
   addSource: (name: string, source: Source) => void;
   removeSource: (name: string) => void;
   addBlockToNotebook: (block: Block) => void;
+  copyBlockAfter: (blockNumber: number) => void; // Add this line
   updateBlock: (blockNumber: number, updates: Partial<Block>) => void;
   removeBlock: (blockNumber: number) => void;
   deleteBlock: (blockNumber: number) => void;
@@ -318,6 +319,42 @@ export const useSourceStore = create<SourceStore>()(
               : block
           ),
         }));
+      },
+      copyBlockAfter: (blockNumber: number) => {
+        const sourceBlock = get().blocks.find(
+          (b) => b.blockNumber === blockNumber
+        );
+        if (!sourceBlock) return;
+
+        // Use existing addBlockToNotebook logic but with copied properties
+        const copiedBlock: Block = {
+          ...sourceBlock,
+          id: crypto.randomUUID(),
+          name: `${sourceBlock.name} (Copy)`,
+        };
+
+        // Insert at specific position instead of end
+        set((state) => {
+          const blocks = [...state.blocks];
+          const sourceIndex = blocks.findIndex(
+            (b) => b.blockNumber === blockNumber
+          );
+          const newBlockNumber =
+            Math.max(...blocks.map((b) => b.blockNumber)) + 1;
+
+          const finalBlock = {
+            ...copiedBlock,
+            blockNumber: newBlockNumber,
+          };
+
+          // This line inserts the copied block immediately after the source block
+          blocks.splice(sourceIndex + 1, 0, finalBlock);
+
+          return {
+            blocks,
+            nextBlockNumber: newBlockNumber + 1,
+          };
+        });
       },
     }),
     {

@@ -17,6 +17,7 @@ import {
 import Image from "next/image";
 import { api } from "@/tools/api";
 import { Variable } from "@/types/types";
+import type { MakeBlock } from "@/types/types";
 import { Settings } from "lucide-react";
 import { useVariableStore } from "@/lib/variableStore";
 import VariableDropdown from "./VariableDropdown";

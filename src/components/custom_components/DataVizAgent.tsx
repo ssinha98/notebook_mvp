@@ -47,6 +47,7 @@ import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
 import { Variable } from "@/types/types";
 import { api } from "@/tools/api";
+import { BlockButton } from "./BlockButton";
 
 // Add the missing type import
 interface DataVizAgentBlock {
@@ -142,6 +143,25 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
     const variables = useVariableStore((state) => state.variables);
     const currentAgent = useAgentStore((state) => state.currentAgent);
 
+    // Add cancellation state variables
+    const [isRunning, setIsRunning] = useState(false);
+    const [requestId, setRequestId] = useState<string | null>(null);
+
+    // Add cancel handler
+    const handleCancel = async () => {
+      if (requestId) {
+        try {
+          const result = await api.cancelRequest(requestId);
+          console.log("Cancel request result:", result);
+        } catch (err) {
+          console.error("Cancel request error:", err);
+        }
+        setIsRunning(false);
+        setRequestId(null);
+        props.onProcessingChange?.(false);
+      }
+    };
+
     // Add store hook for updating block names
     const { updateBlockName } = useSourceStore();
 
@@ -168,6 +188,9 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
         return false;
       }
 
+      const newRequestId = crypto.randomUUID();
+      setRequestId(newRequestId);
+      setIsRunning(true);
       setIsProcessing(true);
       setResult(null);
       props.onProcessingChange?.(true);
@@ -177,7 +200,14 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
           prompt: prompt.trim(),
           chart_type: selectedChartType,
           user_id: "user1234",
+          request_id: newRequestId,
         });
+
+        // Handle cancellation gracefully
+        if (response.cancelled) {
+          console.log("Data viz request was cancelled by user");
+          return false;
+        }
 
         setResult(response);
 
@@ -207,6 +237,8 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
         return false;
       } finally {
         setIsProcessing(false);
+        setIsRunning(false);
+        setRequestId(null);
         props.onProcessingChange?.(false);
       }
     };
@@ -350,20 +382,14 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
           </div>
 
           <div className="flex justify-start gap-2 p-4 border-t border-gray-700">
-            <Button
-              onClick={handleGenerateVisualization}
+            <BlockButton
+              isRunning={isRunning}
+              onRun={handleGenerateVisualization}
+              onCancel={handleCancel}
+              runLabel="Generate Visualization"
+              runningLabel="Generating..."
               disabled={isProcessing || !prompt.trim()}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isProcessing ? (
-                <>
-                  <span className="animate-spin mr-2">⟳</span>
-                  Generating...
-                </>
-              ) : (
-                "Generate Visualization"
-              )}
-            </Button>
+            />
           </div>
 
           {result && (

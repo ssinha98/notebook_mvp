@@ -24,6 +24,7 @@ import VariableDropdown from "./VariableDropdown";
 import { useAgentStore } from "@/lib/agentStore";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
+import { BlockButton } from "./BlockButton";
 
 interface MakeBlockProps {
   blockNumber: number;
@@ -61,6 +62,24 @@ const MakeBlock = forwardRef<MakeBlockRef, MakeBlockProps>((props, ref) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Add cancellation state variables
+  const [isRunning, setIsRunning] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+
+  // Add cancel handler
+  const handleCancel = async () => {
+    if (requestId) {
+      try {
+        const result = await api.cancelRequest(requestId);
+        console.log("Cancel request result:", result);
+      } catch (err) {
+        console.error("Cancel request error:", err);
+      }
+      setIsRunning(false);
+      setRequestId(null);
+    }
+  };
 
   const currentAgent = useAgentStore((state) => state.currentAgent);
 
@@ -192,6 +211,10 @@ const MakeBlock = forwardRef<MakeBlockRef, MakeBlockProps>((props, ref) => {
   };
 
   const processBlock = async () => {
+    const newRequestId = crypto.randomUUID();
+    setRequestId(newRequestId);
+    setIsRunning(true);
+
     try {
       setIsProcessing(true);
       setError(null);
@@ -229,7 +252,14 @@ print("Status:", response.status_code)
 print("Response:", response.text)
         `,
         language: "python",
+        request_id: newRequestId,
       });
+
+      // Handle cancellation gracefully
+      if (response.cancelled) {
+        console.log("Make block request was cancelled by user");
+        return false;
+      }
 
       if (response.success) {
         setOutput(
@@ -259,6 +289,8 @@ print("Response:", response.text)
       return false;
     } finally {
       setIsProcessing(false);
+      setIsRunning(false);
+      setRequestId(null);
     }
   };
 
@@ -403,20 +435,14 @@ print("Response:", response.text)
         <Button variant="outline" onClick={handleClear}>
           Clear
         </Button>
-        <Button
-          onClick={processBlock}
+        <BlockButton
+          isRunning={isRunning}
+          onRun={processBlock}
+          onCancel={handleCancel}
+          runLabel="Run"
+          runningLabel="Running..."
           disabled={isProcessing || props.isProcessing}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          {isProcessing || props.isProcessing ? (
-            <>
-              <span className="animate-spin mr-2">⟳</span>
-              Running...
-            </>
-          ) : (
-            "Run"
-          )}
-        </Button>
+        />
       </div>
     </div>
   );

@@ -319,8 +319,8 @@ const DeepResearchAgent = forwardRef<
           return false;
         }
 
-        console.log("Sending request to /ask with prompt:", topic.trim());
-        const response = await api.post("/ask", {
+        // console.log("Sending request to /ask with prompt:", topic.trim());
+        const response = await api.post("/deepresearch", {
           prompt: topic.trim(),
           search_engine: searchEngine,
         });

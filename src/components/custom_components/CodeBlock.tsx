@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import VariableDropdown from "./VariableDropdown";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
+import { BlockButton } from "./BlockButton";
 
 interface CodeBlockProps {
   blockNumber: number;
@@ -68,6 +69,24 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
     props.initialOutputVariable?.id || ""
   );
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // Add cancellation state variables
+  const [isRunning, setIsRunning] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+
+  // Add cancel handler
+  const handleCancel = async () => {
+    if (requestId) {
+      try {
+        const result = await api.cancelRequest(requestId);
+        console.log("Cancel request result:", result);
+      } catch (err) {
+        console.error("Cancel request error:", err);
+      }
+      setIsRunning(false);
+      setRequestId(null);
+    }
+  };
 
   // Get variables from the store and convert to array
   const variablesObj = useVariableStore((state) => state.variables);
@@ -236,6 +255,9 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
       return false;
     }
 
+    const newRequestId = crypto.randomUUID();
+    setRequestId(newRequestId);
+    setIsRunning(true);
     setIsLoading(true);
     setError(null);
     setOutput(null);
@@ -282,7 +304,14 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
       const response = await api.post("/api/run_code_local", {
         language,
         code: interpolatedCode,
+        request_id: newRequestId,
       });
+
+      // Handle cancellation gracefully
+      if (response.cancelled) {
+        console.log("Code block request was cancelled by user");
+        return false;
+      }
 
       // console.log("API Response:", response); // Log the response for debugging
 
@@ -321,11 +350,15 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
       }
 
       setIsLoading(false);
+      setIsRunning(false);
+      setRequestId(null);
       return true;
     } catch (error) {
       console.error("Error processing code block:", error);
       setError("Failed to process code block. Please try again.");
       setIsLoading(false);
+      setIsRunning(false);
+      setRequestId(null);
       return false;
     }
   };
@@ -466,22 +499,14 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
         >
           Save Code
         </Button>
-        <Button
-          onClick={processBlock}
+        <BlockButton
+          isRunning={isRunning}
+          onRun={processBlock}
+          onCancel={handleCancel}
+          runLabel={status === "tbd" ? "Code Needs Approval" : "Run Code"}
+          runningLabel="Running..."
           disabled={isLoading || props.isProcessing || status === "tbd"}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          {isLoading || props.isProcessing ? (
-            <>
-              <span className="animate-spin mr-2">⟳</span>
-              Running...
-            </>
-          ) : status === "tbd" ? (
-            "Code Needs Approval"
-          ) : (
-            "Run Code"
-          )}
-        </Button>
+        />
       </div>
     </div>
   );

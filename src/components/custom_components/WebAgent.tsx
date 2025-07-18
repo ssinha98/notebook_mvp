@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
+import { BlockButton } from "./BlockButton";
 
 interface WebAgentProps {
   blockNumber: number;
@@ -339,10 +340,33 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
     return values;
   };
 
-  // Modify handleFetch to handle both block and chat execution patterns
+  // Add state variables after existing state
+  const [isRunning, setIsRunning] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+
+  // Add cancel handler
+  const handleCancel = async () => {
+    if (requestId) {
+      try {
+        console.log("Sending cancel for request_id:", requestId);
+        const result = await api.cancelRequest(requestId);
+        console.log("Cancel request result:", result);
+      } catch (err) {
+        console.error("Cancel request error:", err);
+      }
+      setIsRunning(false);
+      setRequestId(null);
+    }
+  };
+
+  // Update handleFetch function
   const handleFetch = async () => {
-    // console.log("handleFetch", url);
     if (!url.trim()) return;
+
+    const newRequestId = crypto.randomUUID();
+    setRequestId(newRequestId);
+    setIsRunning(true);
+    console.log("Starting web fetch with request_id:", newRequestId);
     setIsLoading(true);
     setResponse(null);
 
@@ -351,34 +375,36 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       if (url.match(/{{.*?}}/)) {
         const [tableName, columnName] = url.replace(/[{}]/g, "").split(".");
         const tableUrls = getTableColumnValues(`${tableName}.${columnName}`);
-        // console.log("Retrieved URLs:", tableUrls);
 
         if (tableUrls.length === 0) {
           setResponse({ error: "No URLs found in table column" });
           return;
         }
 
-        // Process each URL and collect summaries
         const summaries = [];
         const errors = [];
 
         // Process URLs sequentially with individual error handling
         for (const processedUrl of tableUrls) {
-          // console.log("Processing URL:", processedUrl);
-
-          // Wrap each URL processing in its own try-catch to ensure isolation
           try {
-            // Validate URL first
             if (!processedUrl || !processedUrl.trim()) {
               throw new Error("Empty or invalid URL");
             }
 
             const data = {
               url: processedUrl.trim(),
+              request_id: newRequestId,
               ...(prompt.trim() && { prompt: prompt.trim() }),
             };
 
+            console.log("Web fetch payload:", data);
             const response = await api.post("/scrape", data);
+
+            // Handle cancellation gracefully
+            if (response.cancelled) {
+              console.log("Web scraping was cancelled by user");
+              return;
+            }
 
             if (!response?.analysis) {
               throw new Error("No analysis returned from API");
@@ -395,12 +421,10 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
               summaries.push(response.analysis);
             }
           } catch (err) {
-            // Comprehensive error handling for each URL
             const errorMessage =
               err instanceof Error ? err.message : "Unknown error occurred";
             console.error(`Error processing URL ${processedUrl}:`, err);
 
-            // Always save error to table if it's a table column operation
             if (selectedVariableId.includes(":")) {
               await saveToTableColumn(
                 processedUrl,
@@ -413,8 +437,6 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
               url: processedUrl,
               error: errorMessage,
             });
-
-            // Continue to next URL regardless of error
           }
         }
 
@@ -447,10 +469,19 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
         // Original single URL logic
         const data = {
           url: url.trim(),
+          request_id: newRequestId,
           ...(prompt.trim() && { prompt: prompt.trim() }),
         };
 
+        console.log("Web fetch payload:", data);
         const response = await api.post("/scrape", data);
+
+        // Handle cancellation gracefully
+        if (response.cancelled) {
+          console.log("Web scraping was cancelled by user");
+          return;
+        }
+
         setResponse(response);
         setOutput(response);
 
@@ -474,7 +505,6 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
         }
       }
     } catch (error) {
-      // This should only catch errors in the overall setup, not individual URL processing
       console.error("Overall process error:", error);
       setResponse({
         error:
@@ -482,6 +512,8 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       });
     } finally {
       setIsLoading(false);
+      setIsRunning(false);
+      setRequestId(null);
     }
   };
 
@@ -711,20 +743,14 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
           </CardContent>
         </Card>
 
-        <Button
-          onClick={handleFetch}
+        <BlockButton
+          isRunning={isRunning}
+          onRun={handleFetch}
+          onCancel={handleCancel}
+          runLabel="Fetch"
+          runningLabel="Fetching..."
           disabled={!url.trim() || isLoading}
-          className="flex items-center gap-2"
-        >
-          {isLoading ? (
-            <>
-              <span className="animate-spin mr-2">⟳</span>
-              Fetching...
-            </>
-          ) : (
-            "Fetch"
-          )}
-        </Button>
+        />
       </div>
     </div>
   );

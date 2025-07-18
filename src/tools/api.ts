@@ -50,8 +50,17 @@ export const api = {
     return response.json();
   },
 
-  async post(endpoint: string, data: ApiData) {
+  async post(
+    endpoint: string,
+    data: ApiData,
+    options?: { requestId?: string }
+  ) {
     let lastError;
+    // Use request_id from data if it exists, otherwise use options or generate new one
+    const requestId =
+      (data.request_id as string) || options?.requestId || crypto.randomUUID();
+    const payload = { ...data, request_id: requestId };
+
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         const response = await fetch(`${API_URL}${endpoint}`, {
@@ -59,8 +68,8 @@ export const api = {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(data),
-          credentials: "include", // This helps with CORS
+          body: JSON.stringify(payload),
+          credentials: "include",
         });
 
         if (response.status === 403) {
@@ -68,6 +77,15 @@ export const api = {
           throw new Error(
             "Free tier limit reached. Please add your API key for unlimited usage."
           );
+        }
+
+        // Handle cancellation gracefully - return special response, don't throw error
+        if (response.status === 499) {
+          return {
+            success: false,
+            cancelled: true,
+            message: "Request was cancelled",
+          };
         }
 
         if (!response.ok) {
@@ -81,6 +99,15 @@ export const api = {
       } catch (error) {
         lastError = error;
         console.warn(`Attempt ${attempt} failed:`, error);
+
+        // Handle fetch errors that might be due to cancellation (AbortError)
+        if ((error as Error)?.name === "AbortError") {
+          return {
+            success: false,
+            cancelled: true,
+            message: "Request was cancelled",
+          };
+        }
 
         if (attempt < MAX_RETRIES) {
           console.log(`Retrying in ${RETRY_DELAY}ms...`);
@@ -153,5 +180,29 @@ export const api = {
     }
 
     return response.json();
+  },
+
+  /**
+   * Cancel a running backend request by request_id.
+   * @param requestId The unique request ID to cancel.
+   */
+  async cancelRequest(requestId: string) {
+    const response = await fetch(`${API_URL}/api/cancel-request`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ request_id: requestId }),
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.error || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    return await response.json();
   },
 };

@@ -23,9 +23,10 @@ import { useAgentStore } from "@/lib/agentStore";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
 import VariableDropdown from "./VariableDropdown";
-import { API_URL } from "@/tools/api";
+import { API_URL, api } from "@/tools/api";
 import { auth } from "@/tools/firebase";
 import { doc, getDoc, getFirestore } from "firebase/firestore";
+import { BlockButton } from "./BlockButton";
 
 interface ApolloAgentProps {
   blockNumber: number;
@@ -94,6 +95,24 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
       state.blocks.find((block) => block.blockNumber === blockNumber)
     );
 
+    // Add cancellation state variables
+    const [isRunning, setIsRunning] = useState(false);
+    const [requestId, setRequestId] = useState<string | null>(null);
+
+    // Add cancel handler
+    const handleCancel = async () => {
+      if (requestId) {
+        try {
+          const result = await api.cancelRequest(requestId);
+          console.log("Cancel request result:", result);
+        } catch (err) {
+          console.error("Cancel request error:", err);
+        }
+        setIsRunning(false);
+        setRequestId(null);
+      }
+    };
+
     // Helper function to get Apollo API key from Firebase
     const getApolloApiKey = async () => {
       const currentUser = auth.currentUser;
@@ -160,6 +179,11 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
     ]);
 
     const processBlock = async () => {
+      // Generate request ID and set running state
+      const newRequestId = crypto.randomUUID();
+      setRequestId(newRequestId);
+      setIsRunning(true);
+
       // Helper: detect {{table.column}} syntax
       const isTableVariable = (value: string) => /{{.*?}}/.test(value);
       const parseTableColumn = (template: string) => {
@@ -285,6 +309,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
                   name: nameValue,
                   company: companyValue,
                   api_key: apolloApiKey,
+                  request_id: newRequestId,
                   ...(prompt.trim() && { prompt: prompt.trim() }),
                 }),
               });
@@ -359,7 +384,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
 
           const resultMessage = `Processed ${successCount} row(s).\n\n${allResults.join("\n\n")}`;
           setResult(resultMessage);
-        //   console.log("=== APOLLO DEBUG END ===");
+          //   console.log("=== APOLLO DEBUG END ===");
           return true;
         }
 
@@ -459,6 +484,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
                   name: nameValue,
                   company: companyValue,
                   api_key: apolloApiKey,
+                  request_id: newRequestId,
                   ...(prompt.trim() && { prompt: prompt.trim() }),
                 }),
               });
@@ -473,10 +499,10 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
               }
 
               // DEBUG: Print the whole response
-            //   console.log(
-            //     `Apollo response for ${nameValue} at ${companyValue} using API key ${apolloApiKey}:`,
-            //     responseData
-            //   );
+              //   console.log(
+              //     `Apollo response for ${nameValue} at ${companyValue} using API key ${apolloApiKey}:`,
+              //     responseData
+              //   );
 
               const valueToSave =
                 typeof responseData === "object" && responseData.analysis
@@ -543,6 +569,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
             name: fullName,
             company,
             api_key: apolloApiKey,
+            request_id: newRequestId,
             ...(prompt.trim() && { prompt: prompt.trim() }),
           }),
         });
@@ -610,6 +637,8 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
         return false;
       } finally {
         setIsLoading(false);
+        setIsRunning(false);
+        setRequestId(null);
       }
     };
 
@@ -772,20 +801,14 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
           )}
         </div>
         <div className="flex justify-start gap-2 p-4 border-t border-gray-700">
-          <Button
-            onClick={processBlock}
+          <BlockButton
+            isRunning={isRunning}
+            onRun={processBlock}
+            onCancel={handleCancel}
+            runLabel="Run Apollo"
+            runningLabel="Processing..."
             disabled={isLoading || isProcessing}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {isLoading ? (
-              <>
-                <span className="animate-spin mr-2">⟳</span>
-                Processing...
-              </>
-            ) : (
-              "Run Apollo"
-            )}
-          </Button>
+          />
         </div>
       </div>
     );

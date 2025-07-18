@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/collapsible";
 import { ChevronDown, Download } from "lucide-react";
 import BlockNameEditor from "./BlockNameEditor";
+import { BlockButton } from "./BlockButton";
 
 interface SearchAgentProps {
   blockNumber: number;
@@ -1211,10 +1212,13 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
     // Keep the original handleSearch function but remove automatic saving
     const handleSearch = async (): Promise<boolean> => {
+      const newRequestId = crypto.randomUUID();
+      setRequestId(newRequestId);
+      setIsRunning(true);
+      console.log("Starting search with request_id:", newRequestId); // <-- PRINT HERE
       if (props.onProcessingChange) {
         props.onProcessingChange(true);
       }
-
       try {
         // console.log("SearchAgent: handleSearch called with query:", query);
         // console.log("SearchAgent: initialQuery prop:", props.initialQuery);
@@ -1259,6 +1263,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
         let payload: any = {
           engine: engineToUse,
+          request_id: newRequestId,
         };
 
         if (engineToUse === "news") {
@@ -1280,8 +1285,17 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           payload.num = limitToUse;
         }
 
+        console.log("Search payload:", payload); // <-- PRINT FULL PAYLOAD
+
         // console.log("SearchAgent: Making API call with payload:", payload);
         const response = await api.post(endpoint, payload);
+
+        // Handle cancellation gracefully
+        if (response.cancelled) {
+          console.log("Search request was cancelled by user");
+          return false;
+        }
+
         setModelResponse(JSON.stringify(response, null, 2));
 
         // Reset save state for new results
@@ -1296,6 +1310,8 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         );
         return false;
       } finally {
+        setIsRunning(false);
+        setRequestId(null);
         if (props.onProcessingChange) {
           props.onProcessingChange(false);
         }
@@ -1580,6 +1596,26 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
     const handleClearAll = () => {
       setSelectedItems(new Set());
+    };
+
+    const [isRunning, setIsRunning] = useState(false);
+    const [requestId, setRequestId] = useState<string | null>(null);
+
+    const handleCancel = async () => {
+      if (requestId) {
+        try {
+          console.log("Sending cancel for request_id:", requestId); // <-- PRINT HERE
+          const result = await api.cancelRequest(requestId);
+          console.log("Cancel request result:", result);
+        } catch (err) {
+          console.error("Cancel request error:", err);
+        }
+        setIsRunning(false);
+        setRequestId(null);
+        if (props.onProcessingChange) {
+          props.onProcessingChange(false);
+        }
+      }
     };
 
     return (
@@ -1917,13 +1953,13 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
             {/* Search button */}
             <div className="mt-4 flex justify-start">
-              <Button
-                className="flex items-center gap-2"
-                onClick={handleSearch}
-                disabled={props.isProcessing}
-              >
-                {props.isProcessing ? "Loading..." : "Search"}
-              </Button>
+              <BlockButton
+                isRunning={isRunning}
+                onRun={handleSearch}
+                onCancel={handleCancel}
+                runLabel="Search"
+                runningLabel="Searching..."
+              />
             </div>
           </>
         )}

@@ -29,6 +29,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import BlockNameEditor from "./BlockNameEditor";
+import { BlockButton } from "./BlockButton";
 
 interface ExcelAgentProps {
   blockNumber: number;
@@ -95,6 +96,25 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
       storage_path?: string;
     } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Add cancellation state variables
+    const [isRunning, setIsRunning] = useState(false);
+    const [requestId, setRequestId] = useState<string | null>(null);
+
+    // Add cancel handler
+    const handleCancel = async () => {
+      if (requestId) {
+        try {
+          const result = await api.cancelRequest(requestId);
+          console.log("Cancel request result:", result);
+        } catch (err) {
+          console.error("Cancel request error:", err);
+        }
+        setIsRunning(false);
+        setRequestId(null);
+        onProcessingChange?.(false);
+      }
+    };
 
     // Add store hook for updating block names
     const { updateBlockName } = useSourceStore();
@@ -277,6 +297,10 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
     };
 
     const processBlock = async (): Promise<boolean> => {
+      const newRequestId = crypto.randomUUID();
+      setRequestId(newRequestId);
+      setIsRunning(true);
+
       try {
         setResult(null);
         setIsLoading(true);
@@ -298,12 +322,19 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
         const requestBody = {
           prompt: processedPrompt,
           user_id: user?.uid || "user1234",
+          request_id: newRequestId,
         };
 
         // console.log("Excel Agent - Request body:", requestBody);
 
         // Use api.post instead of direct fetch
         const response = await api.post("/api/excel_agent", requestBody);
+
+        // Handle cancellation gracefully
+        if (response.cancelled) {
+          console.log("Excel agent request was cancelled by user");
+          return false;
+        }
 
         // console.log("Excel Agent - Response:", response);
 
@@ -342,6 +373,8 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
       } finally {
         setIsLoading(false);
         onProcessingChange?.(false);
+        setIsRunning(false);
+        setRequestId(null);
       }
     };
 
@@ -482,20 +515,14 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
         </div>
 
         <div className="flex justify-start gap-2 p-4 border-t border-gray-700">
-          <Button
-            onClick={processBlock}
+          <BlockButton
+            isRunning={isRunning}
+            onRun={processBlock}
+            onCancel={handleCancel}
+            runLabel="Process Excel"
+            runningLabel="Processing..."
             disabled={isLoading || isProcessing}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {isLoading ? (
-              <>
-                <span className="animate-spin mr-2">⟳</span>
-                Processing...
-              </>
-            ) : (
-              "Process Excel"
-            )}
-          </Button>
+          />
         </div>
       </div>
     );

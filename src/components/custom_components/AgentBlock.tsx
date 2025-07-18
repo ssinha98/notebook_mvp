@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/table";
 import BlockNameEditor from "./BlockNameEditor";
 import { ChevronDown } from "lucide-react";
+import { BlockButton } from "./BlockButton";
 
 // Add debounce hook
 const useDebounce = (value: string, delay: number) => {
@@ -451,6 +452,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     return parts;
   };
 
+  const [isRunning, setIsRunning] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+
   // Update the processVariablesInText function to use store values
   const processVariablesInText = (text: string): string => {
     const regex = /{{(.*?)}}/g;
@@ -508,8 +512,27 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     }
   }, [userPrompt, fileNicknames]);
 
+  const handleCancel = async () => {
+    if (requestId) {
+      try {
+        const result = await api.cancelRequest(requestId);
+        console.log("Cancel request result:", result);
+      } catch (err) {
+        console.error("Cancel request error:", err);
+      }
+      setIsRunning(false);
+      setRequestId(null);
+      if (props.onProcessingChange) {
+        props.onProcessingChange(false);
+      }
+    }
+  };
+
   // Update handleProcessBlock to handle single source
   const handleProcessBlock = async () => {
+    const newRequestId = crypto.randomUUID();
+    setRequestId(newRequestId);
+    setIsRunning(true);
     try {
       props.onProcessingChange(true);
       const processedSystemPrompt = processVariablesInText(systemPrompt);
@@ -534,6 +557,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             user_id: auth.currentUser?.uid || "",
             url: sourceData.downloadLink,
             query: processedUserPrompt,
+            request_id: newRequestId,
           });
         } else {
           response = await api.post("/api/call-model-with-source", {
@@ -541,6 +565,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             user_prompt: processedUserPrompt,
             download_url: sourceData.downloadLink,
             save_as_csv: saveAsCsv,
+            request_id: newRequestId,
           });
         }
       } else {
@@ -548,6 +573,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           system_prompt: processedSystemPrompt,
           user_prompt: processedUserPrompt,
           save_as_csv: saveAsCsv,
+          request_id: newRequestId,
         });
       }
 
@@ -604,6 +630,12 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         setOutput(response.response);
         return true;
       } else {
+        // Handle cancellation gracefully
+        if (response.cancelled) {
+          console.log("Block processing was cancelled by user");
+          return false;
+        }
+
         if (response.needs_api_key) {
           alert("Please add your own API key to continue using the service.");
         } else {
@@ -615,6 +647,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       console.error("Error processing block:", error);
       return false;
     } finally {
+      setIsRunning(false);
+      setRequestId(null);
       props.onProcessingChange(false);
     }
   };
@@ -1077,20 +1111,13 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         </div>
 
         <div className="mt-4 flex justify-start">
-          <Button
-            className="flex items-center gap-2"
-            onClick={handleProcessBlock}
-            disabled={props.isProcessing}
-          >
-            {props.isProcessing ? (
-              <>
-                <span className="animate-spin mr-2">⟳</span>
-                Running...
-              </>
-            ) : (
-              "Run Block"
-            )}
-          </Button>
+          <BlockButton
+            isRunning={isRunning}
+            onRun={handleProcessBlock}
+            onCancel={handleCancel}
+            runLabel="Run Block"
+            runningLabel="Running..."
+          />
         </div>
       </div>
 

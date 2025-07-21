@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { StopCircle } from "lucide-react";
+import { toast } from "sonner";
 
 interface BlockButtonProps {
   isRunning: boolean;
@@ -21,6 +22,20 @@ export const BlockButton: React.FC<BlockButtonProps> = ({
   cancelLabel = "Cancel",
   disabled = false,
 }) => {
+  const handleCancel = () => {
+    toast(
+      "Heads up: We're trying to cancel your request, but some data might have already been processed. You may see partial results.",
+      {
+        duration: 5000,
+        action: {
+          label: "Got it",
+          onClick: () => toast.dismiss(),
+        },
+      }
+    );
+    onCancel();
+  };
+
   return isRunning ? (
     <div className="flex gap-2">
       <Button disabled className="bg-blue-600 hover:bg-blue-700">
@@ -28,7 +43,7 @@ export const BlockButton: React.FC<BlockButtonProps> = ({
         {runningLabel}
       </Button>
       <Button
-        onClick={onCancel}
+        onClick={handleCancel}
         variant="outline"
         className="border-red-600 text-red-400 hover:bg-red-950"
       >

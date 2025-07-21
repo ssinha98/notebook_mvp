@@ -496,13 +496,15 @@ const DeepResearchAgent = forwardRef<
 
           {researchResults && (
             <div className="space-y-6">
-              {/* Summary Section */}
+              {/* Summary Section with fixed height and scrollable content */}
               <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
                 <h4 className="text-sm font-medium mb-2 text-gray-300">
                   Summary
                 </h4>
-                <div className="prose prose-invert max-w-none">
-                  <ReactMarkdown>{researchResults.message}</ReactMarkdown>
+                <div className="h-32 overflow-y-auto">
+                  <div className="prose prose-invert max-w-none">
+                    <ReactMarkdown>{researchResults.message}</ReactMarkdown>
+                  </div>
                 </div>
               </div>
 
@@ -533,48 +535,51 @@ const DeepResearchAgent = forwardRef<
                   </div>
                 </div>
 
-                <div className="flex gap-4 overflow-x-auto pb-4">
-                  {researchResults.search_results.map((result, index) => (
-                    <div
-                      key={index}
-                      className="flex-shrink-0 w-72 p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors relative"
-                    >
-                      <div className="absolute top-2 right-2">
-                        <Checkbox
-                          checked={selectedItems.has(result.url)}
-                          onCheckedChange={(checked) =>
-                            handleItemSelect(result.url, checked as boolean)
-                          }
-                          className="bg-gray-700 border-gray-600"
-                        />
-                      </div>
-                      <div className="space-y-2 pr-6">
-                        {result.date && (
-                          <div className="text-xs text-gray-400">
-                            {new Date(result.date).toLocaleDateString()}
-                          </div>
-                        )}
-                        <a
-                          href={result.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block"
-                        >
-                          <h5 className="text-sm font-medium text-blue-400 hover:text-blue-300 line-clamp-2">
-                            {result.title}
-                          </h5>
-                        </a>
-                        <div className="text-xs text-gray-400 truncate">
-                          {result.url}
+                {/* Fixed height container for search results with horizontal scroll */}
+                <div className="h-48 overflow-y-auto">
+                  <div className="flex gap-4 overflow-x-auto pb-4">
+                    {researchResults.search_results.map((result, index) => (
+                      <div
+                        key={index}
+                        className="flex-shrink-0 w-72 p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors relative"
+                      >
+                        <div className="absolute top-2 right-2">
+                          <Checkbox
+                            checked={selectedItems.has(result.url)}
+                            onCheckedChange={(checked) =>
+                              handleItemSelect(result.url, checked as boolean)
+                            }
+                            className="bg-gray-700 border-gray-600"
+                          />
                         </div>
-                        {result.description && (
-                          <div className="text-xs text-gray-300 line-clamp-2">
-                            {result.description}
+                        <div className="space-y-2 pr-6">
+                          {result.date && (
+                            <div className="text-xs text-gray-400">
+                              {new Date(result.date).toLocaleDateString()}
+                            </div>
+                          )}
+                          <a
+                            href={result.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block"
+                          >
+                            <h5 className="text-sm font-medium text-blue-400 hover:text-blue-300 line-clamp-2">
+                              {result.title}
+                            </h5>
+                          </a>
+                          <div className="text-xs text-gray-400 truncate">
+                            {result.url}
                           </div>
-                        )}
+                          {result.description && (
+                            <div className="text-xs text-gray-300 line-clamp-2">
+                              {result.description}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

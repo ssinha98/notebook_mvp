@@ -211,59 +211,54 @@ const SearchPreviewDialog: React.FC<SearchPreviewDialogProps> = ({
               </div>
             </div>
 
-            {/* Scrollable results area with fixed height */}
-            <div
-              className="border border-gray-700 rounded-lg overflow-hidden"
-              style={{ height: "400px" }}
-            >
-              <ScrollArea className="h-full">
-                <div className="p-4 space-y-3">
-                  {currentRow.results.map((result, index) => (
-                    <div key={`${currentRow.rowId}-${index}`}>
-                      <Card className="bg-gray-900 border-gray-700 hover:bg-gray-800 transition-colors">
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-3">
-                            <Checkbox
-                              checked={
-                                selectedResults[currentRow.rowId]?.has(
-                                  result.link
-                                ) || false
-                              }
-                              onCheckedChange={(checked) =>
-                                handleCheckboxChange(
-                                  currentRow.rowId,
-                                  result.link,
-                                  checked as boolean
-                                )
-                              }
-                              className="mt-1"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <a
-                                href={result.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-lg font-semibold text-blue-400 hover:underline line-clamp-2 cursor-pointer block"
-                              >
-                                {result.title}
-                              </a>
-                              <div className="text-sm text-gray-400 mb-2">
-                                {result.displayed_link}
-                              </div>
-                              <div className="text-sm text-gray-300 line-clamp-2">
-                                {result.snippet}
-                              </div>
-                              <div className="text-xs text-gray-500 mt-2">
-                                URL: {result.link}
-                              </div>
+            {/* Scrollable results area with much shorter height */}
+            <div className="border border-gray-700 rounded-lg overflow-y-auto flex-1 min-h-0 max-h-[30vh] sm:max-h-[35vh] md:max-h-[250px]">
+              <div className="p-4 space-y-3">
+                {currentRow.results.map((result, index) => (
+                  <div key={`${currentRow.rowId}-${index}`}>
+                    <Card className="bg-gray-900 border-gray-700 hover:bg-gray-800 transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={
+                              selectedResults[currentRow.rowId]?.has(
+                                result.link
+                              ) || false
+                            }
+                            onCheckedChange={(checked) =>
+                              handleCheckboxChange(
+                                currentRow.rowId,
+                                result.link,
+                                checked as boolean
+                              )
+                            }
+                            className="mt-1"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={result.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-lg font-semibold text-blue-400 hover:underline line-clamp-2 cursor-pointer block"
+                            >
+                              {result.title}
+                            </a>
+                            <div className="text-sm text-gray-400 mb-2">
+                              {result.displayed_link}
+                            </div>
+                            <div className="text-sm text-gray-300 line-clamp-2">
+                              {result.snippet}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-2">
+                              URL: {result.link}
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

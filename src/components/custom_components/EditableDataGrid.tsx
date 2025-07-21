@@ -32,11 +32,27 @@ import {
   SortAsc,
   SortDesc,
   Trash, // Add Trash icon import
+  MoreHorizontal, // Add MoreHorizontal icon import
 } from "lucide-react";
 import AddVariableDialog from "./AddVariableDialog";
 import { Variable } from "@/types/types";
 import { toast } from "sonner";
 import { useVariableStore } from "@/lib/variableStore";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Add CSS for selection mode and dark theme
 const selectionStyles = `
@@ -259,6 +275,9 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [sortDropdownOpen, setSortDropdownOpen] = useState<string | null>(null);
+  const [errorColumns, setErrorColumns] = useState<Set<string>>(new Set());
+  // Track which column (if any) is being error-sorted
+  const [errorSortColumn, setErrorSortColumn] = useState<string | null>(null);
 
   // Update rows when firebaseData changes
   useEffect(() => {
@@ -419,7 +438,7 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
         editingColumnName.newName
       );
 
-    //   console.log("renameColumnInTable promise created:", promise);
+      //   console.log("renameColumnInTable promise created:", promise);
 
       promise
         .then(() => {
@@ -563,21 +582,55 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
     setSortDirection("asc");
   };
 
-  // Get sorted and filtered rows
+  // Detect if a column has any "Error: " value (starts with "Error: ")
+  const detectErrorsInColumn = (columnName: string): boolean => {
+    return rows.some((row) => {
+      const value = row[columnName];
+      if (value === null || value === undefined) return false;
+      return String(value).startsWith("Error: ");
+    });
+  };
+
+  // Update error columns when rows or columns change
+  useEffect(() => {
+    const newErrorColumns = new Set<string>();
+    localColumns.forEach((columnName) => {
+      if (columnName !== "id" && detectErrorsInColumn(columnName)) {
+        newErrorColumns.add(columnName);
+      }
+    });
+    setErrorColumns(newErrorColumns);
+    // If the column being error-sorted no longer has errors, clear error sort
+    if (errorSortColumn && !newErrorColumns.has(errorSortColumn)) {
+      setErrorSortColumn(null);
+    }
+  }, [rows, localColumns]);
+
+  // Enhanced sorting: if errorSortColumn is set, sort errors to top for that column
   const getSortedAndFilteredRows = () => {
     let filteredRows = getFilteredRows();
 
-    if (sortColumn) {
+    if (errorSortColumn && errorColumns.has(errorSortColumn)) {
+      console.log("Error sorting by:", errorSortColumn); // Debug log
+      filteredRows = [...filteredRows].sort((a, b) => {
+        const aHasError =
+          a[errorSortColumn] &&
+          String(a[errorSortColumn]).startsWith("Error: ");
+        const bHasError =
+          b[errorSortColumn] &&
+          String(b[errorSortColumn]).startsWith("Error: ");
+        if (aHasError === bHasError) return 0;
+        return aHasError ? -1 : 1;
+      });
+      console.log("First 5 rows after error sort:", filteredRows.slice(0, 5)); // Debug log
+    } else if (sortColumn) {
       filteredRows = [...filteredRows].sort((a, b) => {
         const aValue = a[sortColumn];
         const bValue = b[sortColumn];
-
-        // Handle null/undefined values
         const aStr =
           aValue === null || aValue === undefined ? "" : String(aValue);
         const bStr =
           bValue === null || bValue === undefined ? "" : String(bValue);
-
         const comparison = aStr.localeCompare(bStr);
         return sortDirection === "asc" ? comparison : -comparison;
       });
@@ -598,6 +651,70 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
       resizable: true,
       sortable: true,
       frozen: true,
+      renderHeaderCell: () => (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+            padding: "0 4px",
+            height: "100%",
+          }}
+        >
+          <span
+            style={{
+              color: "#f3f4f6",
+              fontSize: "14px",
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <button
+              onClick={() => handleCopyColumnName("id")}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#d1d5db",
+                padding: "2px",
+                display: "flex",
+                alignItems: "center",
+                opacity: 0.7,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+              title="Copy column reference"
+            >
+              <Copy size={12} />
+            </button>
+            ID
+          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCellMenuClick(e, "id");
+            }}
+            style={{
+              padding: "2px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#666",
+              display: "flex",
+              alignItems: "center",
+              opacity: 0.7,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+            title="Column options"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        </div>
+      ),
       renderCell: ({ row, rowIdx }: any) => {
         const cellKey = `${rowIdx}:id`;
         const isSelected = selectedCells.has(cellKey);
@@ -630,24 +747,26 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
             >
               {cellValue}
             </span>
-            <button
-              onClick={(e) => handleExpandCell(rowIdx, "id", cellValue, e)}
-              style={{
-                marginLeft: "4px",
-                padding: "2px",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#666",
-                display: "flex",
-                alignItems: "center",
-                opacity: 0.7,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
-            >
-              <FaExpandAlt size={12} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <button
+                onClick={(e) => handleExpandCell(rowIdx, "id", cellValue, e)}
+                style={{
+                  marginLeft: "4px",
+                  padding: "2px",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#666",
+                  display: "flex",
+                  alignItems: "center",
+                  opacity: 0.7,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+              >
+                <FaExpandAlt size={12} />
+              </button>
+            </div>
           </div>
         );
       },
@@ -656,9 +775,19 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
     // Add columns from local columns array
     columnNames.forEach((columnName, columnIndex) => {
       if (columnName !== "id") {
+        const hasFilters = columnFilters[columnName]?.size > 0;
+        const isSorted = sortColumn === columnName;
+        const canMoveLeft = columnIndex > 0;
+        const canMoveRight = columnIndex < localColumns.length - 1;
+
         columns.push({
           key: columnName,
-          name: (
+          name: columnName,
+          width: 200,
+          resizable: true,
+          sortable: true,
+          editable: true,
+          renderHeaderCell: () => (
             <div
               style={{
                 display: "flex",
@@ -666,6 +795,7 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
                 justifyContent: "space-between",
                 width: "100%",
                 padding: "0 4px",
+                height: "100%",
               }}
             >
               <span
@@ -673,13 +803,10 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
                   color: "#f3f4f6",
                   fontSize: "14px",
                   fontWeight: "600",
-                  padding: "2px 4px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
                 }}
-              >
-                {columnName}
-              </span>
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "4px" }}
               >
                 <button
                   onClick={() => handleCopyColumnName(columnName)}
@@ -699,17 +826,157 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
                 >
                   <Copy size={12} />
                 </button>
-              </div>
+                {columnName}
+                {errorColumns.has(columnName) && (
+                  <Badge
+                    variant="destructive"
+                    className="ml-2 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setErrorSortColumn((prev) => {
+                        const newValue =
+                          prev === columnName ? null : columnName;
+                        console.log("Error sort column changed to:", newValue);
+                        return newValue;
+                      });
+                    }}
+                    title={
+                      errorSortColumn === columnName
+                        ? "Remove error sort"
+                        : "Sort errors to top"
+                    }
+                    style={{
+                      userSelect: "none",
+                      pointerEvents: "auto",
+                    }}
+                  >
+                    error
+                  </Badge>
+                )}
+              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    style={{
+                      padding: "2px",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#666",
+                      display: "flex",
+                      alignItems: "center",
+                      opacity: 0.7,
+                    }}
+                    title="Column options"
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-56 bg-gray-900 border-gray-700"
+                >
+                  <DropdownMenuLabel className="text-white">
+                    {columnName} Options
+                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      onClick={() => handleMoveColumn(columnName, "left")}
+                      className="text-white hover:bg-gray-800"
+                    >
+                      <ChevronLeft size={14} className="mr-2" />
+                      Move Left
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleMoveColumn(columnName, "right")}
+                      className="text-white hover:bg-gray-800"
+                    >
+                      <ChevronRight size={14} className="mr-2" />
+                      Move Right
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDeleteColumn(columnName)}
+                      className="text-red-400 hover:bg-red-900 hover:text-red-300"
+                    >
+                      <Trash size={14} className="mr-2" />
+                      Delete Column
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator className="bg-gray-700" />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="text-white hover:bg-gray-800">
+                      <Filter size={14} className="mr-2" />
+                      Filter
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent className="bg-gray-900 border-gray-700 w-64">
+                        {/* Scrollable filter items */}
+                        <div className="max-h-48 overflow-y-auto">
+                          {getUniqueValues(columnName).map((value) => {
+                            const selectedValues =
+                              columnFilters[columnName] || new Set();
+                            const isSelected = selectedValues.has(value);
+                            return (
+                              <DropdownMenuItem
+                                key={value}
+                                onClick={() => {
+                                  const newSet = new Set(selectedValues);
+                                  if (isSelected) {
+                                    newSet.delete(value);
+                                  } else {
+                                    newSet.add(value);
+                                  }
+                                  handleFilterChange(columnName, newSet);
+                                }}
+                                className="text-white hover:bg-gray-800"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  readOnly
+                                  className="mr-2"
+                                />
+                                {value === "" ? "(empty)" : value}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </div>
+
+                        {/* Fixed bottom section with divider */}
+                        <DropdownMenuSeparator className="bg-gray-700" />
+                        <div className="p-1">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleFilterChange(
+                                columnName,
+                                new Set(getUniqueValues(columnName))
+                              )
+                            }
+                            className="text-white hover:bg-gray-800"
+                          >
+                            Select All
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleFilterChange(columnName, new Set())
+                            }
+                            className="text-white hover:bg-gray-800"
+                          >
+                            Clear All
+                          </DropdownMenuItem>
+                        </div>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ),
-          width: 200,
-          resizable: true,
-          sortable: true,
-          editable: true,
           renderCell: ({ row, rowIdx }: any) => {
             const cellKey = `${rowIdx}:${columnName}`;
             const isSelected = selectedCells.has(cellKey);
             const cellValue = row[columnName] || "";
+            const isErrorCell = String(cellValue).startsWith("Error: ");
 
             return (
               <div
@@ -732,11 +999,16 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
                     minWidth: 0,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
-                    color: isValidUrl(cellValue) ? "#60a5fa" : undefined,
+                    color: isErrorCell
+                      ? "#ef4444"
+                      : isValidUrl(cellValue)
+                        ? "#60a5fa"
+                        : undefined,
                     textDecoration: isValidUrl(cellValue)
                       ? "underline"
                       : undefined,
                     cursor: isValidUrl(cellValue) ? "pointer" : undefined,
+                    fontWeight: isErrorCell ? "600" : undefined,
                   }}
                 >
                   {isValidUrl(cellValue) ? (
@@ -753,26 +1025,32 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
                     cellValue
                   )}
                 </span>
-                <button
-                  onClick={(e) =>
-                    handleExpandCell(rowIdx, columnName, cellValue, e)
-                  }
-                  style={{
-                    marginLeft: "4px",
-                    padding: "2px",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "#666",
-                    display: "flex",
-                    alignItems: "center",
-                    opacity: 0.7,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "4px" }}
                 >
-                  <FaExpandAlt size={12} />
-                </button>
+                  <button
+                    onClick={(e) =>
+                      handleExpandCell(rowIdx, columnName, cellValue, e)
+                    }
+                    style={{
+                      marginLeft: "4px",
+                      padding: "2px",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#666",
+                      display: "flex",
+                      alignItems: "center",
+                      opacity: 0.7,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.opacity = "0.7")
+                    }
+                  >
+                    <FaExpandAlt size={12} />
+                  </button>
+                </div>
               </div>
             );
           },
@@ -797,37 +1075,20 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
       }
     });
 
-    // Add "Add Column" button as a column header (only if we have table info)
+    // Add "Add Column" button as a column header
     if (currentTableId && currentAgentId) {
       columns.push({
         key: "add-column",
-        name: (
-          <button
-            onClick={handleOpenAddColumnDialog}
-            style={{
-              padding: "4px 8px",
-              background: "#374151",
-              border: "1px solid #4b5563",
-              borderRadius: "4px",
-              cursor: "pointer",
-              color: "#f3f4f6",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              fontWeight: "500",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#4b5563")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#374151")}
-          >
-            <Plus size={12} />
-            Add Column
-          </button>
-        ),
+        name: "Add Column",
         width: 120,
         resizable: false,
         sortable: false,
         editable: false,
+        renderHeaderCell: () => (
+          <div style={{ padding: "4px", fontSize: "12px", color: "#9ca3af" }}>
+            Add Column
+          </div>
+        ),
         renderCell: () => (
           <div style={{ padding: "8px" }}>{/* Empty cell content */}</div>
         ),
@@ -835,6 +1096,91 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
     }
 
     return columns;
+  };
+
+  // Add new state for cell menu
+  const [cellMenuOpen, setCellMenuOpen] = useState<{
+    columnName: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  // Handle cell menu click
+  const handleCellMenuClick = (event: React.MouseEvent, columnName: string) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setCellMenuOpen({
+      columnName,
+      x: rect.left,
+      y: rect.bottom + 4,
+    });
+  };
+
+  // Handle menu item click
+  const handleMenuItemClick = (action: string, columnName: string) => {
+    console.log("Menu item clicked:", action, columnName); // Debug log
+    setCellMenuOpen(null);
+
+    switch (action) {
+      case "filter":
+        console.log("Opening filter for:", columnName); // Debug log
+        handleFilterToggle(columnName);
+        break;
+      case "sort-asc":
+        console.log("Sorting ascending:", columnName); // Debug log
+        handleSortChange(columnName, "asc");
+        break;
+      case "sort-desc":
+        console.log("Sorting descending:", columnName); // Debug log
+        handleSortChange(columnName, "desc");
+        break;
+      case "move-left":
+        console.log("Moving left:", columnName); // Debug log
+        handleMoveColumn(columnName, "left");
+        break;
+      case "move-right":
+        console.log("Moving right:", columnName); // Debug log
+        handleMoveColumn(columnName, "right");
+        break;
+      case "delete":
+        console.log("Deleting column:", columnName); // Debug log
+        handleDeleteColumn(columnName);
+        break;
+    }
+  };
+
+  // Handle click outside to close menus
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (cellMenuOpen) {
+        setCellMenuOpen(null);
+      }
+      if (filterDropdownOpen) {
+        setFilterDropdownOpen(null);
+      }
+      if (sortDropdownOpen) {
+        setSortDropdownOpen(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [cellMenuOpen, filterDropdownOpen, sortDropdownOpen]);
+
+  // Create a custom header row for the filter/sort controls
+  const createFilterRow = () => {
+    const filterRow: { [key: string]: any } = {
+      id: "filter-row",
+      isFilterRow: true,
+    };
+
+    // Add empty values for all columns to ensure proper rendering
+    localColumns.forEach((col) => {
+      filterRow[col] = "";
+    });
+
+    return filterRow;
   };
 
   // Use local columns for generating the DataGrid columns
@@ -1070,228 +1416,6 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
               flexDirection: "column",
             }}
           >
-            {/* Filter Row - Above the DataGrid */}
-            <div
-              style={{
-                height: "40px",
-                backgroundColor: "#1f2937",
-                borderBottom: "1px solid #374151",
-                display: "flex",
-                alignItems: "center",
-                padding: "0 8px",
-                overflowX: "auto",
-                gap: "8px",
-                flexShrink: 0,
-              }}
-            >
-              {/* ID column filter placeholder */}
-              <div
-                style={{
-                  width: "120px",
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ fontSize: "12px", color: "#9ca3af" }}>ID</span>
-              </div>
-
-              {/* Filter icons for each column */}
-              {localColumns.map((columnName, columnIndex) => {
-                if (columnName === "id") return null;
-
-                const hasFilters = columnFilters[columnName]?.size > 0;
-                const isFilterDropdownOpen = filterDropdownOpen === columnName;
-                const isSortDropdownOpen = sortDropdownOpen === columnName;
-                const isSorted = sortColumn === columnName;
-                const canMoveLeft = columnIndex > 0;
-                const canMoveRight = columnIndex < localColumns.length - 1;
-
-                return (
-                  <div
-                    key={columnName}
-                    style={{
-                      width: "200px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-start", // Left align the components
-                      gap: "4px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {/* Left arrow */}
-                    <button
-                      onClick={() => handleMoveColumn(columnName, "left")}
-                      disabled={!canMoveLeft}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: canMoveLeft ? "pointer" : "not-allowed",
-                        color: canMoveLeft ? "#d1d5db" : "#4b5563",
-                        padding: "2px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        opacity: canMoveLeft ? 0.6 : 0.3,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (canMoveLeft) {
-                          e.currentTarget.style.opacity = "1";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (canMoveLeft) {
-                          e.currentTarget.style.opacity = "0.6";
-                        }
-                      }}
-                      title={`Move ${columnName} left`}
-                    >
-                      <ChevronLeft size={12} />
-                    </button>
-
-                    {/* Filter button */}
-                    <button
-                      onClick={() => handleFilterToggle(columnName)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: hasFilters ? "#60a5fa" : "#d1d5db",
-                        padding: "4px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: "4px",
-                        opacity: 0.8,
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.opacity = "1")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.opacity = "0.8")
-                      }
-                      title={`Filter ${columnName}${hasFilters ? ` (${columnFilters[columnName]?.size} active)` : ""}`}
-                    >
-                      <Filter size={14} />
-                    </button>
-
-                    {/* Sort button */}
-                    <button
-                      onClick={() => {
-                        if (sortDropdownOpen === columnName) {
-                          setSortDropdownOpen(null);
-                        } else {
-                          setSortDropdownOpen(columnName);
-                          setFilterDropdownOpen(null); // Close filter dropdown
-                        }
-                      }}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: isSorted ? "#60a5fa" : "#d1d5db",
-                        padding: "4px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        opacity: 0.8,
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.opacity = "1")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.opacity = "0.8")
-                      }
-                      title={`Sort ${columnName}${isSorted ? ` (${sortDirection === "asc" ? "ascending" : "descending"})` : ""}`}
-                    >
-                      {isSorted ? (
-                        sortDirection === "asc" ? (
-                          <FaSortAmountUp size={14} />
-                        ) : (
-                          <FaSortAmountDown size={14} />
-                        )
-                      ) : (
-                        <SortAsc size={14} />
-                      )}
-                    </button>
-
-                    {/* Delete column button */}
-                    <button
-                      onClick={() => handleDeleteColumn(columnName)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "#ef4444", // Red color for delete
-                        padding: "4px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        opacity: 0.8,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.opacity = "1";
-                        e.currentTarget.style.color = "#dc2626"; // Darker red on hover
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.opacity = "0.8";
-                        e.currentTarget.style.color = "#ef4444";
-                      }}
-                      title={`Delete column "${columnName}"`}
-                    >
-                      <Trash size={14} />
-                    </button>
-
-                    {/* Right arrow */}
-                    <button
-                      onClick={() => handleMoveColumn(columnName, "right")}
-                      disabled={!canMoveRight}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: canMoveRight ? "pointer" : "not-allowed",
-                        color: canMoveRight ? "#d1d5db" : "#4b5563",
-                        padding: "2px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        opacity: canMoveRight ? 0.6 : 0.3,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (canMoveRight) {
-                          e.currentTarget.style.opacity = "1";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (canMoveRight) {
-                          e.currentTarget.style.opacity = "0.6";
-                        }
-                      }}
-                      title={`Move ${columnName} right`}
-                    >
-                      <ChevronRight size={12} />
-                    </button>
-                  </div>
-                );
-              })}
-
-              {/* Add Column filter placeholder */}
-              {/* {currentTableId && currentAgentId && (
-                <div
-                  style={{
-                    width: "120px",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ fontSize: "12px", color: "#9ca3af" }}>
-                    Add
-                  </span>
-                </div>
-              )} */}
-            </div>
-
             <DataGrid
               columns={columns}
               rows={displayRows}
@@ -1316,7 +1440,7 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
               className="rdg"
               style={{
                 minWidth: "max-content",
-                height: "calc(100% - 40px)", // Reserve space for filter row
+                height: "100%",
                 backgroundColor: "#141414",
                 flex: 1,
                 overflowY: "auto",
@@ -1438,6 +1562,239 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
+
+      {/* Cell Menu Dropdown */}
+      {cellMenuOpen && (
+        <div
+          style={{
+            position: "fixed",
+            zIndex: 1000,
+            backgroundColor: "#1f2937",
+            border: "1px solid #374151",
+            borderRadius: "8px",
+            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.5)",
+            minWidth: "180px",
+            left: cellMenuOpen.x,
+            top: cellMenuOpen.y,
+          }}
+        >
+          <div
+            style={{
+              padding: "12px",
+              borderBottom: "1px solid #374151",
+              fontSize: "14px",
+              fontWeight: "600",
+              color: "#f3f4f6",
+            }}
+          >
+            {cellMenuOpen.columnName} Options
+          </div>
+
+          <div>
+            {/* Filter option */}
+            <div
+              style={{
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                backgroundColor:
+                  columnFilters[cellMenuOpen.columnName]?.size > 0
+                    ? "#374151"
+                    : "transparent",
+              }}
+              onClick={() =>
+                handleMenuItemClick("filter", cellMenuOpen.columnName)
+              }
+              onMouseEnter={(e) => {
+                if (columnFilters[cellMenuOpen.columnName]?.size === 0) {
+                  e.currentTarget.style.backgroundColor = "#374151";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (columnFilters[cellMenuOpen.columnName]?.size === 0) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }
+              }}
+            >
+              <Filter size={14} style={{ color: "#60a5fa" }} />
+              <span style={{ color: "#f3f4f6", fontSize: "14px" }}>
+                Filter {cellMenuOpen.columnName}
+                {columnFilters[cellMenuOpen.columnName]?.size > 0 && (
+                  <span style={{ color: "#60a5fa", marginLeft: "4px" }}>
+                    ({columnFilters[cellMenuOpen.columnName]?.size})
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {/* Sort ascending */}
+            <div
+              style={{
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                backgroundColor:
+                  sortColumn === cellMenuOpen.columnName &&
+                  sortDirection === "asc"
+                    ? "#374151"
+                    : "transparent",
+              }}
+              onClick={() =>
+                handleMenuItemClick("sort-asc", cellMenuOpen.columnName)
+              }
+              onMouseEnter={(e) => {
+                if (
+                  !(
+                    sortColumn === cellMenuOpen.columnName &&
+                    sortDirection === "asc"
+                  )
+                ) {
+                  e.currentTarget.style.backgroundColor = "#374151";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (
+                  !(
+                    sortColumn === cellMenuOpen.columnName &&
+                    sortDirection === "asc"
+                  )
+                ) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }
+              }}
+            >
+              <FaSortAmountUp size={14} style={{ color: "#60a5fa" }} />
+              <span style={{ color: "#f3f4f6", fontSize: "14px" }}>
+                Sort Ascending
+              </span>
+            </div>
+
+            {/* Sort descending */}
+            <div
+              style={{
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                backgroundColor:
+                  sortColumn === cellMenuOpen.columnName &&
+                  sortDirection === "desc"
+                    ? "#374151"
+                    : "transparent",
+              }}
+              onClick={() =>
+                handleMenuItemClick("sort-desc", cellMenuOpen.columnName)
+              }
+              onMouseEnter={(e) => {
+                if (
+                  !(
+                    sortColumn === cellMenuOpen.columnName &&
+                    sortDirection === "desc"
+                  )
+                ) {
+                  e.currentTarget.style.backgroundColor = "#374151";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (
+                  !(
+                    sortColumn === cellMenuOpen.columnName &&
+                    sortDirection === "desc"
+                  )
+                ) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }
+              }}
+            >
+              <FaSortAmountDown size={14} style={{ color: "#60a5fa" }} />
+              <span style={{ color: "#f3f4f6", fontSize: "14px" }}>
+                Sort Descending
+              </span>
+            </div>
+
+            {/* Move left */}
+            <div
+              style={{
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+              }}
+              onClick={() =>
+                handleMenuItemClick("move-left", cellMenuOpen.columnName)
+              }
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "#374151")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
+            >
+              <ChevronLeft size={14} style={{ color: "#60a5fa" }} />
+              <span style={{ color: "#f3f4f6", fontSize: "14px" }}>
+                Move Left
+              </span>
+            </div>
+
+            {/* Move right */}
+            <div
+              style={{
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+              }}
+              onClick={() =>
+                handleMenuItemClick("move-right", cellMenuOpen.columnName)
+              }
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "#374151")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
+            >
+              <ChevronRight size={14} style={{ color: "#60a5fa" }} />
+              <span style={{ color: "#f3f4f6", fontSize: "14px" }}>
+                Move Right
+              </span>
+            </div>
+
+            {/* Delete column */}
+            <div
+              style={{
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                borderTop: "1px solid #374151",
+              }}
+              onClick={() =>
+                handleMenuItemClick("delete", cellMenuOpen.columnName)
+              }
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "#dc2626")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
+            >
+              <Trash size={14} style={{ color: "#ef4444" }} />
+              <span style={{ color: "#ef4444", fontSize: "14px" }}>
+                Delete Column
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sort Dropdown */}
       {sortDropdownOpen && (

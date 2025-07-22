@@ -17,6 +17,7 @@ export interface PerplexityStatusData {
   citations?: string[];
   error?: string;
   updatedAt?: string;
+  summary?: string;
 }
 
 export interface PerplexityResearchRequest {
@@ -111,10 +112,11 @@ export class PerplexityResearchHandler {
         // Sanitize the response data
         const sanitizedUpdate: Partial<PerplexityStatusData> = {
           status: "complete",
-          value: response.value || "", // Empty string if undefined
-          citations: Array.isArray(response.full_response?.citations)
-            ? response.full_response.citations.filter(Boolean)
-            : [], // Extract citations from full_response
+          summary: response.summary || "", // Add summary from response
+          value: response.value || "", // Keep value for backward compatibility
+          citations: Array.isArray(response.citations)
+            ? response.citations.filter(Boolean)
+            : [], // Use citations directly from response
           error: undefined, // Clear any previous error
         };
 
@@ -153,36 +155,35 @@ export class PerplexityResearchHandler {
       const userId = auth.currentUser?.uid;
       if (!userId) return null;
 
-      const agentDoc = await getDoc(doc(db, `users/${userId}/agents`, agentId));
+      // Get reference to the deep research call document
+      const docRef = doc(db, `users/${userId}/deep_research_calls/${blockId}`);
+      const docSnapshot = await getDoc(docRef);
 
-      if (agentDoc.exists()) {
-        const agentData = agentDoc.data();
-        const block = agentData.blocks?.find((b: any) => b.id === blockId);
-
-        // If no status exists yet, return a default status object
-        if (!block?.perplexityStatus) {
-          return {
-            status: "idle",
-            value: "",
-            citations: [],
-            error: "",
-            updatedAt: new Date().toISOString(),
-          };
-        }
-
-        // Ensure all fields have default values
+      if (!docSnapshot.exists()) {
         return {
-          status: block.perplexityStatus.status || "idle",
-          value: block.perplexityStatus.value || "",
-          citations: Array.isArray(block.perplexityStatus.citations)
-            ? block.perplexityStatus.citations.filter(Boolean)
-            : [],
-          error: block.perplexityStatus.error || "",
-          updatedAt:
-            block.perplexityStatus.updatedAt || new Date().toISOString(),
+          status: "idle",
+          value: "",
+          summary: "",
+          citations: [],
+          error: "",
+          updatedAt: new Date().toISOString(),
         };
       }
-      return null;
+
+      const data = docSnapshot.data();
+      //   console.log("Loaded research data:", data); // Debug log
+
+      // Map the document data to PerplexityStatusData
+      return {
+        status: data.status === "complete" ? "complete" : "idle",
+        summary: data.summary || "",
+        value: data.value || "",
+        citations: Array.isArray(data.citations)
+          ? data.citations.filter(Boolean)
+          : [],
+        error: data.error || "",
+        updatedAt: data.updated_at || new Date().toISOString(),
+      };
     } catch (error) {
       console.error("Error loading Perplexity status:", error);
       return null;
@@ -214,6 +215,7 @@ export class PerplexityResearchHandler {
             const sanitizedUpdate = {
               status: statusUpdate.status || currentStatus.status || "idle",
               value: statusUpdate.value ?? currentStatus.value ?? "",
+              summary: statusUpdate.summary ?? currentStatus.summary ?? "",
               citations:
                 statusUpdate.citations ?? currentStatus.citations ?? [],
               error: statusUpdate.error ?? currentStatus.error ?? "",

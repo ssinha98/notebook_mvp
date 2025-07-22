@@ -374,6 +374,11 @@ const DeepResearchAgent = forwardRef<
         debouncedUpdateBlock({
           outputVariable: outputVariable || null,
         });
+
+        // If we have results and selected items, save them to the newly selected variable
+        if (getResultsArray().length > 0 && selectedItems.size > 0) {
+          handleSaveToVariable(value);
+        }
       }
     };
 
@@ -391,10 +396,9 @@ const DeepResearchAgent = forwardRef<
     };
 
     const handleSelectAll = () => {
-      if (researchResults?.search_results) {
-        const allUrls = new Set(
-          researchResults.search_results.map((result) => result.url)
-        );
+      const results = getResultsArray();
+      if (results) {
+        const allUrls = new Set(results.map((result) => result.url));
         setSelectedItems(allUrls);
       }
     };
@@ -405,13 +409,6 @@ const DeepResearchAgent = forwardRef<
 
     // Add save handler
     const handleSaveToVariable = async (variableId: string) => {
-      // Get results based on current search engine
-      const currentResults = getResultsArray();
-      if (!currentResults || currentResults.length === 0) {
-        toast.error("No results to save");
-        return;
-      }
-
       if (selectedItems.size === 0) {
         toast.error("No items selected. Please select items to save.");
         return;
@@ -653,9 +650,14 @@ const DeepResearchAgent = forwardRef<
         searchEngine === "perplexity sonar-deep-research" &&
         perplexityStatus.status === "complete"
       ) {
-        // Access citations directly since we already extracted them in the handler
+        // Map citations to SearchResult format
         const citations = perplexityStatus.citations || [];
-        return citations.map((url) => ({ url, title: url }));
+        return citations.map((citation: any) => ({
+          title: citation.title || citation.url,
+          url: citation.url,
+          date: null,
+          description: undefined,
+        }));
       } else if (
         isOpenAI &&
         streamStatus === "complete" &&
@@ -675,7 +677,7 @@ const DeepResearchAgent = forwardRef<
         searchEngine === "perplexity sonar-deep-research" &&
         perplexityStatus.status === "complete"
       ) {
-        return perplexityStatus.value || "";
+        return perplexityStatus.summary || "";
       } else if (isOpenAI && streamStatus === "complete" && streamValue) {
         return streamValue;
       } else if (!isOpenAI && researchResults?.message) {
@@ -684,15 +686,33 @@ const DeepResearchAgent = forwardRef<
       return "";
     };
 
+    // Add refs to track state
+    const hasAutoSavedRef = React.useRef(false);
+    const wasPreSelectedRef = React.useRef(!!initialOutputVariable);
+    const previousResultsRef = React.useRef<string>("");
+
     // Auto-save results to pre-selected variable
     React.useEffect(() => {
       const results = getResultsArray();
-      if (results.length > 0 && selectedVariableId) {
-        // Auto-select all URLs
+      const currentResultsKey = JSON.stringify(results);
+
+      // Only auto-save if:
+      // 1. We have new results
+      // 2. A variable was pre-selected
+      // 3. Results are different from previous
+      if (
+        results.length > 0 &&
+        selectedVariableId &&
+        currentResultsKey !== previousResultsRef.current
+      ) {
+        // Store current results for comparison
+        previousResultsRef.current = currentResultsKey;
+
+        // Auto-select all URLs and save them
         const allUrls = new Set(results.map((result) => result.url));
         setSelectedItems(allUrls);
 
-        // Auto-save to the pre-selected variable
+        // Save to variable
         const saveToVariable = async () => {
           try {
             setIsSaving(true);
@@ -737,6 +757,14 @@ const DeepResearchAgent = forwardRef<
       perplexityStatus,
       searchEngine,
     ]);
+
+    // Reset the previous results when new research is started
+    React.useEffect(() => {
+      if (isLoading) {
+        previousResultsRef.current = "";
+        setHasSaved(false);
+      }
+    }, [isLoading]);
 
     // Update the showResultsSection condition to include Perplexity
     const showResultsSection =
@@ -853,7 +881,7 @@ const DeepResearchAgent = forwardRef<
           </div>
 
           <div className="flex items-center gap-2 text-gray-300">
-            <span>Search Engine:</span>
+            <span>Deep Research Engine:</span>
             <Select
               value={searchEngine}
               onValueChange={(
@@ -871,12 +899,12 @@ const DeepResearchAgent = forwardRef<
                 <SelectItem value="perplexity" className="text-white">
                   Perplexity
                 </SelectItem>
-                {/* <SelectItem
+                <SelectItem
                   value="perplexity sonar-deep-research"
                   className="text-white"
                 >
                   Perplexity - Sonar Deep Research
-                </SelectItem> */}
+                </SelectItem>
                 <SelectItem value="firecrawl" className="text-white">
                   Firecrawl
                 </SelectItem>
@@ -894,7 +922,6 @@ const DeepResearchAgent = forwardRef<
               onValueChange={handleVariableSelect}
               agentId={currentAgent?.id || null}
               onAddNew={onOpenTools}
-              showSaveButton={!!showResultsSection}
               onSave={handleSaveToVariable}
               isSaving={isSaving}
               hasSaved={hasSaved}
@@ -906,7 +933,7 @@ const DeepResearchAgent = forwardRef<
           {searchEngine === "perplexity sonar-deep-research" && (
             <div className="space-y-4">
               <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center">
                   <div className="flex items-center gap-2">
                     <Badge
                       variant={PerplexityResearchHandler.getStatusBadgeVariant(
@@ -928,52 +955,6 @@ const DeepResearchAgent = forwardRef<
                         )
                       )}
                     </span>
-                  </div>
-
-                  {/* Debug Buttons */}
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-gray-400 hover:text-white"
-                      onClick={async () => {
-                        if (!blockId || !currentAgent?.id) return;
-
-                        try {
-                          const response = await api.post(
-                            "/api/perplexity/check_perplexity_status",
-                            {
-                              user_id: auth.currentUser?.uid || "",
-                              block_id: blockId,
-                            }
-                          );
-                          console.log("Full Perplexity Response:", {
-                            response,
-                            full_response: response.full_response,
-                            citations: response.full_response?.citations,
-                          });
-                        } catch (error) {
-                          console.error("Error fetching response:", error);
-                        }
-                      }}
-                    >
-                      Debug Response
-                    </Button>
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-gray-400 hover:text-white"
-                      onClick={async () => {
-                        if (!blockId || !currentAgent?.id) return;
-                        await PerplexityResearchHandler.debugCurrentData(
-                          currentAgent.id,
-                          blockId
-                        );
-                      }}
-                    >
-                      Debug Data
-                    </Button>
                   </div>
                 </div>
                 {perplexityStatus.error && (

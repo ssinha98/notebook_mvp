@@ -875,7 +875,7 @@ const DeepResearchAgent = forwardRef<
                   value="perplexity sonar-deep-research"
                   className="text-white"
                 >
-                  Perplexity Sonar Deep Research
+                  Perplexity - Sonar Deep Research
                 </SelectItem> */}
                 <SelectItem value="firecrawl" className="text-white">
                   Firecrawl

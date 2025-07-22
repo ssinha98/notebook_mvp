@@ -1618,6 +1618,74 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       }
     };
 
+    // Add this after the definition of handleSaveToVariable and after selectedItems state is set up
+
+    // Auto-save results to variable if a variable is pre-selected and results come in (non-image engines)
+    useEffect(() => {
+      if (
+        modelResponse &&
+        selectedVariableId &&
+        searchEngine !== "image" &&
+        selectedItems.size > 0 &&
+        !hasSaved // Prevent double-saving
+      ) {
+        handleSaveToVariable(selectedVariableId);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedItems, selectedVariableId, searchEngine]);
+
+    // Auto-select all items if a variable is pre-selected and results come in (non-image engines)
+    useEffect(() => {
+      if (modelResponse && selectedVariableId && searchEngine !== "image") {
+        try {
+          const parsedResponse =
+            typeof modelResponse === "string"
+              ? JSON.parse(modelResponse)
+              : modelResponse;
+          const allIds = new Set<string>();
+
+          switch (searchEngine) {
+            case "search":
+              parsedResponse.results?.forEach((item: any) => {
+                allIds.add(item.link);
+              });
+              break;
+            case "news":
+              parsedResponse.results?.forEach((result: any) => {
+                if (result.stories && Array.isArray(result.stories)) {
+                  const firstStory = result.stories[0];
+                  if (firstStory) {
+                    allIds.add(firstStory.link || firstStory.url);
+                  }
+                } else {
+                  allIds.add(result.link || result.url);
+                }
+              });
+              break;
+            case "finance":
+              parsedResponse.results?.discover_more?.[0]?.items?.forEach(
+                (item: any) => {
+                  allIds.add(item.link);
+                }
+              );
+              break;
+            case "markets":
+              parsedResponse.results?.[0]?.results?.forEach((item: any) => {
+                allIds.add(item.link);
+              });
+              break;
+          }
+
+          if (allIds.size > 0) {
+            setSelectedItems(allIds);
+          }
+        } catch (error) {
+          // fail silently
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [modelResponse, selectedVariableId, searchEngine]);
+
     return (
       <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between">

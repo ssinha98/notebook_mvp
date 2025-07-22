@@ -1,4 +1,4 @@
-import React, { forwardRef, useState } from "react";
+import React, { forwardRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { FiSettings, FiInfo } from "react-icons/fi";
 import { DeepResearchAgentBlock, TableVariable } from "@/types/types";
@@ -36,6 +36,19 @@ import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import {
+  OpenAIResearchHandler,
+  OpenAIResearchStatus,
+  OpenAIStatusData,
+} from "@/tools/openaiResearch";
+import {
+  PerplexityResearchHandler,
+  PerplexityStatusData,
+} from "@/tools/perplexityResearch";
+import { auth } from "@/tools/firebase";
+import { useDeepResearchStream } from "@/hooks/useDeepResearchStream";
+import { IoExpandSharp } from "react-icons/io5";
+import ResearchResultsSection from "./ResearchResultsSection";
 
 interface SearchResult {
   date?: string | null;
@@ -52,7 +65,7 @@ export interface ResearchResponse {
 interface DeepResearchAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
-  onCopyBlock?: (blockNumber: number) => void; // Add this line
+  onCopyBlock?: (blockNumber: number) => void;
   onUpdateBlock: (
     blockNumber: number,
     updates: Partial<DeepResearchAgentBlock>
@@ -60,13 +73,19 @@ interface DeepResearchAgentProps {
   initialTopic?: string;
   isProcessing?: boolean;
   onOpenTools?: () => void;
-  initialSearchEngine?: "perplexity" | "firecrawl";
+  initialSearchEngine?:
+    | "perplexity"
+    | "firecrawl"
+    | "openai"
+    | "perplexity sonar-deep-research";
   initialOutputVariable?: {
     id: string;
     name: string;
     type: "input" | "intermediate" | "table";
     columnName?: string;
   } | null;
+  blockId?: string;
+  agentId?: string;
 }
 
 interface DeepResearchAgentRef {
@@ -105,6 +124,8 @@ const DeepResearchAgent = forwardRef<
       onOpenTools,
       initialSearchEngine = "perplexity",
       initialOutputVariable = null,
+      blockId,
+      agentId,
     },
     ref
   ) => {
@@ -124,13 +145,32 @@ const DeepResearchAgent = forwardRef<
       return initialOutputVariable?.id || "";
     });
     const [searchEngine, setSearchEngine] = useState<
-      "perplexity" | "firecrawl"
-    >(initialSearchEngine);
+      "perplexity" | "firecrawl" | "openai" | "perplexity sonar-deep-research"
+    >(initialSearchEngine || "perplexity");
 
     // Add these state variables after the existing state
     const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
     const [isSaving, setIsSaving] = useState(false);
     const [hasSaved, setHasSaved] = useState(false);
+
+    // Add OpenAI status state
+    const [openAIStatus, setOpenAIStatus] = useState<OpenAIStatusData>({
+      status: "idle",
+      requestId: "",
+      threadId: "",
+      error: "",
+    });
+
+    // Add perplexityStatus state after openAIStatus
+    const [perplexityStatus, setPerplexityStatus] =
+      useState<PerplexityStatusData>({
+        status: "idle",
+        error: "",
+      });
+
+    // Add perplexityPollInterval state
+    const [perplexityPollInterval, setPerplexityPollInterval] =
+      useState<NodeJS.Timeout | null>(null);
 
     // Debounce the topic to avoid excessive updates
     const debouncedTopic = useDebounce(topic, 500);
@@ -167,6 +207,128 @@ const DeepResearchAgent = forwardRef<
         debouncedUpdateBlock({ searchEngine });
       }
     }, [searchEngine, initialSearchEngine, debouncedUpdateBlock]);
+
+    // Load OpenAI status from Firebase on component mount
+    useEffect(() => {
+      const loadOpenAIStatus = async () => {
+        if (!blockId || !currentAgent?.id || searchEngine !== "openai") return;
+
+        try {
+          const statusData = await OpenAIResearchHandler.loadStatus(
+            currentAgent.id,
+            blockId
+          );
+          if (statusData) {
+            setOpenAIStatus(statusData);
+          }
+        } catch (error) {
+          console.error("Error loading OpenAI status:", error);
+        }
+      };
+
+      loadOpenAIStatus();
+    }, [blockId, currentAgent?.id, searchEngine]);
+
+    // Update the useEffect for Perplexity status polling
+    useEffect(() => {
+      const pollPerplexityStatus = async () => {
+        if (!blockId || !currentAgent?.id) return;
+
+        const result = await PerplexityResearchHandler.checkStatus(
+          currentAgent.id,
+          blockId
+        );
+
+        if (result.success && result.status === "complete") {
+          // Stop polling
+          if (perplexityPollInterval) {
+            clearInterval(perplexityPollInterval);
+            setPerplexityPollInterval(null);
+          }
+
+          // Load the final status with results
+          const finalStatus = await PerplexityResearchHandler.loadStatus(
+            currentAgent.id,
+            blockId
+          );
+          if (finalStatus) {
+            setPerplexityStatus(finalStatus);
+            toast.success("Research completed!");
+          }
+        } else if (!result.success) {
+          // Handle error
+          setPerplexityStatus((prev) => ({
+            ...prev,
+            status: "error",
+            error: result.error,
+          }));
+          if (perplexityPollInterval) {
+            clearInterval(perplexityPollInterval);
+            setPerplexityPollInterval(null);
+          }
+          toast.error(result.error || "Failed to check research status");
+        }
+      };
+
+      return () => {
+        if (perplexityPollInterval) {
+          clearInterval(perplexityPollInterval);
+        }
+      };
+    }, [blockId, currentAgent?.id, perplexityPollInterval]);
+
+    // Add useEffect for initial status loading
+    useEffect(() => {
+      const loadInitialStatus = async () => {
+        if (!blockId || !currentAgent?.id) return;
+
+        try {
+          // Load status from Firebase
+          const statusData = await PerplexityResearchHandler.loadStatus(
+            currentAgent.id,
+            blockId
+          );
+
+          if (statusData) {
+            setPerplexityStatus(statusData);
+
+            // If status is complete, show results immediately
+            if (statusData.status === "complete") {
+            }
+          }
+        } catch (error) {
+          console.error("Error loading initial Perplexity status:", error);
+        }
+      };
+
+      loadInitialStatus();
+    }, [blockId, currentAgent?.id]); // Run on mount and when blockId/agentId changes
+
+    // Load initial Perplexity status
+    useEffect(() => {
+      const loadPerplexityStatus = async () => {
+        if (
+          !blockId ||
+          !currentAgent?.id ||
+          searchEngine !== "perplexity sonar-deep-research"
+        )
+          return;
+
+        try {
+          const statusData = await PerplexityResearchHandler.loadStatus(
+            currentAgent.id,
+            blockId
+          );
+          if (statusData) {
+            setPerplexityStatus(statusData);
+          }
+        } catch (error) {
+          console.error("Error loading Perplexity status:", error);
+        }
+      };
+
+      loadPerplexityStatus();
+    }, [blockId, currentAgent?.id, searchEngine]);
 
     const handleVariableSelect = (value: string) => {
       if (value === "add_new" && onOpenTools) {
@@ -243,7 +405,9 @@ const DeepResearchAgent = forwardRef<
 
     // Add save handler
     const handleSaveToVariable = async (variableId: string) => {
-      if (!researchResults?.search_results) {
+      // Get results based on current search engine
+      const currentResults = getResultsArray();
+      if (!currentResults || currentResults.length === 0) {
         toast.error("No results to save");
         return;
       }
@@ -308,6 +472,7 @@ const DeepResearchAgent = forwardRef<
       }
     }, [researchResults]);
 
+    // Update the processBlock function to handle Perplexity
     const processBlock = async () => {
       try {
         setError("");
@@ -319,38 +484,131 @@ const DeepResearchAgent = forwardRef<
           return false;
         }
 
-        // console.log("Sending request to /ask with prompt:", topic.trim());
-        const response = await api.post("/deepresearch", {
-          prompt: topic.trim(),
-          search_engine: searchEngine,
-        });
+        if (searchEngine === "perplexity sonar-deep-research") {
+          // Clear any existing interval first
+          if (perplexityPollInterval) {
+            clearInterval(perplexityPollInterval);
+            setPerplexityPollInterval(null);
+          }
 
-        console.log("Full API response:", response);
+          if (!blockId || !currentAgent?.id) {
+            setError(
+              "Block ID and Agent ID are required for Perplexity research"
+            );
+            return false;
+          }
 
-        if (
-          response &&
-          response.message !== undefined &&
-          Array.isArray(response.search_results)
-        ) {
-          // Convert boolean message to string if needed
-          const formattedResponse = {
-            message: String(response.message),
-            search_results: response.search_results,
-          };
-          setResearchResults(formattedResponse);
+          const result = await PerplexityResearchHandler.startResearch({
+            query: topic,
+            blockId: blockId,
+            agentId: currentAgent.id,
+          });
 
-          // Remove the automatic saving logic - now handled by save button
-          return true;
+          if (result.success) {
+            // Start polling
+            const interval = setInterval(async () => {
+              const statusResult = await PerplexityResearchHandler.checkStatus(
+                currentAgent.id,
+                blockId
+              );
+
+              if (statusResult.success) {
+                if (statusResult.status === "complete") {
+                  // Clear interval when complete
+                  clearInterval(interval);
+                  setPerplexityPollInterval(null);
+
+                  const finalStatus =
+                    await PerplexityResearchHandler.loadStatus(
+                      currentAgent.id,
+                      blockId
+                    );
+                  if (finalStatus) {
+                    setPerplexityStatus(finalStatus);
+                    toast.success("Research completed!");
+                  }
+                } else if (statusResult.status === "error") {
+                  // Clear interval on error
+                  clearInterval(interval);
+                  setPerplexityPollInterval(null);
+                  setError(
+                    statusResult.error || "An error occurred during research"
+                  );
+                }
+              } else {
+                // Clear interval on error
+                clearInterval(interval);
+                setPerplexityPollInterval(null);
+                setError(
+                  statusResult.error || "Failed to check research status"
+                );
+              }
+            }, 15000);
+
+            setPerplexityPollInterval(interval);
+            return true;
+          } else {
+            setError(result.error || "Failed to start research");
+            return false;
+          }
+        } else if (searchEngine === "openai") {
+          // Handle OpenAI flow using the utility
+          if (!blockId || !currentAgent?.id) {
+            setError("Block ID and Agent ID are required for OpenAI research");
+            return false;
+          }
+
+          const result = await OpenAIResearchHandler.startResearch({
+            prompt: topic,
+            blockId: blockId,
+            agentId: currentAgent.id,
+          });
+
+          if (result.success && result.data) {
+            // Update local state
+            setOpenAIStatus({
+              status: "called",
+              requestId: result.data.requestId,
+              threadId: result.data.threadId,
+              error: "",
+            });
+            return true;
+          } else {
+            setError(result.error || "Failed to start OpenAI research");
+            return false;
+          }
         } else {
-          console.error("Unexpected response structure:", response);
-          throw new Error("Unexpected response format from server");
+          // Handle existing Perplexity/Firecrawl flow
+          const response = await api.post("/deepresearch", {
+            prompt: topic.trim(),
+            search_engine: searchEngine,
+          });
+
+          if (
+            response &&
+            response.message !== undefined &&
+            Array.isArray(response.search_results)
+          ) {
+            const formattedResponse = {
+              message: String(response.message),
+              search_results: response.search_results,
+            };
+            setResearchResults(formattedResponse);
+            return true;
+          } else {
+            throw new Error("Unexpected response format from server");
+          }
         }
       } catch (err: any) {
         console.error("Error processing research:", err);
-        console.error("Full error object:", err);
         setError(
           err.message || "An error occurred while processing the research"
         );
+        // Clear interval on error
+        if (perplexityPollInterval) {
+          clearInterval(perplexityPollInterval);
+          setPerplexityPollInterval(null);
+        }
         return false;
       } finally {
         setIsLoading(false);
@@ -360,6 +618,145 @@ const DeepResearchAgent = forwardRef<
     React.useImperativeHandle(ref, () => ({
       processBlock,
     }));
+
+    // Add cleanup effect
+    useEffect(() => {
+      return () => {
+        if (perplexityPollInterval) {
+          clearInterval(perplexityPollInterval);
+        }
+      };
+    }, [perplexityPollInterval]);
+
+    // Use agentId from props if provided, otherwise from store
+    const effectiveAgentId = agentId || currentAgent?.id;
+
+    // --- OpenAI Deep Research Streaming ---
+    const userId = auth.currentUser?.uid;
+    const isOpenAI =
+      searchEngine === "openai" && blockId && userId && effectiveAgentId;
+    const {
+      status: streamStatus,
+      value: streamValue,
+      resultUrls: streamResultUrls,
+      loading: streamLoading,
+      error: streamError,
+      finalize,
+    } = useDeepResearchStream(
+      isOpenAI ? userId : undefined,
+      isOpenAI ? blockId : undefined
+    );
+
+    // Update the getResultsArray helper to include Perplexity results
+    const getResultsArray = () => {
+      if (
+        searchEngine === "perplexity sonar-deep-research" &&
+        perplexityStatus.status === "complete"
+      ) {
+        // Access citations directly since we already extracted them in the handler
+        const citations = perplexityStatus.citations || [];
+        return citations.map((url) => ({ url, title: url }));
+      } else if (
+        isOpenAI &&
+        streamStatus === "complete" &&
+        streamValue &&
+        streamResultUrls
+      ) {
+        return streamResultUrls.map((url) => ({ url, title: url }));
+      } else if (!isOpenAI && researchResults?.search_results) {
+        return researchResults.search_results;
+      }
+      return [];
+    };
+
+    // Update the getSummary helper to include Perplexity results
+    const getSummary = () => {
+      if (
+        searchEngine === "perplexity sonar-deep-research" &&
+        perplexityStatus.status === "complete"
+      ) {
+        return perplexityStatus.value || "";
+      } else if (isOpenAI && streamStatus === "complete" && streamValue) {
+        return streamValue;
+      } else if (!isOpenAI && researchResults?.message) {
+        return researchResults.message;
+      }
+      return "";
+    };
+
+    // Auto-save results to pre-selected variable
+    React.useEffect(() => {
+      const results = getResultsArray();
+      if (results.length > 0 && selectedVariableId) {
+        // Auto-select all URLs
+        const allUrls = new Set(results.map((result) => result.url));
+        setSelectedItems(allUrls);
+
+        // Auto-save to the pre-selected variable
+        const saveToVariable = async () => {
+          try {
+            setIsSaving(true);
+            const selectedItemsArray = Array.from(allUrls);
+
+            if (selectedVariableId.includes(":")) {
+              // Table variable - save as rows
+              const [tableId, columnName] = selectedVariableId.split(":");
+              for (const url of selectedItemsArray) {
+                await useVariableStore.getState().addTableRow(tableId, {
+                  [columnName]: url,
+                });
+              }
+            } else {
+              // Regular variable - save as comma-separated list
+              const value = selectedItemsArray.join(", ");
+              await useVariableStore
+                .getState()
+                .updateVariable(selectedVariableId, value);
+            }
+
+            setHasSaved(true);
+            toast.success(
+              `${allUrls.size} results automatically saved to variable!`
+            );
+          } catch (error) {
+            console.error("Error auto-saving to variable:", error);
+            toast.error("Failed to auto-save results to variable");
+          } finally {
+            setIsSaving(false);
+          }
+        };
+
+        saveToVariable();
+      }
+    }, [
+      researchResults,
+      streamStatus,
+      streamValue,
+      streamResultUrls,
+      selectedVariableId,
+      perplexityStatus,
+      searchEngine,
+    ]);
+
+    // Update the showResultsSection condition to include Perplexity
+    const showResultsSection =
+      (searchEngine === "perplexity sonar-deep-research" &&
+        perplexityStatus.status === "complete" &&
+        (perplexityStatus.value ||
+          (perplexityStatus.citations || []).length > 0)) ||
+      (isOpenAI &&
+        streamStatus === "complete" &&
+        streamValue &&
+        streamResultUrls) ||
+      (!isOpenAI && researchResults && researchResults.search_results);
+
+    const disabled =
+      isLoading ||
+      isProcessing ||
+      (searchEngine === "openai" && streamStatus === "called") ||
+      (searchEngine === "perplexity sonar-deep-research" &&
+        (perplexityStatus.status === "waiting" ||
+          perplexityStatus.status === "processing"));
 
     return (
       <div className="bg-gray-900 rounded-lg border border-gray-700">
@@ -459,9 +856,13 @@ const DeepResearchAgent = forwardRef<
             <span>Search Engine:</span>
             <Select
               value={searchEngine}
-              onValueChange={(value: "perplexity" | "firecrawl") =>
-                setSearchEngine(value)
-              }
+              onValueChange={(
+                value:
+                  | "perplexity"
+                  | "firecrawl"
+                  | "openai"
+                  | "perplexity sonar-deep-research"
+              ) => setSearchEngine(value)}
             >
               <SelectTrigger className="w-[180px] bg-gray-800 border-gray-700 text-white">
                 <SelectValue placeholder="Select search engine" />
@@ -470,8 +871,17 @@ const DeepResearchAgent = forwardRef<
                 <SelectItem value="perplexity" className="text-white">
                   Perplexity
                 </SelectItem>
+                {/* <SelectItem
+                  value="perplexity sonar-deep-research"
+                  className="text-white"
+                >
+                  Perplexity Sonar Deep Research
+                </SelectItem> */}
                 <SelectItem value="firecrawl" className="text-white">
                   Firecrawl
+                </SelectItem>
+                <SelectItem value="openai" className="text-white">
+                  OpenAI
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -484,7 +894,7 @@ const DeepResearchAgent = forwardRef<
               onValueChange={handleVariableSelect}
               agentId={currentAgent?.id || null}
               onAddNew={onOpenTools}
-              showSaveButton={!!researchResults}
+              showSaveButton={!!showResultsSection}
               onSave={handleSaveToVariable}
               isSaving={isSaving}
               hasSaved={hasSaved}
@@ -492,110 +902,172 @@ const DeepResearchAgent = forwardRef<
             />
           </div>
 
-          {error && <div className="text-red-500 text-sm">{error}</div>}
-
-          {researchResults && (
-            <div className="space-y-6">
-              {/* Summary Section with fixed height and scrollable content */}
+          {/* Status Section */}
+          {searchEngine === "perplexity sonar-deep-research" && (
+            <div className="space-y-4">
               <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-                <h4 className="text-sm font-medium mb-2 text-gray-300">
-                  Summary
-                </h4>
-                <div className="h-32 overflow-y-auto">
-                  <div className="prose prose-invert max-w-none">
-                    <ReactMarkdown>{researchResults.message}</ReactMarkdown>
-                  </div>
-                </div>
-              </div>
-
-              {/* Search Results Section with Selection */}
-              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium text-gray-300">Sources</h4>
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm text-gray-400">
-                      {selectedItems.size} sources selected
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleSelectAll}
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleClearAll}
-                      >
-                        Clear All
-                      </Button>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={PerplexityResearchHandler.getStatusBadgeVariant(
+                        perplexityStatus.status
+                      )}
+                      className="text-xs"
+                    >
+                      {perplexityStatus.status}
+                    </Badge>
+                    <span className="text-sm text-gray-300">
+                      {isLoading ? (
+                        <span className="flex items-center gap-2">
+                          <span className="animate-spin">⟳</span>
+                          Loading...
+                        </span>
+                      ) : (
+                        PerplexityResearchHandler.getStatusMessage(
+                          perplexityStatus.status
+                        )
+                      )}
+                    </span>
                   </div>
-                </div>
 
-                {/* Fixed height container for search results with horizontal scroll */}
-                <div className="h-48 overflow-y-auto">
-                  <div className="flex gap-4 overflow-x-auto pb-4">
-                    {researchResults.search_results.map((result, index) => (
-                      <div
-                        key={index}
-                        className="flex-shrink-0 w-72 p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors relative"
-                      >
-                        <div className="absolute top-2 right-2">
-                          <Checkbox
-                            checked={selectedItems.has(result.url)}
-                            onCheckedChange={(checked) =>
-                              handleItemSelect(result.url, checked as boolean)
+                  {/* Debug Buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-gray-400 hover:text-white"
+                      onClick={async () => {
+                        if (!blockId || !currentAgent?.id) return;
+
+                        try {
+                          const response = await api.post(
+                            "/api/perplexity/check_perplexity_status",
+                            {
+                              user_id: auth.currentUser?.uid || "",
+                              block_id: blockId,
                             }
-                            className="bg-gray-700 border-gray-600"
-                          />
-                        </div>
-                        <div className="space-y-2 pr-6">
-                          {result.date && (
-                            <div className="text-xs text-gray-400">
-                              {new Date(result.date).toLocaleDateString()}
-                            </div>
-                          )}
-                          <a
-                            href={result.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block"
-                          >
-                            <h5 className="text-sm font-medium text-blue-400 hover:text-blue-300 line-clamp-2">
-                              {result.title}
-                            </h5>
-                          </a>
-                          <div className="text-xs text-gray-400 truncate">
-                            {result.url}
-                          </div>
-                          {result.description && (
-                            <div className="text-xs text-gray-300 line-clamp-2">
-                              {result.description}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                          );
+                          console.log("Full Perplexity Response:", {
+                            response,
+                            full_response: response.full_response,
+                            citations: response.full_response?.citations,
+                          });
+                        } catch (error) {
+                          console.error("Error fetching response:", error);
+                        }
+                      }}
+                    >
+                      Debug Response
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-gray-400 hover:text-white"
+                      onClick={async () => {
+                        if (!blockId || !currentAgent?.id) return;
+                        await PerplexityResearchHandler.debugCurrentData(
+                          currentAgent.id,
+                          blockId
+                        );
+                      }}
+                    >
+                      Debug Data
+                    </Button>
                   </div>
                 </div>
+                {perplexityStatus.error && (
+                  <div className="mt-2 text-sm text-red-400">
+                    {perplexityStatus.error}
+                  </div>
+                )}
               </div>
             </div>
+          )}
+
+          {/* OpenAI Status Section */}
+          {isOpenAI && (
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={OpenAIResearchHandler.getStatusBadgeVariant(
+                      streamStatus ?? "idle"
+                    )}
+                    className="text-xs"
+                  >
+                    {streamStatus || "idle"}
+                  </Badge>
+                  <span className="text-sm text-gray-300">
+                    {streamLoading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="animate-spin">⟳</span>
+                        Loading...
+                      </span>
+                    ) : (
+                      OpenAIResearchHandler.getStatusMessage(
+                        streamStatus ?? "idle"
+                      )
+                    )}
+                  </span>
+                </div>
+                {streamError && (
+                  <div className="mt-2 text-sm text-red-400">{streamError}</div>
+                )}
+                {streamStatus === "complete" && !streamValue && (
+                  <Button
+                    onClick={finalize}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={streamLoading}
+                  >
+                    {streamLoading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="animate-spin">⟳</span>
+                        Fetching Results...
+                      </span>
+                    ) : (
+                      "Get Results"
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Results Section (shared for all agents) */}
+          {showResultsSection && (
+            <ResearchResultsSection
+              summary={getSummary()}
+              results={getResultsArray()}
+              selectedItems={selectedItems}
+              onItemSelect={handleItemSelect}
+              onSelectAll={handleSelectAll}
+              onClearAll={handleClearAll}
+              loading={isLoading}
+              hideExpandIcon={false}
+            />
           )}
         </div>
 
         <div className="flex justify-start gap-2 p-4 border-t border-gray-700">
           <Button
             onClick={processBlock}
-            disabled={isLoading || isProcessing}
+            disabled={
+              isLoading ||
+              isProcessing ||
+              (searchEngine === "openai" && streamStatus === "called") ||
+              (searchEngine === "perplexity sonar-deep-research" &&
+                (perplexityStatus.status === "waiting" ||
+                  perplexityStatus.status === "processing"))
+            }
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             {isLoading ? (
               <>
                 <span className="animate-spin mr-2">⟳</span>
-                Researching...
+                {searchEngine === "openai"
+                  ? "Starting Research..."
+                  : "Researching..."}
               </>
             ) : (
               "Run Research"

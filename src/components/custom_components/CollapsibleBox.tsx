@@ -631,6 +631,8 @@ const CollapsibleBox = forwardRef<
               onOpenTools={props.onOpenTools}
               initialSearchEngine={block.searchEngine}
               initialOutputVariable={block.outputVariable}
+              blockId={block.id}
+              agentId={block.agentId}
             />
           </div>
         );

@@ -573,6 +573,8 @@ export default function Notebook() {
               onOpenTools={() => setIsToolsSheetOpen(true)}
               initialSearchEngine={block.searchEngine}
               initialOutputVariable={block.outputVariable}
+              blockId={block.id}
+              agentId={block.agentId}
             />
           );
         case "instagramagent":
@@ -2588,10 +2590,10 @@ export default function Notebook() {
 
                       // SPECIAL HANDLING FOR WEBAGENT
                       if (block.type === "webagent" && params.outputVariable) {
-                          console.log(
-                            "Notebook: WebAgent with outputVariable:",
-                            params.outputVariable
-                          );
+                        console.log(
+                          "Notebook: WebAgent with outputVariable:",
+                          params.outputVariable
+                        );
 
                         // Update the WebAgent's outputVariable before execution
                         const webAgentRef = ref as any;

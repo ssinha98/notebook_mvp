@@ -147,7 +147,11 @@ export interface AgentBlock extends BaseBlock {
 export interface DeepResearchAgentBlock extends BaseBlock {
   type: "deepresearchagent";
   topic: string;
-  searchEngine?: "perplexity" | "firecrawl";
+  searchEngine?:
+    | "perplexity"
+    | "firecrawl"
+    | "openai"
+    | "perplexity sonar-deep-research";
 }
 
 /* OLD SearchAgentBlock interface

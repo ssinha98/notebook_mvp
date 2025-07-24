@@ -67,6 +67,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAgentTemplateStore } from "@/lib/agentTemplateStore";
+import { auth } from "@/tools/firebase";
 
 interface AgentsListProps {
   onAgentSelect: (agentId: string) => void;
@@ -96,6 +98,10 @@ export default function AgentsList({
   const [copyAgentName, setCopyAgentName] = useState("");
   const [showCopyExistingDialog, setShowCopyExistingDialog] = useState(false);
   const [selectedAgentToCopy, setSelectedAgentToCopy] = useState<string>("");
+  const [showCopyTemplateDialog, setShowCopyTemplateDialog] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [copyTemplateName, setCopyTemplateName] = useState("");
 
   useEffect(() => {
     loadAgents();
@@ -185,6 +191,25 @@ export default function AgentsList({
               <h3 className="font-semibold mb-2">Copy Existing Agent</h3>
               <p className="text-sm text-gray-400">
                 Copy one of your existing agents as a starting point
+              </p>
+            </div>
+            <div
+              onClick={async () => {
+                setIsCreateDialogOpen(false);
+                setShowCopyTemplateDialog(true);
+                // Load templates for the current user
+                const userId = auth.currentUser?.uid;
+                const templates = await useAgentTemplateStore
+                  .getState()
+                  .getTemplates(userId || "");
+                setTemplates(templates);
+              }}
+              className="border rounded-lg p-6 hover:border-blue-500 transition-colors cursor-pointer flex flex-col items-center text-center"
+            >
+              <Copy className="w-8 h-8 mb-3" />
+              <h3 className="font-semibold mb-2">Copy from Template</h3>
+              <p className="text-sm text-gray-400">
+                Create a new agent from a saved template
               </p>
             </div>
             <div
@@ -351,6 +376,100 @@ export default function AgentsList({
     </AlertDialog>
   );
 
+  const renderCopyTemplateDialog = () => (
+    <AlertDialog
+      open={showCopyTemplateDialog}
+      onOpenChange={setShowCopyTemplateDialog}
+    >
+      <AlertDialogContent className="bg-black">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Copy from Template</AlertDialogTitle>
+          <AlertDialogDescription>
+            Select a template to copy. The new agent will be named "
+            {copyTemplateName || "Agent from Template"}".
+          </AlertDialogDescription>
+          <div className="mt-4">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  <span>
+                    {selectedTemplateId
+                      ? templates.find((t) => t.id === selectedTemplateId)?.name
+                      : "Select template to copy"}
+                  </span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-2" align="start">
+                <ScrollArea className="h-48 w-full">
+                  <div className="space-y-1 pr-4">
+                    {templates.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-gray-400">
+                        No templates available
+                      </div>
+                    ) : (
+                      templates.map((template) => (
+                        <button
+                          key={template.id}
+                          className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700 rounded"
+                          onClick={() => {
+                            setSelectedTemplateId(template.id);
+                            setCopyTemplateName(`${template.name} (Copy)`);
+                          }}
+                        >
+                          {template.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
+            <Input
+              value={copyTemplateName}
+              onChange={(e) => setCopyTemplateName(e.target.value)}
+              placeholder="New agent name"
+              className="mt-4"
+            />
+          </div>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            onClick={() => {
+              setShowCopyTemplateDialog(false);
+              setSelectedTemplateId("");
+              setCopyTemplateName("");
+              loadAgents();
+            }}
+          >
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={async () => {
+              if (selectedTemplateId && copyTemplateName.trim()) {
+                const userId = auth.currentUser?.uid;
+                await useAgentTemplateStore
+                  .getState()
+                  .createAgentFromTemplate(
+                    userId || "",
+                    selectedTemplateId,
+                    copyTemplateName
+                  );
+                setShowCopyTemplateDialog(false);
+                setSelectedTemplateId("");
+                setCopyTemplateName("");
+                loadAgents();
+              }
+            }}
+            disabled={!selectedTemplateId || !copyTemplateName.trim()}
+          >
+            Copy Template
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
@@ -360,6 +479,7 @@ export default function AgentsList({
       {renderNameDialog()}
       {renderCopyDialog()}
       {renderCopyExistingDialog()}
+      {renderCopyTemplateDialog()}
 
       {agents.length === 0 ? (
         <div

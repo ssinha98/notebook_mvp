@@ -57,7 +57,7 @@ interface VariableStore {
     tableId: string,
     oldColumnName: string,
     newColumnName: string
-  ) => Promise<void>; // Add this
+  ) => Promise<void>;
 }
 
 export const useVariableStore = create<VariableStore>((set, get) => ({

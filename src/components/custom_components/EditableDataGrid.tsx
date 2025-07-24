@@ -217,6 +217,13 @@ interface EditableDataGridProps {
   currentTableId?: string;
   currentAgentId?: string;
   onAddVariable?: (variable: Variable) => void;
+  // Add this prop
+  lastChange?: {
+    variableId: string;
+    changedRowId?: string;
+    changedColumn?: string;
+    timestamp: number;
+  } | null;
 }
 
 const EditableDataGrid: React.FC<EditableDataGridProps> = ({
@@ -230,6 +237,7 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
   currentTableId,
   currentAgentId,
   onAddVariable,
+  lastChange,
 }) => {
   const [rows, setRows] = useState(firebaseData.value || []);
   // Add local column state for real-time updates
@@ -279,13 +287,8 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
   // Track which column (if any) is being error-sorted
   const [errorSortColumn, setErrorSortColumn] = useState<string | null>(null);
 
-  // Update rows when firebaseData changes
+  // Keep the original row update logic
   useEffect(() => {
-    // console.log("useEffect triggered - firebaseData.value changed:", {
-    //   isUpdatingLocally,
-    //   firebaseDataValue: firebaseData.value?.length,
-    //   currentRows: rows.length,
-    // });
     if (!isUpdatingLocally) {
       setRows(firebaseData.value || []);
     }
@@ -1392,6 +1395,21 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
       return false;
     }
   }
+
+  // Add function to check if a row should be highlighted
+  const checkIfRecentlyChanged = (row: any) => {
+    if (!lastChange || !currentTableId) return false;
+
+    // Check if this is the table that was recently changed
+    if (lastChange.variableId !== currentTableId) return false;
+
+    // Check if this specific row was changed
+    if (lastChange.changedRowId && row.id === lastChange.changedRowId) {
+      return true;
+    }
+
+    return false;
+  };
 
   // Get sorted and filtered rows for display
   const displayRows = getSortedAndFilteredRows();

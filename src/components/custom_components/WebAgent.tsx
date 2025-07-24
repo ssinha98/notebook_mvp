@@ -3,6 +3,7 @@ import React, {
   forwardRef,
   useImperativeHandle,
   useCallback,
+  useEffect,
 } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -111,7 +112,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   const debouncedUrl = useDebounce(url, 500);
   const debouncedPrompt = useDebounce(prompt, 500);
 
-  const variables = useVariableStore((state) => state.variables);
+  // const variables = useVariableStore((state) => state.variables);
   const currentAgent = useAgentStore((state) => state.currentAgent);
 
   // Add store hook for updating block names
@@ -647,6 +648,35 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
     },
   }));
 
+  // Add state for row count
+  const [rowCount, setRowCount] = useState<number>(0);
+
+  // Get variables from store to watch for changes - FIXED SYNTAX
+  const variables = useVariableStore((state) => state.variables);
+
+  // Add function to get row count for table column variables
+  const getRowCountForUrl = (urlText: string): number => {
+    if (!urlText.trim()) return 0;
+
+    // Check if URL contains a table column reference
+    const match = urlText.match(/{{(.*?)}}/);
+    if (!match) return 0;
+
+    const variableName = match[1].trim();
+    if (!variableName.includes(".")) return 0;
+
+    const [tableName, columnName] = variableName.split(".");
+    const tableUrls = getTableColumnValues(`${tableName}.${columnName}`);
+
+    return tableUrls.length;
+  };
+
+  // Update row count when URL changes OR when variables change
+  useEffect(() => {
+    const count = getRowCountForUrl(url);
+    setRowCount(count);
+  }, [url, variables]); // Now watches both URL and variables for changes
+
   return (
     <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
       <div className="flex items-center justify-between mb-4">
@@ -743,14 +773,19 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
           </CardContent>
         </Card>
 
-        <BlockButton
-          isRunning={isRunning}
-          onRun={handleFetch}
-          onCancel={handleCancel}
-          runLabel="Fetch"
-          runningLabel="Fetching..."
-          disabled={!url.trim() || isLoading}
-        />
+        <div className="flex items-center gap-2">
+          <BlockButton
+            isRunning={isRunning}
+            onRun={handleFetch}
+            onCancel={handleCancel}
+            runLabel="Fetch"
+            runningLabel="Fetching..."
+            disabled={!url.trim() || isLoading}
+          />
+          {rowCount > 0 && (
+            <span className="text-sm text-gray-400">({rowCount} rows)</span>
+          )}
+        </div>
       </div>
     </div>
   );

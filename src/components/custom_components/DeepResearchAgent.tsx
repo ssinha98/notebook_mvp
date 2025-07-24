@@ -434,7 +434,14 @@ const DeepResearchAgent = forwardRef<
 
         setHasSaved(true);
         toast.success(
-          `${selectedItems.size} selected results saved to variable!`
+          `${selectedItems.size} selected results saved to variable!`,
+          {
+            duration: 10000, // 10 seconds
+            action: {
+              label: "Dismiss",
+              onClick: () => toast.dismiss(),
+            },
+          }
         );
       } catch (error) {
         console.error("Error saving to variable:", error);

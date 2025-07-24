@@ -21,6 +21,7 @@ import { Block } from "@/types/types";
 import { toast } from "sonner";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { useVariableStore } from "@/lib/variableStore";
+import { useAgentTemplateStore } from "@/lib/agentTemplateStore";
 
 interface AgentHeaderProps {
   isEditMode: boolean;
@@ -46,6 +47,8 @@ export default function AgentHeader({
   const [isMasterUser, setIsMasterUser] = useState(false);
   const [saveTarget, setSaveTarget] = useState<"current" | "other">("current");
   const [targetUserId, setTargetUserId] = useState("");
+  // Add new state for template checkbox
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
 
   const {
     currentAgent,
@@ -55,6 +58,7 @@ export default function AgentHeader({
     createAgentForUser,
   } = useAgentStore();
   const { blocks } = useSourceStore();
+  const { createAgentTemplate } = useAgentTemplateStore();
 
   // Use auto-save hook - this provides hasChanges
   const {
@@ -131,39 +135,37 @@ export default function AgentHeader({
       setIsSaving(true);
       const blocksToSave = useSourceStore.getState().blocks;
 
-      // Debug: Log the blocks to see what's actually being saved
-      // console.log("=== DEBUG: Blocks being saved ===");
-      // console.log("Total blocks:", blocksToSave.length);
-      blocksToSave.forEach((block, index) => {
-        //   console.log(`Block ${index + 1} (${block.type}):`, {
-        //     blockNumber: block.blockNumber,
-        //     type: block.type,
-        //     outputVariable: block.outputVariable,
-        //     hasOutputVariable: !!block.outputVariable,
-        //     ...(block.type === "agent" && {
-        //       sourceInfo: block.sourceInfo,
-        //       hasSourceInfo: !!block.sourceInfo,
-        //     }),
-        //   });
-      });
-      // console.log("=== END DEBUG ===");
+      // Get all variables associated with current agent
+      const currentVariables = Object.values(
+        useVariableStore.getState().variables
+      ).filter((v) => v.agentId === currentAgent?.id);
 
       if (target === "other" && targetUserId.trim()) {
-        // Get current variables count for logging
-        const currentVariables = Object.values(
-          useVariableStore.getState().variables
-        ).filter((v) => v.agentId === currentAgent?.id);
+        if (saveAsTemplate) {
+          // Save as template
+          const templateData = {
+            name: currentAgent!.name,
+            blocks: blocksToSave,
+            variables: currentVariables,
+            createdAt: new Date().toISOString(),
+            createdBy: currentAgent!.userId,
+          };
 
-        // Create new agent for another user with current blocks
-        const newAgent = await createAgentForUser(
-          currentAgent!.name,
-          targetUserId,
-          blocksToSave // Pass the blocks here!
-        );
-
-        toast.success(
-          `Agent with ${blocksToSave.length} blocks and ${currentVariables.length} variables saved successfully for user: ${targetUserId}`
-        );
+          await createAgentTemplate(targetUserId, templateData);
+          toast.success(
+            `Template saved with ${blocksToSave.length} blocks and ${currentVariables.length} variables`
+          );
+        } else {
+          // Regular save to another user (existing functionality)
+          const newAgent = await createAgentForUser(
+            currentAgent!.name,
+            targetUserId,
+            blocksToSave
+          );
+          toast.success(
+            `Agent saved with ${blocksToSave.length} blocks and ${currentVariables.length} variables for user: ${targetUserId}`
+          );
+        }
       } else {
         // Save to current user (existing functionality)
         await saveAgent(blocksToSave);
@@ -174,6 +176,7 @@ export default function AgentHeader({
       setIsSaveDialogOpen(false);
       setSaveTarget("current");
       setTargetUserId("");
+      setSaveAsTemplate(false);
     } catch (error) {
       console.error("Error saving agent:", error);
       toast.error("Failed to save agent");
@@ -303,20 +306,43 @@ export default function AgentHeader({
                   </div>
 
                   {saveTarget === "other" && (
-                    <div>
-                      <label
-                        htmlFor="targetUserId"
-                        className="text-sm font-medium block mb-1"
-                      >
-                        Target User ID
-                      </label>
-                      <Input
-                        id="targetUserId"
-                        value={targetUserId}
-                        onChange={(e) => setTargetUserId(e.target.value)}
-                        placeholder="Enter user ID"
-                        className="w-full"
-                      />
+                    <div className="space-y-4">
+                      <div>
+                        <label
+                          htmlFor="targetUserId"
+                          className="text-sm font-medium block mb-1"
+                        >
+                          Target User ID
+                        </label>
+                        <Input
+                          id="targetUserId"
+                          value={targetUserId}
+                          onChange={(e) => setTargetUserId(e.target.value)}
+                          placeholder="Enter user ID"
+                          className="w-full"
+                        />
+                      </div>
+
+                      {/* Add new template checkbox */}
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="saveAsTemplate"
+                          checked={saveAsTemplate}
+                          onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                          className="w-4 h-4"
+                        />
+                        <label
+                          htmlFor="saveAsTemplate"
+                          className="text-sm font-medium"
+                        >
+                          Save as template
+                        </label>
+                        <div className="text-xs text-gray-400 ml-2">
+                          (Saves agent configuration and variables as a reusable
+                          template)
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -329,7 +355,9 @@ export default function AgentHeader({
                   >
                     {saveTarget === "current"
                       ? "Save to My Account"
-                      : "Save to Other User"}
+                      : saveAsTemplate
+                        ? "Save as Template"
+                        : "Save to Other User"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

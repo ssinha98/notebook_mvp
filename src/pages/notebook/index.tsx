@@ -1289,10 +1289,16 @@ export default function Notebook() {
 
     // Add table variables (each as separate item)
     tableVariables.forEach((tableVar) => {
+      // Get the number of rows for this table
+      const rowCount = Array.isArray(tableVar.value)
+        ? tableVar.value.length
+        : 0;
+      const displayName = `${tableVar.name} (${rowCount} rows)`;
+
       navigationItems.push({
         type: "table",
         variable: tableVar,
-        displayName: tableVar.name,
+        displayName: displayName,
       });
     });
 

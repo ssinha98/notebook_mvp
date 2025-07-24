@@ -60,6 +60,11 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
 
   // Add state for the AddVariableDialog
   const [isAddVariableDialogOpen, setIsAddVariableDialogOpen] = useState(false);
+  // Add state for preSelectedTableId and defaultTab
+  const [preSelectedTableId, setPreSelectedTableId] = useState<string>("");
+  const [defaultTab, setDefaultTab] = useState<"new-variable" | "add-column">(
+    "new-variable"
+  );
 
   // Handle adding new variable
   const handleAddNewVariable = () => {
@@ -333,6 +338,17 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
                           </button>
                         </DropdownMenuItem>
                       ))}
+                      {/* Add Column Button at the bottom of the column list */}
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setIsAddVariableDialogOpen(true);
+                          setPreSelectedTableId(table.id);
+                          setDefaultTab("add-column");
+                        }}
+                        className="text-blue-400 mt-2"
+                      >
+                        + Add column
+                      </DropdownMenuItem>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                 ))}
@@ -388,10 +404,18 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
       {/* Add the AddVariableDialog */}
       <AddVariableDialog
         open={isAddVariableDialogOpen}
-        onOpenChange={setIsAddVariableDialogOpen}
+        onOpenChange={(open) => {
+          setIsAddVariableDialogOpen(open);
+          if (!open) {
+            setPreSelectedTableId("");
+            setDefaultTab("new-variable");
+          }
+        }}
         onAddVariable={handleVariableAdded}
         defaultType="intermediate"
         currentAgentId={agentId || ""}
+        defaultTab={defaultTab}
+        preSelectedTableId={preSelectedTableId}
       />
     </TooltipProvider>
   );

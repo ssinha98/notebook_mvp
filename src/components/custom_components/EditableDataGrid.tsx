@@ -1088,7 +1088,15 @@ const EditableDataGrid: React.FC<EditableDataGridProps> = ({
         sortable: false,
         editable: false,
         renderHeaderCell: () => (
-          <div style={{ padding: "4px", fontSize: "12px", color: "#9ca3af" }}>
+          <div
+            style={{
+              padding: "4px",
+              fontSize: "12px",
+              color: "#9ca3af",
+              cursor: "pointer",
+            }}
+            onClick={handleOpenAddColumnDialog} // <-- Add this line
+          >
             Add Column
           </div>
         ),

@@ -4,6 +4,7 @@ import React, {
   useImperativeHandle,
   useCallback,
   useEffect,
+  useRef,
 } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Variable } from "@/types/types";
 import ReactMarkdown from "react-markdown";
@@ -184,6 +186,14 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       debouncedUpdateBlock({ prompt: debouncedPrompt });
     }
   }, [debouncedPrompt, initialPrompt, debouncedUpdateBlock]);
+
+  // Auto-resize textarea when prompt changes
+  React.useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [prompt]);
 
   // Memoize expensive text processing function
   const formatTextWithVariables = useCallback((text: string) => {
@@ -677,6 +687,9 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
     setRowCount(count);
   }, [url, variables]); // Now watches both URL and variables for changes
 
+  // Add auto-resize functionality for textarea
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   return (
     <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
       <div className="flex items-center justify-between mb-4">
@@ -729,11 +742,13 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
             </div>
           )}
           <div className="flex gap-2">
-            <Input
+            <Textarea
               placeholder="Enter your prompt for the URL (optional)"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              className="flex-1"
+              className="flex-1 resize-none"
+              ref={textareaRef}
+              rows={1}
             />
           </div>
         </div>
@@ -781,6 +796,8 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
             runLabel="Fetch"
             runningLabel="Fetching..."
             disabled={!url.trim() || isLoading}
+            needsConfirmation={rowCount > 0}
+            rowCount={rowCount}
           />
           {rowCount > 0 && (
             <span className="text-sm text-gray-400">({rowCount} rows)</span>

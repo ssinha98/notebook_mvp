@@ -1,6 +1,7 @@
 import React, { forwardRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FiSettings, FiInfo } from "react-icons/fi";
+import { toast } from "sonner";
 import { GoogleDriveAgentBlock } from "@/types/types";
 import {
   AlertDialog,
@@ -228,7 +229,10 @@ const GoogleDriveAgent = forwardRef<GoogleDriveAgentRef, GoogleDriveAgentProps>(
               </button>
               <button
                 className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-                onClick={() => onCopyBlock?.(blockNumber)}
+                onClick={() => {
+                  onCopyBlock?.(blockNumber);
+                  toast.success("Block copied!");
+                }}
               >
                 Copy Block
               </button>

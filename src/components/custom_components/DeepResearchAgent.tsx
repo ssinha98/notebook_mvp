@@ -49,6 +49,7 @@ import { auth } from "@/tools/firebase";
 import { useDeepResearchStream } from "@/hooks/useDeepResearchStream";
 import { IoExpandSharp } from "react-icons/io5";
 import ResearchResultsSection from "./ResearchResultsSection";
+import CustomEditor from "@/components/CustomEditor";
 
 interface SearchResult {
   date?: string | null;
@@ -866,7 +867,10 @@ const DeepResearchAgent = forwardRef<
               </button>
               <button
                 className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-                onClick={() => onCopyBlock?.(blockNumber)}
+                onClick={() => {
+                  onCopyBlock?.(blockNumber);
+                  toast.success("Block copied!");
+                }}
               >
                 Copy Block
               </button>
@@ -879,11 +883,13 @@ const DeepResearchAgent = forwardRef<
             <label className="text-sm font-medium text-gray-300">
               Research Topic
             </label>
-            <Textarea
+            <CustomEditor
               value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-gray-100"
+              onChange={setTopic}
               placeholder="Enter the topic you want the agent to research"
+              className=""
+              disabled={false}
+              showListButtons={true}
             />
           </div>
 

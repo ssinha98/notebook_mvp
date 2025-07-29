@@ -1,11 +1,13 @@
-// import "@/styles/globals.css";
-// import type { AppProps } from "next/app";
+import "@/styles/globals.scss";
+// Add only the TipTap global style imports that actually exist
+import "@/components/tiptap-ui-primitive/badge/badge-colors.scss";
+import "@/components/tiptap-ui-primitive/badge/badge.scss";
+import "@/components/tiptap-ui-primitive/badge/badge-group.scss";
+import "@/components/tiptap-ui-primitive/button/button.scss";
+import "@/components/tiptap-ui-primitive/button/button-colors.scss";
+import "@/components/tiptap-ui-primitive/button/button-group.scss";
+import "@/components/tiptap-ui-primitive/tooltip/tooltip.scss";
 
-// export default function App({ Component, pageProps }: AppProps) {
-//   return <Component {...pageProps} />;
-// }
-
-import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import posthog from "posthog-js";
 import { useEffect } from "react";

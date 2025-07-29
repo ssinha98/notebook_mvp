@@ -7,7 +7,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-// import { useSourceStore } from "@/lib/store";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useDropzone } from "react-dropzone";
 import { api } from "@/tools/api";
 import TransformCSV from "./TransformCSV";
 import ImportCSV from "./ImportCSV";
@@ -17,6 +28,9 @@ import { useSourceStore } from "@/lib/store";
 import { fileManager } from "@/tools/fileManager";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { getAuth } from "firebase/auth";
+import { useVariableStore } from "@/lib/variableStore";
+import { useAgentStore } from "@/lib/agentStore";
+import { Check } from "lucide-react";
 
 interface Source {
   id: string;
@@ -31,6 +45,14 @@ interface AddSourceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddSource: (source: Source) => void;
+  initialStep?:
+    | "select"
+    | "details"
+    | "csv-configure"
+    | "csv-preview"
+    | "table-config";
+  initialType?: Source["type"];
+  openToTableVariable?: boolean; // Add this prop
 }
 
 interface ColumnData {
@@ -39,17 +61,47 @@ interface ColumnData {
   fileName: string;
 }
 
+interface TableConfig {
+  tableName: string;
+  columns: string[];
+  previewData: any[];
+  allData: any[];
+  totalRows: number;
+}
+
+// Helper function to parse CSV
+const parseCSV = (csvText: string): { headers: string[]; rows: any[] } => {
+  const lines = csvText.split("\n").filter((line) => line.trim());
+  if (lines.length === 0) return { headers: [], rows: [] };
+
+  // Parse headers (first row)
+  const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
+
+  // Parse data rows
+  const rows = lines.slice(1).map((line) => {
+    const values = line.split(",").map((v) => v.trim().replace(/"/g, ""));
+    const row: any = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] || "";
+    });
+    return row;
+  });
+
+  return { headers, rows };
+};
+
 const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   open,
   onOpenChange,
+  initialStep = "select",
+  initialType = "pdf",
+  openToTableVariable = false, // Add this prop
 }) => {
   const addFileNickname = useSourceStore((state) => state.addFileNickname);
-  // Comment out old source store usage
-  // const addSource = useSourceStore((state) => state.addSource);
   const [step, setStep] = useState<
-    "select" | "details" | "csv-configure" | "csv-preview"
-  >("select");
-  const [selectedType, setSelectedType] = useState<Source["type"]>("pdf");
+    "select" | "details" | "csv-configure" | "csv-preview" | "table-config"
+  >(initialStep);
+  const [selectedType, setSelectedType] = useState<Source["type"]>(initialType);
   const [newSource, setNewSource] = useState<Source>({
     id: crypto.randomUUID(),
     name: "",
@@ -63,6 +115,33 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   });
   const [processedData, setProcessedData] = useState<any>(null);
   const [user] = useAuthState(getAuth());
+
+  // New state for table variable functionality
+  const [tableConfig, setTableConfig] = useState<TableConfig | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+
+  const currentAgent = useAgentStore((state) => state.currentAgent);
+  const {
+    createVariable,
+    loadVariables,
+    addColumnToTable,
+    updateTableColumn,
+    addTableRow,
+  } = useVariableStore();
+
+  // Update step when dialog opens
+  React.useEffect(() => {
+    if (open) {
+      if (openToTableVariable) {
+        setStep("details");
+        setSelectedType("csv");
+      } else {
+        setStep(initialStep);
+        setSelectedType(initialType);
+      }
+    }
+  }, [open, initialStep, initialType, openToTableVariable]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -87,32 +166,17 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
       totalFilters: data.filterCriteria?.length || 0,
     });
 
-    // Comment out the screen change for now
     setProcessedData(data);
     setStep("csv-preview");
   };
 
   const handleImport = () => {
-    // Comment out old source store usage
-    /*
-    if (processedData) {
-      const sourceName = columnData.fileName;
-      addSource(sourceName, {
-        originalName: columnData.fileName,
-        type: "csv",
-        processedData: processedData.processedData,
-        rawData: processedData.rawData,
-        metadata: processedData.metadata,
-      });
-      toast.success(`Added source: ${sourceName}`);
-    }
-    */
     onOpenChange(false);
   };
 
   const handleTypeSelect = (type: Source["type"]) => {
     setSelectedType(type);
-    setStep("details"); // Always go to details, no special CSV handling
+    setStep("details");
   };
 
   const handleNext = () => {
@@ -130,6 +194,8 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
       setStep("details");
     } else if (step === "details") {
       setStep("select");
+    } else if (step === "table-config") {
+      setStep("details");
     }
   };
 
@@ -165,14 +231,213 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
     }
   };
 
+  const handleConfigureTable = async () => {
+    if (!csvFile) {
+      toast.error("Please select a CSV file");
+      return;
+    }
+
+    console.log(" Starting CSV table variable creation...", {
+      fileName: csvFile.name,
+      fileSize: csvFile.size,
+      fileType: csvFile.type,
+    });
+
+    setIsProcessing(true);
+    try {
+      // Upload file to Firebase Storage first
+      console.log("📤 Uploading CSV to Firebase Storage...");
+      const uploadResult = await fileManager.handleFile({
+        file: csvFile,
+        userId: user?.uid || "",
+        nickname: csvFile.name,
+        type: "csv",
+      });
+
+      console.log("📤 Upload result:", uploadResult);
+
+      if (!uploadResult.success || !uploadResult.data?.download_link) {
+        throw new Error("Failed to upload file");
+      }
+
+      console.log(
+        "🔗 File uploaded successfully, download link:",
+        uploadResult.data.download_link
+      );
+
+      // Use the new Python backend endpoint to parse CSV
+      console.log("🤖 Calling new CSV parsing endpoint...");
+      const response = await api.post("/api/parse-csv-for-table", {
+        file_url: uploadResult.data.download_link,
+        request_id: crypto.randomUUID(),
+      });
+
+      console.log("🤖 Backend response:", response);
+
+      // Check if response has the expected structure
+      if (!response.success) {
+        console.error("❌ Backend returned error:", response);
+        throw new Error(`Backend error: ${response.error || "Unknown error"}`);
+      }
+
+      // Handle case where response.data might be null or undefined
+      if (!response.data) {
+        console.error("❌ Backend returned no data:", response);
+        throw new Error("Backend returned no data");
+      }
+
+      const { columns, rows, total_rows, file_name } = response.data;
+
+      console.log("✅ Parsed CSV data:", {
+        rowCount: rows?.length || 0,
+        columnCount: columns?.length || 0,
+        columns: columns,
+        sampleRow: rows?.[0],
+        fileName: file_name,
+      });
+
+      if (!rows || rows.length === 0) {
+        throw new Error("CSV file is empty or invalid");
+      }
+
+      setTableConfig({
+        tableName: csvFile.name.replace(".csv", ""), // Use the original filename
+        columns: columns,
+        previewData: rows.slice(0, 5),
+        allData: rows,
+        totalRows: total_rows,
+      });
+
+      console.log("✅ Table config set successfully:", {
+        tableName:
+          file_name?.replace(".csv", "") || csvFile.name.replace(".csv", ""),
+        columns: columns,
+        totalRows: total_rows,
+        previewRows: rows.slice(0, 5).length,
+        sampleRow: rows[0],
+      });
+
+      setStep("table-config");
+    } catch (error) {
+      console.error("❌ Error configuring table:", error);
+      toast.error("Failed to parse CSV file");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCreateTableVariable = async () => {
+    if (!tableConfig || !currentAgent?.id) {
+      toast.error("Missing table configuration or agent");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      // First, create an empty table variable
+      const tableVariable = await createVariable(
+        tableConfig.tableName,
+        "table",
+        currentAgent.id,
+        []
+      );
+
+      // Add each column to the table
+      for (let i = 0; i < tableConfig.columns.length; i++) {
+        const newColumnName = tableConfig.columns[i];
+        await addColumnToTable(tableVariable.id, newColumnName);
+      }
+
+      // Add all rows with their data
+      for (
+        let rowIndex = 0;
+        rowIndex < tableConfig.allData.length;
+        rowIndex++
+      ) {
+        const row = tableConfig.allData[rowIndex];
+        const newRow: any = {};
+
+        // Map each column directly using the user-edited column names
+        tableConfig.columns.forEach((columnName, index) => {
+          // Get the value from the original data using the same column name
+          const value = row[columnName];
+          newRow[columnName] =
+            value === null ||
+            value === undefined ||
+            value === "NaN" ||
+            value === "null"
+              ? ""
+              : String(value);
+        });
+
+        // Add the row to the table
+        await addTableRow(tableVariable.id, newRow);
+      }
+
+      // Reload variables to update the UI
+      await loadVariables(currentAgent.id);
+
+      toast.success(
+        `Table variable "${tableConfig.tableName}" created successfully with ${tableConfig.allData.length} rows`
+      );
+      onOpenChange(false);
+
+      // Reset form
+      setNewSource({
+        id: crypto.randomUUID(),
+        name: "",
+        type: "pdf",
+        file: null,
+      });
+      setCsvFile(null);
+      setTableConfig(null);
+      setStep("select");
+    } catch (error) {
+      console.error("Error creating table variable:", error);
+      toast.error("Failed to create table variable");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleClose = () => {
+    onOpenChange(false);
+    // Reset form
+    setNewSource({
+      id: crypto.randomUUID(),
+      name: "",
+      type: "pdf",
+      file: null,
+    });
+    setCsvFile(null);
+    setTableConfig(null);
+  };
+
+  // Drag & Drop for CSV table variable
+  const { getRootProps, getInputProps } = useDropzone({
+    onDrop: (acceptedFiles) => {
+      const file = acceptedFiles[0];
+      if (file && file.type === "text/csv") {
+        setCsvFile(file);
+      } else {
+        toast.error("Please select a valid CSV file");
+      }
+    },
+    accept: {
+      "text/csv": [".csv"],
+    },
+    multiple: false,
+  });
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="z-[2000] bg-gray-800 min-w-[800px] max-w-[1000px]">
         <DialogHeader>
           <DialogTitle>
             {step === "select" && "Add New Source"}
             {step === "details" &&
               `Add New ${selectedType.toUpperCase()} Source`}
+            {step === "table-config" && "Configure Table Variable"}
           </DialogTitle>
         </DialogHeader>
 
@@ -188,6 +453,142 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
               </Button>
             ))}
           </div>
+        ) : step === "table-config" ? (
+          <div className="space-y-6 py-4">
+            <Button
+              variant="ghost"
+              className="w-fit"
+              onClick={() => setStep("details")}
+            >
+              ← Back
+            </Button>
+
+            {tableConfig && (
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="table-name">Table Variable Name</Label>
+                  <Input
+                    id="table-name"
+                    value={tableConfig.tableName}
+                    onChange={(e) =>
+                      setTableConfig({
+                        ...tableConfig,
+                        tableName: e.target.value,
+                      })
+                    }
+                    placeholder="Enter table variable name"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Column Names</Label>
+                  <div className="max-h-32 overflow-y-auto border border-gray-600 rounded bg-gray-900 p-2 space-y-2">
+                    {tableConfig.columns.map((column, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <Label className="text-sm w-16 text-gray-300">
+                          Col {index + 1}:
+                        </Label>
+                        <Input
+                          value={column}
+                          onChange={(e) => {
+                            const newColumns = [...tableConfig.columns];
+                            newColumns[index] = e.target.value;
+                            setTableConfig({
+                              ...tableConfig,
+                              columns: newColumns,
+                            });
+                          }}
+                          placeholder="Column name"
+                          className="flex-1 text-sm"
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-green-500 hover:text-green-400"
+                          onClick={() => {
+                            // Column header is confirmed - could add visual feedback here
+                            toast.success(
+                              `Column ${index + 1} header confirmed`
+                            );
+                          }}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-sm font-medium text-white">
+                          Preview
+                        </Label>
+                        <span className="text-sm text-gray-400">
+                          {tableConfig.totalRows} total rows
+                        </span>
+                      </div>
+
+                      <div className="overflow-x-auto max-h-48 border border-gray-600 rounded bg-gray-900">
+                        <Table className="text-xs">
+                          <TableHeader>
+                            <TableRow className="border-gray-700">
+                              {tableConfig.columns.map((column, index) => (
+                                <TableHead
+                                  key={index}
+                                  className="px-2 py-1 text-xs text-gray-300 bg-gray-800 border-gray-700"
+                                >
+                                  {column}
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {tableConfig.previewData.map((row, rowIndex) => (
+                              <TableRow
+                                key={rowIndex}
+                                className="border-gray-700 hover:bg-gray-800"
+                              >
+                                {tableConfig.columns.map(
+                                  (columnName, colIndex) => (
+                                    <TableCell
+                                      key={colIndex}
+                                      className="px-2 py-1 text-xs max-w-24 truncate text-gray-300 border-gray-700"
+                                    >
+                                      {row[columnName] || ""}
+                                    </TableCell>
+                                  )
+                                )}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {tableConfig.totalRows >
+                        tableConfig.previewData.length && (
+                        <p className="text-xs text-gray-400">
+                          Showing first {tableConfig.previewData.length} rows of{" "}
+                          {tableConfig.totalRows}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    onClick={handleCreateTableVariable}
+                    disabled={isProcessing || !tableConfig.tableName.trim()}
+                  >
+                    {isProcessing ? "Creating Table..." : "Upload Table"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="grid gap-4 py-4">
             <Button
@@ -198,37 +599,145 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
               ← Back
             </Button>
 
-            <div className="grid gap-2">
-              <label htmlFor="name">Source Name</label>
-              <Input
-                id="name"
-                value={newSource.name}
-                onChange={(e) =>
-                  setNewSource({ ...newSource, name: e.target.value })
-                }
-                placeholder="Enter source name"
-              />
-            </div>
+            {selectedType === "csv" ? (
+              <Tabs
+                defaultValue={openToTableVariable ? "table" : "source"}
+                className="w-full"
+              >
+                <TabsList className="grid w-full grid-cols-2 bg-gray-700">
+                  <TabsTrigger
+                    value="source"
+                    className="data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:border-black"
+                  >
+                    Upload CSV as Source
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="table"
+                    className="data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:border-black"
+                  >
+                    Upload CSV as Table Variable
+                  </TabsTrigger>
+                </TabsList>
 
-            <div className="grid gap-2">
-              <label htmlFor="file">Upload File</label>
-              <Input
-                id="file"
-                type="file"
-                onChange={handleFileChange}
-                accept={
-                  selectedType === "pdf"
-                    ? ".pdf"
-                    : selectedType === "csv"
-                      ? ".csv"
-                      : ".jpg,.jpeg,.png"
-                }
-              />
-            </div>
+                <TabsContent value="source" className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Source Name</Label>
+                    <Input
+                      id="name"
+                      value={newSource.name}
+                      onChange={(e) =>
+                        setNewSource({ ...newSource, name: e.target.value })
+                      }
+                      placeholder="Enter source name"
+                    />
+                  </div>
 
-            <div className="flex justify-end gap-2">
-              <Button onClick={handleSaveSource}>Add Source</Button>
-            </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="file">Upload File</Label>
+                    <Input
+                      id="file"
+                      type="file"
+                      onChange={handleFileChange}
+                      accept=".csv"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button onClick={handleSaveSource} disabled={isProcessing}>
+                      {isProcessing ? "Processing..." : "Add Source"}
+                    </Button>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="table" className="space-y-4">
+                  <div className="space-y-4">
+                    <div
+                      {...getRootProps()}
+                      className="border-2 border-dashed border-gray-300 p-6 rounded-lg text-center cursor-pointer hover:border-gray-400 transition-colors"
+                    >
+                      <input {...getInputProps()} />
+                      <p className="text-gray-600">
+                        Drag & drop CSV file here, or click to select file
+                      </p>
+                      {csvFile && (
+                        <p className="text-sm text-green-600 mt-2">
+                          Selected: {csvFile.name}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="text-center">
+                      <input
+                        type="file"
+                        className="hidden"
+                        id="csv-file-input"
+                        accept=".csv"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setCsvFile(file);
+                          }
+                        }}
+                      />
+                      <Button
+                        onClick={() =>
+                          document.getElementById("csv-file-input")?.click()
+                        }
+                        variant="outline"
+                      >
+                        Select CSV File
+                      </Button>
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        onClick={handleConfigureTable}
+                        disabled={isProcessing || !csvFile}
+                      >
+                        {isProcessing ? "Processing..." : "Configure Table"}
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            ) : (
+              // Non-CSV file types (existing behavior)
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Source Name</Label>
+                  <Input
+                    id="name"
+                    value={newSource.name}
+                    onChange={(e) =>
+                      setNewSource({ ...newSource, name: e.target.value })
+                    }
+                    placeholder="Enter source name"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="file">Upload File</Label>
+                  <Input
+                    id="file"
+                    type="file"
+                    onChange={handleFileChange}
+                    accept={
+                      selectedType === "pdf"
+                        ? ".pdf"
+                        : selectedType === "image"
+                          ? ".jpg,.jpeg,.png"
+                          : ""
+                    }
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button onClick={handleSaveSource} disabled={isProcessing}>
+                    {isProcessing ? "Processing..." : "Add Source"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </DialogContent>

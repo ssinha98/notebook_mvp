@@ -10,6 +10,8 @@ import {
   ThumbsDown,
   Copy,
   ChevronDown,
+  Folder,
+  FolderPlus,
 } from "lucide-react";
 import { TbApi } from "react-icons/tb";
 import { MdAlternateEmail } from "react-icons/md";
@@ -69,6 +71,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentTemplateStore } from "@/lib/agentTemplateStore";
 import { auth } from "@/tools/firebase";
+import { Folder as FolderType } from "@/types/types";
 
 interface AgentsListProps {
   onAgentSelect: (agentId: string) => void;
@@ -82,10 +85,15 @@ export default function AgentsList({
   const router = useRouter();
   const {
     agents,
+    folders,
     loadAgents,
+    loadFolders,
     createAgent,
     deleteAgent,
     copyAgent,
+    createFolder,
+    deleteFolder,
+    moveAgentToFolder,
     currentAgent,
   } = useAgentStore();
   const { resetBlocks } = useSourceStore();
@@ -102,10 +110,19 @@ export default function AgentsList({
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [copyTemplateName, setCopyTemplateName] = useState("");
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [showMoveToFolderDialog, setShowMoveToFolderDialog] = useState(false);
+  const [agentToMove, setAgentToMove] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string>("");
+  const [selectedFolderFilter, setSelectedFolderFilter] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     loadAgents();
-  }, [loadAgents]);
+    loadFolders();
+  }, [loadAgents, loadFolders]);
 
   const handleCreateAgent = async () => {
     if (newAgentName.trim()) {
@@ -145,6 +162,43 @@ export default function AgentsList({
       } catch (error) {
         console.error("Error copying existing agent:", error);
       }
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (newFolderName.trim()) {
+      try {
+        await createFolder(newFolderName);
+        setNewFolderName("");
+        setShowNewFolderDialog(false);
+      } catch (error) {
+        console.error("Error creating folder:", error);
+      }
+    }
+  };
+
+  const handleMoveAgentToFolder = async () => {
+    if (agentToMove && selectedFolderId) {
+      try {
+        await moveAgentToFolder(agentToMove, selectedFolderId);
+        setAgentToMove(null);
+        setSelectedFolderId("");
+        setShowMoveToFolderDialog(false);
+      } catch (error) {
+        console.error("Error moving agent to folder:", error);
+      }
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    try {
+      await deleteFolder(folderId);
+      // Clear the filter if we were viewing the deleted folder
+      if (selectedFolderFilter === folderId) {
+        setSelectedFolderFilter(null);
+      }
+    } catch (error) {
+      console.error("Error deleting folder:", error);
     }
   };
 
@@ -231,6 +285,74 @@ export default function AgentsList({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+
+  const renderFolderList = () => (
+    <div className="flex items-center gap-2 mb-4">
+      <Button
+        variant="outline"
+        onClick={() => setShowNewFolderDialog(true)}
+        className="flex items-center gap-2 whitespace-nowrap"
+      >
+        <FolderPlus className="w-4 h-4" />
+        New Folder
+      </Button>
+
+      <div className="flex-1 overflow-x-auto">
+        <div className="flex gap-2 pb-2">
+          <Button
+            variant={selectedFolderFilter === null ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSelectedFolderFilter(null)}
+            className="whitespace-nowrap h-9 px-3"
+          >
+            All Agents ({agents.length})
+          </Button>
+          {folders.map((folder) => {
+            const agentsInFolder = agents.filter(
+              (agent) => agent.folderId === folder.id
+            );
+            return (
+              <Button
+                key={folder.id}
+                variant={
+                  selectedFolderFilter === folder.id ? "default" : "outline"
+                }
+                size="sm"
+                onClick={() => setSelectedFolderFilter(folder.id)}
+                className="whitespace-nowrap flex items-center gap-2 h-9 px-3 min-w-[120px] justify-between"
+              >
+                <span className="truncate">
+                  {folder.name} ({agentsInFolder.length})
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteFolder(folder.id);
+                  }}
+                  className="h-4 w-4 p-0 text-gray-400 hover:text-red-400 flex-shrink-0"
+                >
+                  <Trash className="h-3 w-3" />
+                </Button>
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderNewFolderButton = () => (
+    <Button
+      variant="outline"
+      onClick={() => setShowNewFolderDialog(true)}
+      className="flex items-center gap-2"
+    >
+      <FolderPlus className="w-4 h-4" />
+      New Folder
+    </Button>
   );
 
   const renderNameDialog = () => (
@@ -470,25 +592,139 @@ export default function AgentsList({
     </AlertDialog>
   );
 
+  const renderNewFolderDialog = () => (
+    <AlertDialog
+      open={showNewFolderDialog}
+      onOpenChange={setShowNewFolderDialog}
+    >
+      <AlertDialogContent className="bg-black">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Create New Folder</AlertDialogTitle>
+          <AlertDialogDescription>
+            Enter a name for your new folder.
+          </AlertDialogDescription>
+          <Input
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            placeholder="Folder name"
+            className="mt-4"
+          />
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            onClick={() => {
+              setShowNewFolderDialog(false);
+              setNewFolderName("");
+            }}
+          >
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction onClick={handleCreateFolder}>
+            Create
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  const renderMoveToFolderDialog = () => (
+    <AlertDialog
+      open={showMoveToFolderDialog}
+      onOpenChange={setShowMoveToFolderDialog}
+    >
+      <AlertDialogContent className="bg-black">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Move Agent to Folder</AlertDialogTitle>
+          <AlertDialogDescription>
+            Select a folder to move the agent to.
+          </AlertDialogDescription>
+          <div className="mt-4">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  <span>
+                    {selectedFolderId
+                      ? folders.find((f) => f.id === selectedFolderId)?.name
+                      : "Select folder"}
+                  </span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-2" align="start">
+                <ScrollArea className="h-48 w-full">
+                  <div className="space-y-1 pr-4">
+                    {folders.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-gray-400">
+                        No folders available
+                      </div>
+                    ) : (
+                      folders.map((folder) => (
+                        <button
+                          key={folder.id}
+                          className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700 rounded"
+                          onClick={() => setSelectedFolderId(folder.id)}
+                        >
+                          {folder.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            onClick={() => {
+              setShowMoveToFolderDialog(false);
+              setSelectedFolderId("");
+              setAgentToMove(null);
+            }}
+          >
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleMoveAgentToFolder}
+            disabled={!selectedFolderId}
+          >
+            Move
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  const filteredAgents = selectedFolderFilter
+    ? agents.filter((agent) => agent.folderId === selectedFolderFilter)
+    : agents;
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-white">My Agents</h2>
         {renderCreateButton()}
       </div>
+
+      {renderFolderList()}
+
       {renderNameDialog()}
       {renderCopyDialog()}
       {renderCopyExistingDialog()}
       {renderCopyTemplateDialog()}
+      {renderNewFolderDialog()}
+      {renderMoveToFolderDialog()}
 
-      {agents.length === 0 ? (
+      {filteredAgents.length === 0 ? (
         <div
           className="border rounded-lg overflow-hidden"
           style={{ backgroundColor: "#131722" }}
         >
           <div className="py-8 text-center text-gray-400">
             <div className="mb-4"></div>
-            No agents yet
+            {selectedFolderFilter
+              ? `No agents in "${folders.find((f) => f.id === selectedFolderFilter)?.name}" folder`
+              : "No agents yet"}
           </div>
         </div>
       ) : (
@@ -497,13 +733,14 @@ export default function AgentsList({
             <TableRow>
               <TableHead>Agent Start</TableHead>
               <TableHead>Agent name</TableHead>
+              <TableHead>Folder</TableHead>
               <TableHead>Edit</TableHead>
               <TableHead>Rating</TableHead>
               {/* <TableHead>Settings</TableHead> */}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {[...agents]
+            {[...filteredAgents]
               .sort(
                 (a, b) =>
                   new Date(b.createdAt).getTime() -
@@ -563,6 +800,16 @@ export default function AgentsList({
                   </TableCell>
                   <TableCell className="font-medium">{agent.name}</TableCell>
                   <TableCell>
+                    {agent.folderName ? (
+                      <div className="flex items-center gap-2">
+                        <Folder className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm">{agent.folderName}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-sm">No folder</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <Button variant="ghost" size="sm">
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -619,6 +866,18 @@ export default function AgentsList({
                         >
                           <Trash className="h-4 w-4 mr-2" />
                           Delete
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start px-3 py-2 text-green-500 hover:text-green-400 hover:bg-black"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAgentToMove(agent.id);
+                            setShowMoveToFolderDialog(true);
+                          }}
+                        >
+                          <Folder className="h-4 w-4 mr-2" />
+                          Move to Folder
                         </Button>
                       </PopoverContent>
                     </Popover>

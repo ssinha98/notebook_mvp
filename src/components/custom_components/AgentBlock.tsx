@@ -50,6 +50,7 @@ import {
 import BlockNameEditor from "./BlockNameEditor";
 import { ChevronDown } from "lucide-react";
 import { BlockButton } from "./BlockButton";
+import CustomEditor from "@/components/CustomEditor";
 
 // Add debounce hook
 const useDebounce = (value: string, delay: number) => {
@@ -875,6 +876,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const handleCopyBlock = () => {
     if (props.onCopyBlock) {
       props.onCopyBlock(props.blockNumber);
+      toast.success("Block copied successfully!");
     }
   };
 
@@ -947,14 +949,12 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           </div>
           {isSystemPromptOpen && (
             <div className="mt-2">
-              <textarea
-                className="w-full h-32 bg-gray-700 border border-gray-600 rounded p-2 text-gray-200"
+              <CustomEditor
                 value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
+                onChange={setSystemPrompt}
+                placeholder="Enter system prompt..."
+                className="mb-2"
               />
-              <div className="preview mt-2 text-gray-300">
-                {formatTextWithVariables(systemPrompt)}
-              </div>
               <div className="flex justify-end gap-2 mt-2">
                 <Button variant="secondary" onClick={() => setSystemPrompt("")}>
                   Clear
@@ -966,7 +966,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                       systemPrompt
                     );
                     setIsSystemPromptOpen(false);
-                    handleImmediateSave(); // Use immediate save instead
+                    handleImmediateSave();
                   }}
                 >
                   Save Prompt
@@ -989,14 +989,12 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           </div>
           {isUserPromptOpen && (
             <div className="mt-2">
-              <textarea
-                className="w-full h-32 bg-gray-700 border border-gray-600 rounded p-2 text-gray-200"
+              <CustomEditor
                 value={userPrompt}
-                onChange={(e) => setUserPrompt(e.target.value)}
+                onChange={setUserPrompt}
+                placeholder="Enter user prompt..."
+                className="mb-2"
               />
-              <div className="preview mt-2 text-gray-300">
-                {formatTextWithVariables(userPrompt)}
-              </div>
               <div className="flex justify-end gap-2 mt-2">
                 <Button variant="secondary" onClick={() => setUserPrompt("")}>
                   Clear
@@ -1008,7 +1006,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                       userPrompt
                     );
                     setIsUserPromptOpen(false);
-                    handleImmediateSave(); // Use immediate save instead
+                    handleImmediateSave();
                   }}
                 >
                   Save Prompt

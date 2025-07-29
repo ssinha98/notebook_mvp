@@ -21,6 +21,7 @@ import { api } from "@/tools/api";
 import { useVariableStore } from "@/lib/variableStore";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
+import { toast } from "sonner";
 
 interface ContactBlockProps {
   blockNumber: number;
@@ -210,7 +211,10 @@ const ContactBlock = forwardRef<ContactBlockRef, ContactBlockProps>(
               </button>
               <button
                 className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-                onClick={() => onCopyBlock?.(blockNumber)}
+                onClick={() => {
+                  onCopyBlock?.(blockNumber);
+                  toast.success("Block copied!");
+                }}
               >
                 Copy Block
               </button>

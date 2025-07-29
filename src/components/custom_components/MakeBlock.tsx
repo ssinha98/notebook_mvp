@@ -25,6 +25,7 @@ import { useAgentStore } from "@/lib/agentStore";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
 import { BlockButton } from "./BlockButton";
+import { toast } from "sonner";
 
 interface MakeBlockProps {
   blockNumber: number;
@@ -336,7 +337,10 @@ print("Response:", response.text)
             </button>
             <button
               className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-              onClick={() => props.onCopyBlock?.(props.blockNumber)}
+              onClick={() => {
+                props.onCopyBlock?.(props.blockNumber);
+                toast.success("Block copied!");
+              }}
             >
               Copy Block
             </button>

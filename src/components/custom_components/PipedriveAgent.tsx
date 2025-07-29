@@ -1,6 +1,7 @@
 import React, { forwardRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FiSettings, FiInfo } from "react-icons/fi";
+import { toast } from "sonner";
 import { PipedriveAgentBlock } from "@/types/types";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -289,7 +290,10 @@ const PipedriveAgent = forwardRef<PipedriveAgentRef, PipedriveAgentProps>(
               </button>
               <button
                 className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-                onClick={() => onCopyBlock?.(blockNumber)}
+                onClick={() => {
+                  onCopyBlock?.(blockNumber);
+                  toast.success("Block copied!");
+                }}
               >
                 Copy Block
               </button>

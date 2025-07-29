@@ -63,6 +63,7 @@ import ApolloAgent from "@/components/custom_components/ApolloAgent";
 import SearchPreviewDialog from "@/components/custom_components/SearchPreviewDialog";
 import { PreviewRow } from "@/types/types";
 import FloatingAgentNav from "@/components/custom_components/FloatingAgentNav";
+import AddSourceDialog from "@/components/custom_components/AddSourceDialog";
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -1880,6 +1881,12 @@ export default function Notebook() {
     }
   };
 
+  const handleOpenTools = () => {
+    setIsAddSourceDialogOpen(true);
+  };
+
+  const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false);
+
   return (
     <Layout>
       <div style={pageStyle}>
@@ -2015,7 +2022,7 @@ export default function Notebook() {
               )}
             </div>
           </CollapsibleBox>
-          <CollapsibleBox title="Output Editor">
+          <CollapsibleBox title="Output Editor" onOpenTools={handleOpenTools}>
             <div id="output-editor" className="w-full">
               {/* Variable Navigation Controls */}
               {getNavigationItems().length > 1 && (
@@ -2730,6 +2737,14 @@ export default function Notebook() {
         previewData={previewData}
         onConfirm={handlePreviewConfirm}
         agentId={agentId as string}
+      />
+
+      {/* Add the AddSourceDialog */}
+      <AddSourceDialog
+        open={isAddSourceDialogOpen}
+        onOpenChange={setIsAddSourceDialogOpen}
+        onAddSource={() => {}}
+        openToTableVariable={true} // Add this prop
       />
     </Layout>
   );

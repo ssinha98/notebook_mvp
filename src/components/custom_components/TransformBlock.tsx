@@ -7,6 +7,7 @@ import { Block } from "@/types/types";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
+import { toast } from "sonner";
 
 interface TransformBlockProps {
   blockNumber: number;
@@ -146,6 +147,7 @@ const TransformBlock: React.FC<TransformBlockProps> = ({
   const handleCopyBlock = () => {
     if (onCopyBlock) {
       onCopyBlock(blockNumber);
+      toast.success("Block copied!");
     }
   };
 

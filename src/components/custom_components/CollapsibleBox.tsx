@@ -54,6 +54,7 @@ import {
 } from "@dnd-kit/sortable";
 import SortableBlock from "./SortableBlock";
 import ApolloAgent from "./ApolloAgent";
+import { Upload } from "lucide-react";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -802,12 +803,26 @@ const CollapsibleBox = forwardRef<
         }}
       >
         <div className="font-bold text-lg mb-2 flex items-center justify-between">
-          <div>
-            {props.title}
-            {isMinimized && blocks.length > 0 && (
-              <span className="text-gray-400 text-sm ml-2">
-                ({blocks.length} block{blocks.length > 1 ? "s" : ""})
-              </span>
+          <div className="flex items-center gap-3">
+            <div>
+              {props.title}
+              {isMinimized && blocks.length > 0 && (
+                <span className="text-gray-400 text-sm ml-2">
+                  ({blocks.length} block{blocks.length > 1 ? "s" : ""})
+                </span>
+              )}
+            </div>
+            {/* Add Upload Table button next to Output Editor title */}
+            {props.title === "Output Editor" && props.onOpenTools && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={props.onOpenTools}
+                className="text-xs bg-gray-700 hover:bg-gray-600 border-gray-600 text-gray-300"
+              >
+                <Upload className="h-3 w-3 mr-1" />
+                Upload Table as Variable
+              </Button>
             )}
           </div>
           <button

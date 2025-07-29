@@ -44,6 +44,8 @@ import {
 import { ChevronDown, Download } from "lucide-react";
 import BlockNameEditor from "./BlockNameEditor";
 import { BlockButton } from "./BlockButton";
+import CustomEditor from "@/components/CustomEditor";
+import { FiSettings, FiInfo } from "react-icons/fi";
 
 interface SearchAgentProps {
   blockNumber: number;
@@ -1421,18 +1423,14 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         <label htmlFor="query" className="block text-sm text-gray-400">
           Query
         </label>
-        <Input
-          id="query"
+        <CustomEditor
           value={query}
-          onChange={handleQueryChange}
+          onChange={setQuery}
           placeholder="Enter your search query"
-          className="w-full"
+          className=""
+          disabled={false}
+          showListButtons={true}
         />
-        {query && (
-          <div className="preview mt-2 text-gray-300">
-            {formatTextWithVariables(query)}
-          </div>
-        )}
       </div>
     );
 
@@ -1723,7 +1721,10 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
               </button>
               <button
                 className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-                onClick={() => props.onCopyBlock?.(props.blockNumber)}
+                onClick={() => {
+                  props.onCopyBlock?.(props.blockNumber);
+                  toast.success("Block copied!");
+                }}
               >
                 Copy Block
               </button>

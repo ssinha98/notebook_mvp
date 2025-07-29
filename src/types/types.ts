@@ -309,13 +309,23 @@ export interface Agent {
     nickname: string;
     downloadUrl: string;
   };
+  folderId?: string;
+  folderName?: string;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  userId: string;
+  createdAt: string;
 }
 
 export interface AgentStore {
   agents: Agent[];
   currentAgent: Agent | null;
+  folders: Folder[];
   loadAgents: () => Promise<void>;
-  createAgent: (name: string) => Promise<void>;
+  createAgent: (name: string, folderId?: string) => Promise<void>;
   createAgentForUser: (
     name: string,
     targetUserId: string,
@@ -327,6 +337,11 @@ export interface AgentStore {
   loadAgent: (agentId: string) => Promise<void>;
   deleteAgent: (agentId: string) => Promise<void>;
   updateAgentName: (agentId: string, newName: string) => Promise<void>;
+  loadFolders: () => Promise<void>;
+  createFolder: (name: string) => Promise<void>;
+  deleteFolder: (folderId: string) => Promise<void>;
+  updateFolderName: (folderId: string, newName: string) => Promise<void>;
+  moveAgentToFolder: (agentId: string, folderId: string) => Promise<void>;
 }
 
 export interface FileDocument {

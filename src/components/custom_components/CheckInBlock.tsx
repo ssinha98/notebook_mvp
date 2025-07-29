@@ -35,6 +35,7 @@ import { auth } from "@/tools/firebase";
 import { api } from "@/tools/api";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
+import { toast } from "sonner";
 
 interface CheckInBlockProps {
   blockNumber: number;
@@ -227,6 +228,7 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
     const handleCopyBlock = () => {
       if (props.onCopyBlock) {
         props.onCopyBlock(props.blockNumber);
+        toast.success(`Block ${props.blockNumber} copied!`);
       }
     };
 

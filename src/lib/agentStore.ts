@@ -21,6 +21,7 @@ import {
   TransformBlock,
   WebAgentBlock,
   ContactBlock,
+  Folder,
 } from "../types/types";
 import { useSourceStore } from "./store";
 import usePromptStore from "./store";
@@ -32,6 +33,7 @@ import { useVariableStore } from "./variableStore";
 export const useAgentStore = create<AgentStore>()((set, get) => ({
   agents: [],
   currentAgent: null,
+  folders: [],
 
   loadAgents: async () => {
     try {
@@ -60,10 +62,144 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
     }
   },
 
-  createAgent: async (name: string) => {
+  loadFolders: async () => {
     try {
       const userId = auth.currentUser?.uid;
       if (!userId) throw new Error("No user logged in");
+
+      const foldersRef = collection(db, `users/${userId}/folders`);
+      const snapshot = await getDocs(foldersRef);
+      const folders = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      set({ folders: folders as Folder[] });
+    } catch (error) {
+      console.error("Error loading folders:", error);
+      throw error;
+    }
+  },
+
+  createFolder: async (name: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const newFolder: Folder = {
+        id: doc(collection(db, `users/${userId}/folders`)).id,
+        name,
+        userId,
+        createdAt: new Date().toISOString(),
+      };
+
+      await setDoc(doc(db, `users/${userId}/folders`, newFolder.id), newFolder);
+      set((state) => ({
+        folders: [...state.folders, newFolder],
+      }));
+    } catch (error) {
+      console.error("Error creating folder:", error);
+      throw error;
+    }
+  },
+
+  deleteFolder: async (folderId: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      // First, move all agents in this folder to no folder
+      const agentsInFolder = get().agents.filter(
+        (agent) => agent.folderId === folderId
+      );
+      const updatePromises = agentsInFolder.map((agent) =>
+        updateDoc(doc(db, `users/${userId}/agents`, agent.id), {
+          folderId: null,
+          folderName: null,
+        })
+      );
+      await Promise.all(updatePromises);
+
+      // Delete the folder
+      await deleteDoc(doc(db, `users/${userId}/folders`, folderId));
+
+      // Update local state
+      set((state) => ({
+        folders: state.folders.filter((folder) => folder.id !== folderId),
+        agents: state.agents.map((agent) =>
+          agent.folderId === folderId
+            ? { ...agent, folderId: undefined, folderName: undefined }
+            : agent
+        ),
+      }));
+    } catch (error) {
+      console.error("Error deleting folder:", error);
+      throw error;
+    }
+  },
+
+  updateFolderName: async (folderId: string, newName: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const folderRef = doc(db, `users/${userId}/folders`, folderId);
+      await updateDoc(folderRef, { name: newName });
+
+      // Update local state
+      set((state) => ({
+        folders: state.folders.map((folder) =>
+          folder.id === folderId ? { ...folder, name: newName } : folder
+        ),
+        agents: state.agents.map((agent) =>
+          agent.folderId === folderId
+            ? { ...agent, folderName: newName }
+            : agent
+        ),
+      }));
+    } catch (error) {
+      console.error("Error updating folder name:", error);
+      throw error;
+    }
+  },
+
+  moveAgentToFolder: async (agentId: string, folderId: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const folder = get().folders.find((f) => f.id === folderId);
+      if (!folder) throw new Error("Folder not found");
+
+      const agentRef = doc(db, `users/${userId}/agents`, agentId);
+      await updateDoc(agentRef, {
+        folderId: folderId,
+        folderName: folder.name,
+      });
+
+      // Update local state
+      set((state) => ({
+        agents: state.agents.map((agent) =>
+          agent.id === agentId
+            ? { ...agent, folderId: folderId, folderName: folder.name }
+            : agent
+        ),
+      }));
+    } catch (error) {
+      console.error("Error moving agent to folder:", error);
+      throw error;
+    }
+  },
+
+  createAgent: async (name: string, folderId?: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      let folderName: string | undefined;
+      if (folderId) {
+        const folder = get().folders.find((f) => f.id === folderId);
+        folderName = folder?.name;
+      }
 
       const newAgent: Agent = {
         id: doc(collection(db, `users/${userId}/agents`)).id,
@@ -71,6 +207,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         userId,
         createdAt: new Date().toISOString(),
         blocks: [],
+        folderId,
+        folderName,
       };
 
       await setDoc(doc(db, `users/${userId}/agents`, newAgent.id), newAgent);
@@ -986,13 +1124,16 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       // Wait for all variables to be created
       await Promise.all(variableCopyPromises);
 
-      // Create the new agent - only include properties that are not undefined
+      // Create the new agent - preserve folder assignment
       const newAgent: Agent = {
         id: newAgentId,
         name: newName,
         userId,
         createdAt: new Date().toISOString(),
         blocks: copiedBlocks as Block[],
+        // Preserve folder assignment
+        folderId: agentToCopy.folderId,
+        folderName: agentToCopy.folderName,
         // Only copy properties that are not undefined
         ...(agentToCopy.agent_rating_thumbs_up !== undefined && {
           agent_rating_thumbs_up: agentToCopy.agent_rating_thumbs_up,

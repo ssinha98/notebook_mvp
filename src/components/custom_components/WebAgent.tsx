@@ -33,6 +33,7 @@ import {
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
 import { BlockButton } from "./BlockButton";
+import CustomEditor from "@/components/CustomEditor";
 
 interface WebAgentProps {
   blockNumber: number;
@@ -718,7 +719,10 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
             </button>
             <button
               className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-              onClick={() => onCopyBlock?.(blockNumber)}
+              onClick={() => {
+                onCopyBlock?.(blockNumber);
+                toast.success("Block copied successfully!");
+              }}
             >
               Copy Block
             </button>
@@ -742,13 +746,13 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
             </div>
           )}
           <div className="flex gap-2">
-            <Textarea
-              placeholder="Enter your prompt for the URL (optional)"
+            <CustomEditor
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="flex-1 resize-none"
-              ref={textareaRef}
-              rows={1}
+              onChange={setPrompt}
+              placeholder="Enter your prompt for the URL (optional)"
+              className="flex-1"
+              disabled={false}
+              showListButtons={true}
             />
           </div>
         </div>

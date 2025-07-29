@@ -27,6 +27,8 @@ import { API_URL, api } from "@/tools/api";
 import { auth } from "@/tools/firebase";
 import { doc, getDoc, getFirestore } from "firebase/firestore";
 import { BlockButton } from "./BlockButton";
+import CustomEditor from "@/components/CustomEditor";
+import { toast } from "sonner";
 
 interface ApolloAgentProps {
   blockNumber: number;
@@ -723,7 +725,10 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
               <Button
                 variant="ghost"
                 className="w-full justify-start text-blue-500 hover:bg-blue-950 hover:text-blue-400"
-                onClick={() => onCopyBlock?.(blockNumber)}
+                onClick={() => {
+                  onCopyBlock?.(blockNumber);
+                  toast.success("Block copied!");
+                }}
               >
                 Copy Block
               </Button>
@@ -758,12 +763,13 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
             <label className="text-sm font-medium text-gray-300">
               Prompt (optional)
             </label>
-            <input
-              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-gray-100"
-              type="text"
+            <CustomEditor
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={setPrompt}
               placeholder="Enter prompt (optional)"
+              className=""
+              disabled={false}
+              showListButtons={true}
             />
           </div>
           <div className="flex items-center gap-2 text-gray-300">

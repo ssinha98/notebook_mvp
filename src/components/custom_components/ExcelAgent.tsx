@@ -30,6 +30,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import BlockNameEditor from "./BlockNameEditor";
 import { BlockButton } from "./BlockButton";
+import CustomEditor from "@/components/CustomEditor";
+import { toast } from "sonner";
 
 interface ExcelAgentProps {
   blockNumber: number;
@@ -446,7 +448,10 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
               </button>
               <button
                 className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-                onClick={() => onCopyBlock?.(blockNumber)}
+                onClick={() => {
+                  onCopyBlock?.(blockNumber);
+                  toast.success(`Block ${blockNumber} copied!`);
+                }}
               >
                 Copy Block
               </button>
@@ -459,13 +464,13 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
             <label className="text-sm font-medium text-gray-300">
               User Prompt
             </label>
-            <Textarea
+            <CustomEditor
               value={userPrompt}
-              onChange={(e) => {
-                setUserPrompt(e.target.value);
-              }}
-              className="bg-gray-800 border-gray-700 text-gray-100"
+              onChange={setUserPrompt}
               placeholder="Describe the Excel file you want the agent to create"
+              className=""
+              disabled={false}
+              showListButtons={true}
             />
           </div>
 

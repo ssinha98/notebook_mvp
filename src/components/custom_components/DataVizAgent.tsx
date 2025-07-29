@@ -48,6 +48,8 @@ import BlockNameEditor from "./BlockNameEditor";
 import { Variable } from "@/types/types";
 import { api } from "@/tools/api";
 import { BlockButton } from "./BlockButton";
+import CustomEditor from "@/components/CustomEditor";
+import { toast } from "sonner";
 
 // Add the missing type import
 interface DataVizAgentBlock {
@@ -306,7 +308,10 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
               </button>
               <button
                 className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-                onClick={() => props.onCopyBlock?.(props.blockNumber)}
+                onClick={() => {
+                  props.onCopyBlock?.(props.blockNumber);
+                  toast.success("Block copied!");
+                }}
               >
                 Copy Block
               </button>
@@ -363,11 +368,13 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
 
           <div>
             <p className="text-sm text-gray-400 mb-2">Prompt:</p>
-            <textarea
-              className="w-full h-32 bg-gray-800 border border-gray-700 rounded p-3 text-gray-200 resize-none"
+            <CustomEditor
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={setPrompt}
               placeholder="Describe the visualization you want to create..."
+              className=""
+              disabled={false}
+              showListButtons={true}
             />
           </div>
 

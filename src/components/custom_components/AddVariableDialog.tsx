@@ -62,6 +62,7 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
   const [columnName, setColumnName] = useState("");
   const [selectedTableId, setSelectedTableId] = useState("");
   const [newColumnName, setNewColumnName] = useState("");
+  const [isLoading, setIsLoading] = useState(false); // Add loading state
 
   // Get tables once when dialog opens
   const tables = useMemo(
@@ -102,50 +103,78 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
   }, [open]);
 
   const handleSaveVariable = async () => {
-    if (!currentAgentId) return;
+    try {
+      setIsLoading(true); // Start loading
 
-    if (newVariable.type === "table") {
-      if (!tableName.trim() || !columnName.trim()) return;
-
-      let tableVar = Object.values(useVariableStore.getState().variables).find(
-        (v) => v.name === tableName && v.type === "table"
-      );
-
-      if (!tableVar) {
-        tableVar = await useVariableStore
-          .getState()
-          .createVariable(tableName, "table", currentAgentId, []);
+      if (!currentAgentId) {
+        console.error("No current agent ID");
+        return;
       }
 
-      await useVariableStore
-        .getState()
-        .addColumnToTable(tableVar.id, columnName);
-      await useVariableStore.getState().loadVariables(currentAgentId);
+      if (newVariable.type === "table") {
+        if (!tableName.trim() || !columnName.trim()) {
+          console.error("Table name and column name are required");
+          return;
+        }
 
-      // Add delay before closing to prevent overlay issues
-      setTimeout(() => {
-        onOpenChange(false);
-      }, 100);
-    } else {
-      if (!newVariable.name.trim()) return;
+        let tableVar = Object.values(
+          useVariableStore.getState().variables
+        ).find((v) => v.name === tableName && v.type === "table");
 
-      const createdVariable = await useVariableStore
-        .getState()
-        .createVariable(newVariable.name, newVariable.type, currentAgentId, "");
+        if (!tableVar) {
+          tableVar = await useVariableStore
+            .getState()
+            .createVariable(tableName, "table", currentAgentId, []);
+        }
 
-      onAddVariable(createdVariable);
+        await useVariableStore
+          .getState()
+          .addColumnToTable(tableVar.id, columnName);
+        await useVariableStore.getState().loadVariables(currentAgentId);
 
-      // Add delay before closing
-      setTimeout(() => {
-        onOpenChange(false);
-      }, 100);
+        // Add delay before closing to prevent overlay issues
+        setTimeout(() => {
+          onOpenChange(false);
+        }, 100);
+      } else {
+        if (!newVariable.name.trim()) {
+          console.error("Variable name is required");
+          return;
+        }
+
+        const createdVariable = await useVariableStore
+          .getState()
+          .createVariable(
+            newVariable.name,
+            newVariable.type,
+            currentAgentId,
+            ""
+          );
+
+        onAddVariable(createdVariable);
+
+        // Add this line to refresh the store
+        await useVariableStore.getState().loadVariables(currentAgentId);
+
+        // Add delay before closing
+        setTimeout(() => {
+          onOpenChange(false);
+        }, 100);
+      }
+    } catch (error) {
+      console.error("Error saving variable:", error);
+      // You might want to show an error message to the user here
+    } finally {
+      setIsLoading(false); // Stop loading regardless of success/failure
     }
   };
 
   const handleAddColumn = async () => {
-    if (!selectedTableId || !newColumnName.trim()) return;
-
     try {
+      setIsLoading(true); // Start loading
+
+      if (!selectedTableId || !newColumnName.trim()) return;
+
       await useVariableStore
         .getState()
         .addColumnToTable(selectedTableId, newColumnName);
@@ -157,6 +186,8 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
       }, 100);
     } catch (error) {
       console.error("Error adding column:", error);
+    } finally {
+      setIsLoading(false); // Stop loading regardless of success/failure
     }
   };
 
@@ -173,6 +204,7 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
     setColumnName("");
     setSelectedTableId("");
     setNewColumnName("");
+    setIsLoading(false); // Reset loading state
   };
 
   const testFirebase = async () => {
@@ -333,12 +365,20 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
               <Button
                 onClick={handleSaveVariable}
                 disabled={
-                  newVariable.type === "table"
+                  isLoading ||
+                  (newVariable.type === "table"
                     ? !tableName || !columnName
-                    : !newVariable.name
+                    : !newVariable.name)
                 }
               >
-                Done
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Creating...
+                  </div>
+                ) : (
+                  "Done"
+                )}
               </Button>
             </div>
           </TabsContent>
@@ -373,9 +413,18 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
               </div>
               <Button
                 onClick={handleAddColumn}
-                disabled={!selectedTableId || !newColumnName.trim()}
+                disabled={
+                  isLoading || !selectedTableId || !newColumnName.trim()
+                }
               >
-                Add Column
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Adding...
+                  </div>
+                ) : (
+                  "Add Column"
+                )}
               </Button>
             </div>
           </TabsContent>

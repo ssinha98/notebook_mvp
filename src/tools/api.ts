@@ -7,8 +7,7 @@ export const API_URL = "https://test-render-q8l2.onrender.com";
 // Original interface
 // interface ApiData {
 //   [key: string]: any;
-// }
-("");
+// };
 // New interface with better type safety
 interface ApiData {
   [key: string]: string | number | boolean | object;

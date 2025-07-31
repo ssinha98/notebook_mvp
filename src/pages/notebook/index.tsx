@@ -695,6 +695,8 @@ export default function Notebook() {
                 handleBlockEdit(index);
               }}
               initialFullName={block.fullName}
+              initialFirstName={(block as any).firstName || ""}
+              initialLastName={(block as any).lastName || ""}
               initialCompany={block.company}
               initialPrompt={block.prompt}
               initialOutputVariable={block.outputVariable}
@@ -703,6 +705,9 @@ export default function Notebook() {
               }
             />
           );
+        case "tabletransform": {
+          return <div>Table Transform Block</div>;
+        }
         default:
           const _exhaustiveCheck: never = block;
           throw new Error(`Unhandled block type: ${(block as any).type}`);

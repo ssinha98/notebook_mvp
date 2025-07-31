@@ -101,7 +101,8 @@ export type BlockType =
   | "datavizagent"
   | "clickupagent"
   | "googledriveagent"
-  | "apolloagent";
+  | "apolloagent"
+  | "tabletransform";
 
 /* OLD Block interface
 export interface Block {
@@ -290,7 +291,8 @@ export type Block =
   | DataVizAgentBlock
   | ClickUpAgentBlock
   | GoogleDriveAgentBlock
-  | ApolloAgentBlock;
+  | ApolloAgentBlock
+  | TableTransformBlock;
 
 export interface Agent {
   id: string;
@@ -419,6 +421,8 @@ export interface GoogleDriveAgentBlock extends BaseBlock {
 export interface ApolloAgentBlock extends BaseBlock {
   type: "apolloagent";
   fullName: string;
+  firstName?: string; // Add this
+  lastName?: string; // Add this
   company: string;
   prompt?: string;
   outputVariable?: {
@@ -481,4 +485,25 @@ export interface ParsedVariableReference {
   variableName: string;
   columnName?: string;
   fullReference: string;
+}
+
+export interface TableTransformBlock extends BaseBlock {
+  type: "tabletransform";
+  tableId: string;
+  operation: "deduplicate" | "filter" | "summarize";
+  config?: {
+    filterCriteria?: Array<{
+      column: string;
+      operator: string;
+      value: string;
+    }>;
+    deduplicateColumns?: string[];
+    summarizeConfig?: {
+      groupByColumns?: string[];
+      aggregations?: Array<{
+        column: string;
+        operation: string;
+      }>;
+    };
+  };
 }

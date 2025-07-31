@@ -119,7 +119,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   const currentAgent = useAgentStore((state) => state.currentAgent);
 
   // Add store hook for updating block names
-  const { updateBlockName } = useSourceStore();
+  const { updateBlockName, copyBlockAfter } = useSourceStore();
 
   // Get current block to display its name
   const currentBlock = useSourceStore((state) =>
@@ -691,6 +691,12 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   // Add auto-resize functionality for textarea
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Add copy block handler
+  const handleCopyBlock = () => {
+    copyBlockAfter(blockNumber);
+    toast.success("Block copied successfully!");
+  };
+
   return (
     <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
       <div className="flex items-center justify-between mb-4">
@@ -719,10 +725,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
             </button>
             <button
               className="w-full px-4 py-2 text-blue-500 hover:bg-blue-950 text-left transition-colors"
-              onClick={() => {
-                onCopyBlock?.(blockNumber);
-                toast.success("Block copied successfully!");
-              }}
+              onClick={handleCopyBlock}
             >
               Copy Block
             </button>

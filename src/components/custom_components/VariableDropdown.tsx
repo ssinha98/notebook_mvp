@@ -33,6 +33,7 @@ interface VariableDropdownProps {
   onAddNew?: () => void;
   className?: string;
   excludeTableVariables?: boolean;
+  showOnlyTableVariables?: boolean; // Add this new prop
   // Add new props for save functionality
   showSaveButton?: boolean;
   onSave?: (variableId: string) => Promise<void>;
@@ -49,6 +50,7 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
   onAddNew,
   className = "",
   excludeTableVariables = false,
+  showOnlyTableVariables = false, // Add this prop to the component
   // Add new props
   showSaveButton = false,
   onSave,
@@ -163,10 +165,19 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
   // Filter and group variables
   const intermediateVariables = Object.values(variables).filter((v) => {
     const isIntermediate = v.type === "intermediate";
-    return agentId ? isIntermediate && v.agentId === agentId : isIntermediate;
+    const agentMatch = agentId
+      ? isIntermediate && v.agentId === agentId
+      : isIntermediate;
+
+    // If showOnlyTableVariables is true, exclude intermediate variables
+    if (showOnlyTableVariables) {
+      return false;
+    }
+
+    return agentMatch;
   });
 
-  // Only process table variables if not excluded
+  // Process table variables - show them unless explicitly excluded
   const tableVariables = excludeTableVariables
     ? {}
     : Object.values(variables)
@@ -312,6 +323,20 @@ const VariableDropdown: React.FC<VariableDropdownProps> = ({
                       </button>
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
+                      {/* Add the "Select entire table" option at the top */}
+                      <DropdownMenuItem
+                        onSelect={() => onValueChange(table.id)}
+                        className="flex items-center justify-between group text-blue-400 font-medium"
+                      >
+                        <span
+                          className="truncate"
+                          title={`${tableName} (entire table)`}
+                        >
+                          📊 {tableName} (entire table)
+                        </span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {/* Existing column options */}
                       {table.columns.map((column) => (
                         <DropdownMenuItem
                           key={column.value}

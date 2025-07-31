@@ -59,14 +59,17 @@ const InputVariablesSheet: React.FC<InputVariablesSheetProps> = ({
   >({});
   const variables = useVariableStore((state) => state.variables);
   const currentAgent = useAgentStore((state) => state.currentAgent);
+  const loadVariables = useVariableStore((state) => state.loadVariables);
   const router = useRouter();
+  const [hasLoadedVariables, setHasLoadedVariables] = useState(false);
 
   useEffect(() => {
     const currentAgentId = useAgentStore.getState().currentAgent?.id;
-    if (currentAgentId) {
+    if (currentAgentId && !hasLoadedVariables) {
       useVariableStore.getState().loadVariables(currentAgentId);
+      setHasLoadedVariables(true);
     }
-  }, []);
+  }, [hasLoadedVariables]);
 
   const handleAddVariable = () => {
     setIsVariableDialogOpen(true);

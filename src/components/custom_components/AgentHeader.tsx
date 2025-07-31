@@ -142,18 +142,74 @@ export default function AgentHeader({
 
       if (target === "other" && targetUserId.trim()) {
         if (saveAsTemplate) {
+          // Clean blocks the same way as saveAgent does
+          const cleanBlocks = blocksToSave.map((block) => {
+            if (block.type === "searchagent") {
+              return {
+                id: block.id || crypto.randomUUID(),
+                type: "searchagent" as const, // Fix the type
+                blockNumber: block.blockNumber,
+                name: block.name || `Search ${block.blockNumber}`,
+                query: block.query || "",
+                engine: block.engine || "search",
+                limit: block.limit || 5,
+                topic: block.topic || "",
+                section: block.section || "",
+                timeWindow: block.timeWindow || "",
+                trend: block.trend || "indexes",
+                region: block.region || "",
+                outputVariable: block.outputVariable || null,
+                newsSearchType: block.newsSearchType || "query",
+                newsTopic: block.newsTopic || "",
+                newsSection: block.newsSection || "",
+                financeWindow: block.financeWindow || "1D",
+                marketsIndexMarket: block.marketsIndexMarket || "", // Fix: use undefined instead of ""
+                agentId: currentAgent?.id || "",
+                systemPrompt: (block as any).systemPrompt || "",
+                userPrompt: (block as any).userPrompt || "",
+                saveAsCsv: (block as any).saveAsCsv || false,
+              } as const; // Add as const to preserve literal types
+            } else if (block.type === "codeblock") {
+              return {
+                ...block,
+                id: block.id || crypto.randomUUID(),
+                name: block.name || `Code ${block.blockNumber}`,
+                language: block.language || "python",
+                code: block.code || "",
+                status: block.status || "tbd",
+                outputVariable: block.outputVariable || null,
+              };
+            }
+            return block;
+          });
+
+          // Clean variables to remove undefined values
+          const cleanVariables = currentVariables.map((variable) => ({
+            ...variable,
+            value: variable.value || (variable.type === "table" ? [] : ""),
+          }));
+
           // Save as template
           const templateData = {
             name: currentAgent!.name,
-            blocks: blocksToSave,
-            variables: currentVariables,
+            blocks: cleanBlocks,
+            variables: cleanVariables,
             createdAt: new Date().toISOString(),
             createdBy: currentAgent!.userId,
           };
 
-          await createAgentTemplate(targetUserId, templateData);
+          // Replace undefined values with empty strings
+          const cleanTemplateData = {
+            name: templateData.name,
+            blocks: templateData.blocks,
+            variables: templateData.variables,
+            createdAt: templateData.createdAt,
+            createdBy: templateData.createdBy,
+          };
+
+          await createAgentTemplate(targetUserId, cleanTemplateData as any);
           toast.success(
-            `Template saved with ${blocksToSave.length} blocks and ${currentVariables.length} variables`
+            `Template saved with ${cleanBlocks.length} blocks and ${cleanVariables.length} variables`
           );
         } else {
           // Regular save to another user (existing functionality)

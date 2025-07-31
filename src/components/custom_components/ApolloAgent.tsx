@@ -33,18 +33,20 @@ import { toast } from "sonner";
 interface ApolloAgentProps {
   blockNumber: number;
   onDeleteBlock: (blockNumber: number) => void;
-  onCopyBlock?: (blockNumber: number) => void; // Add this line
+  onCopyBlock?: (blockNumber: number) => void;
   onUpdateBlock: (
     blockNumber: number,
     updates: Partial<ApolloAgentBlock>
   ) => void;
   initialFullName?: string;
+  initialFirstName?: string; // Add this
+  initialLastName?: string; // Add this
   initialCompany?: string;
   initialPrompt?: string;
   initialOutputVariable?: any;
   isProcessing?: boolean;
   selectedData?: any[];
-  formData?: any; // Add this prop
+  formData?: any;
 }
 
 export interface ApolloAgentRef {
@@ -60,16 +62,20 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
       onCopyBlock,
       onUpdateBlock,
       initialFullName = "",
+      initialFirstName = "", // Add this
+      initialLastName = "", // Add this
       initialCompany = "",
       initialPrompt = "",
       initialOutputVariable = null,
       isProcessing = false,
-      selectedData = [], // Add this prop with default
-      formData, // Add this prop with default
+      selectedData = [],
+      formData,
     },
     ref
   ) => {
     const [fullName, setFullName] = useState(initialFullName);
+    const [firstName, setFirstName] = useState(initialFirstName); // Add this
+    const [lastName, setLastName] = useState(initialLastName); // Add this
     const [company, setCompany] = useState(initialCompany);
     const [prompt, setPrompt] = useState(initialPrompt);
     const [isLoading, setIsLoading] = useState(false);
@@ -142,6 +148,33 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
       }
     };
 
+    // Helper function to get the combined full name
+    const getCombinedFullName = (): string => {
+      if (fullName.trim()) {
+        return fullName.trim();
+      }
+      if (firstName.trim() && lastName.trim()) {
+        return `${firstName.trim()} ${lastName.trim()}`;
+      }
+      return "";
+    };
+
+    // Helper function to validate name input
+    const validateNameInput = (): boolean => {
+      const hasFullName = fullName.trim() !== "";
+      const hasFirstName = firstName.trim() !== "";
+      const hasLastName = lastName.trim() !== "";
+
+      // Either full name is provided, OR both first and last name are provided
+      if (hasFullName) {
+        return true; // Full name takes precedence
+      }
+      if (hasFirstName && hasLastName) {
+        return true; // Both first and last name are provided
+      }
+      return false; // Invalid state
+    };
+
     const handleVariableSelect = (value: string) => {
       setSelectedVariableId(value);
     };
@@ -150,6 +183,8 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
       const timeoutId = setTimeout(() => {
         onUpdateBlock(blockNumber, {
           fullName,
+          firstName, // Add this
+          lastName, // Add this
           company,
           prompt,
           outputVariable: selectedVariableId
@@ -173,6 +208,8 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
       return () => clearTimeout(timeoutId);
     }, [
       fullName,
+      firstName, // Add this
+      lastName, // Add this
       company,
       prompt,
       selectedVariableId,
@@ -207,6 +244,21 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
         setError("");
         setResult("");
         setIsLoading(true);
+
+        // Validate name input
+        if (!validateNameInput()) {
+          setError(
+            "Please provide either a full name OR both first name and last name"
+          );
+          return false;
+        }
+
+        // Get the combined full name
+        const combinedFullName = getCombinedFullName();
+        if (!combinedFullName) {
+          setError("Please provide a valid name");
+          return false;
+        }
 
         // DEBUG: Log the initial state
         // console.log("=== APOLLO DEBUG START ===");
@@ -250,7 +302,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
         }
 
         // Check if we're using table variables
-        const nameIsTableVar = isTableVariable(fullName);
+        const nameIsTableVar = isTableVariable(combinedFullName);
         const companyIsTableVar = isTableVariable(company);
         const hasSelection = selectedData && selectedData.length > 0;
 
@@ -263,7 +315,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
         // Case 1: Both are table variables
         if (nameIsTableVar && companyIsTableVar) {
           //   console.log("Apollo: Executing Case 1 - Both table variables");
-          const nameRef = parseTableColumn(fullName);
+          const nameRef = parseTableColumn(combinedFullName);
           const companyRef = parseTableColumn(company);
 
           if (!nameRef || !companyRef) {
@@ -396,7 +448,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
           (companyIsTableVar && hasSelection)
         ) {
           const tableRef = nameIsTableVar
-            ? parseTableColumn(fullName)
+            ? parseTableColumn(combinedFullName) // Use combinedFullName here
             : parseTableColumn(company);
           if (!tableRef) {
             setError("Invalid table variable reference.");
@@ -555,8 +607,8 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
         }
 
         // Case 3: Single value mode (default)
-        if (!fullName || !company) {
-          setError("Please enter both full name and company");
+        if (!combinedFullName || !company) {
+          setError("Please enter both name and company");
           return false;
         }
 
@@ -568,7 +620,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: fullName,
+            name: combinedFullName, // Use the combined full name
             company,
             api_key: apolloApiKey,
             request_id: newRequestId,
@@ -736,18 +788,51 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
           </Popover>
         </div>
         <div className="p-4 space-y-4">
+          {/* Full Name Input */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">
-              Full Name
+              Full Name (optional)
             </label>
             <input
               className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-gray-100"
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Enter full name"
+              placeholder="Enter full name (or use first/last name below)"
             />
           </div>
+
+          {/* First Name and Last Name Inputs */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">
+                First Name
+              </label>
+              <input
+                className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-gray-100"
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Enter first name"
+                disabled={fullName.trim() !== ""} // Disable if full name is provided
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">
+                Last Name
+              </label>
+              <input
+                className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-gray-100"
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Enter last name"
+                disabled={fullName.trim() !== ""} // Disable if full name is provided
+              />
+            </div>
+          </div>
+
+          {/* Company Input */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">Company</label>
             <input

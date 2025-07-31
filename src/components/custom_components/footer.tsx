@@ -63,6 +63,7 @@ import router from "next/router";
 import InputVariablesSheet from "@/components/custom_components/InputVariablesSheet";
 import { PiChartScatterDuotone } from "react-icons/pi";
 import { FaRocket } from "react-icons/fa";
+import { CiViewTable } from "react-icons/ci";
 
 const footerStyle: CSSProperties = {
   position: "sticky",
@@ -624,6 +625,27 @@ export default function Footer({
           company: "",
         });
       },
+    },
+    {
+      id: "tabletransform",
+      icon: <CiViewTable className="text-2xl" />,
+      label: "Transform Table",
+      tooltip:
+        "Transform an existing table with operations like deduplication and filtering",
+      onClick: () =>
+        addBlockToNotebook({
+          type: "tabletransform",
+          id: crypto.randomUUID(),
+          name: `Table Transform ${nextBlockNumber}`,
+          blockNumber: nextBlockNumber,
+          agentId: useAgentStore.getState().currentAgent?.id || "",
+          systemPrompt: "",
+          userPrompt: "",
+          saveAsCsv: false,
+          tableId: "",
+          operation: "deduplicate",
+          config: {},
+        }),
     },
   ];
 

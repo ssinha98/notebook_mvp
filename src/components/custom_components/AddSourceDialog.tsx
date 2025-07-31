@@ -31,6 +31,14 @@ import { getAuth } from "firebase/auth";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentStore } from "@/lib/agentStore";
 import { Check } from "lucide-react";
+import VariableDropdown from "./VariableDropdown";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Source {
   id: string;
@@ -67,6 +75,7 @@ interface TableConfig {
   previewData: any[];
   allData: any[];
   totalRows: number;
+  selectedExistingTable?: string; // Add this field
 }
 
 // Helper function to parse CSV
@@ -95,7 +104,7 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   onOpenChange,
   initialStep = "select",
   initialType = "pdf",
-  openToTableVariable = false, // Add this prop
+  openToTableVariable = false,
 }) => {
   const addFileNickname = useSourceStore((state) => state.addFileNickname);
   const [step, setStep] = useState<
@@ -120,8 +129,11 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   const [tableConfig, setTableConfig] = useState<TableConfig | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [selectedExistingTable, setSelectedExistingTable] =
+    useState<string>("");
 
   const currentAgent = useAgentStore((state) => state.currentAgent);
+  const variables = useVariableStore((state) => state.variables);
   const {
     createVariable,
     loadVariables,
@@ -265,12 +277,42 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
         uploadResult.data.download_link
       );
 
-      // Use the new Python backend endpoint to parse CSV
-      console.log("🤖 Calling new CSV parsing endpoint...");
-      const response = await api.post("/api/parse-csv-for-table", {
+      // Prepare request payload
+      const requestPayload: any = {
         file_url: uploadResult.data.download_link,
         request_id: crypto.randomUUID(),
-      });
+      };
+
+      // If an existing table is selected, include its data
+      if (selectedExistingTable) {
+        const existingTable =
+          useVariableStore.getState().variables[selectedExistingTable];
+        if (existingTable && existingTable.type === "table") {
+          const rows = Array.isArray(existingTable.value)
+            ? existingTable.value
+            : [];
+          requestPayload.existing_table = {
+            columns: existingTable.columns || [],
+            rows: rows.map((row) => {
+              const cleanRow: any = {};
+              // Remove the 'id' field and clean up the data
+              Object.keys(row).forEach((key) => {
+                if (key !== "id") {
+                  cleanRow[key] = row[key];
+                }
+              });
+              return cleanRow;
+            }),
+          };
+        }
+      }
+
+      // Use the new Python backend endpoint to parse CSV
+      console.log("🤖 Calling new CSV parsing endpoint...", requestPayload);
+      const response = await api.post(
+        "/api/parse-csv-for-table",
+        requestPayload
+      );
 
       console.log("🤖 Backend response:", response);
 
@@ -306,6 +348,7 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
         previewData: rows.slice(0, 5),
         allData: rows,
         totalRows: total_rows,
+        selectedExistingTable: selectedExistingTable,
       });
 
       console.log("✅ Table config set successfully:", {
@@ -429,6 +472,11 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
     multiple: false,
   });
 
+  // Get only table variables for the current agent
+  const tableVariables = Object.values(variables).filter(
+    (v) => v.type === "table" && v.agentId === currentAgent?.id
+  );
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="z-[2000] bg-gray-800 min-w-[800px] max-w-[1000px]">
@@ -465,6 +513,21 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
 
             {tableConfig && (
               <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label>Update Existing Table Variable (Optional)</Label>
+                  <VariableDropdown
+                    value={selectedExistingTable}
+                    onValueChange={setSelectedExistingTable}
+                    agentId={currentAgent?.id}
+                    showOnlyTableVariables={true}
+                    excludeTableVariables={false}
+                  />
+                  <p className="text-sm text-gray-400">
+                    Select an existing table to update, or leave empty to create
+                    a new table
+                  </p>
+                </div>
+
                 <div className="grid gap-2">
                   <Label htmlFor="table-name">Table Variable Name</Label>
                   <Input
@@ -651,6 +714,30 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
 
                 <TabsContent value="table" className="space-y-4">
                   <div className="space-y-4">
+                    {/* Simple table selection dropdown */}
+                    <div className="grid gap-2">
+                      <Label>Update Existing Table Variable (Optional)</Label>
+                      <Select
+                        value={selectedExistingTable}
+                        onValueChange={setSelectedExistingTable}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an existing table to update" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[9999]">
+                          {tableVariables.map((table) => (
+                            <SelectItem key={table.id} value={table.id}>
+                              {table.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-gray-400">
+                        Select an existing table to update, or leave empty to
+                        create a new table
+                      </p>
+                    </div>
+
                     <div
                       {...getRootProps()}
                       className="border-2 border-dashed border-gray-300 p-6 rounded-lg text-center cursor-pointer hover:border-gray-400 transition-colors"

@@ -207,8 +207,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         userId,
         createdAt: new Date().toISOString(),
         blocks: [],
-        folderId,
-        folderName,
+        folderId: folderId || "", // Use empty string instead of undefined
+        folderName: folderName || "", // Use empty string instead of undefined
       };
 
       await setDoc(doc(db, `users/${userId}/agents`, newAgent.id), newAgent);
@@ -540,14 +540,12 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
   loadAgent: async (agentId: string) => {
     try {
-      // console.log("Starting to load agent:", agentId);
       const userId = auth.currentUser?.uid;
       if (!userId) throw new Error("No user logged in");
 
       const agentDoc = await getDoc(doc(db, `users/${userId}/agents`, agentId));
       if (agentDoc.exists()) {
         const agent = { id: agentDoc.id, ...agentDoc.data() } as Agent;
-        // console.log("Successfully loaded agent:", agent);
 
         // Process blocks to ensure all fields are properly set
         const processedBlocks = agent.blocks.map((block) => {
@@ -557,6 +555,18 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               status: block.status || "tbd", // Ensure status is preserved
               language: block.language || "python",
               code: block.code || "",
+              outputVariable: block.outputVariable || null,
+            };
+          }
+          // Add this new condition for Apollo agent blocks
+          if (block.type === "apolloagent") {
+            return {
+              ...block,
+              fullName: block.fullName || "",
+              firstName: block.firstName || "",
+              lastName: block.lastName || "",
+              company: block.company || "",
+              prompt: block.prompt || "",
               outputVariable: block.outputVariable || null,
             };
           }

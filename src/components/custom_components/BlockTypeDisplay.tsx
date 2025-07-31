@@ -117,6 +117,14 @@ const BLOCK_TYPE_CONFIGS = {
       { emoji: "🔎", text: "Searching for info" },
     ],
   },
+  tabletransform: {
+    displays: [
+      { emoji: "🔄", text: "Transform Table" },
+      { emoji: "⚙️", text: "Processing..." },
+      { emoji: "✅", text: "Transformed" },
+      { emoji: "❌", text: "Error" },
+    ],
+  },
 };
 
 interface BlockTypeDisplayProps {

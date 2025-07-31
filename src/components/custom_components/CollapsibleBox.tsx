@@ -55,6 +55,10 @@ import {
 import SortableBlock from "./SortableBlock";
 import ApolloAgent from "./ApolloAgent";
 import { Upload } from "lucide-react";
+import TableTransformBlock, {
+  TableTransformBlockRef,
+} from "./TableTransformBlock";
+import { TableTransformBlock as TableTransformBlockType } from "@/types/types";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -770,8 +774,34 @@ const CollapsibleBox = forwardRef<
               onCopyBlock={copyBlock}
               onUpdateBlock={updateBlock}
               initialFullName={block.fullName}
+              initialFirstName={block.firstName}
+              initialLastName={block.lastName}
               initialCompany={block.company}
+              initialPrompt={block.prompt}
+              initialOutputVariable={block.outputVariable}
               isProcessing={processingBlocks[block.blockNumber]}
+            />
+          </div>
+        );
+      case "tabletransform":
+        return (
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
+              }
+            }}
+          >
+            <TableTransformBlock
+              ref={(el) => {
+                if (el && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = el;
+                }
+              }}
+              block={block as TableTransformBlockType}
+              onBlockUpdate={(updatedBlock) =>
+                updateBlock(updatedBlock.blockNumber, updatedBlock)
+              }
             />
           </div>
         );

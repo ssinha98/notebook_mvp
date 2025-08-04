@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useEffect } from "react";
 
 interface Source {
   id: string;
@@ -78,6 +79,24 @@ interface TableConfig {
   selectedExistingTable?: string; // Add this field
 }
 
+// Update state definition to be simpler
+interface ColumnMapping {
+  csvColumn: string;
+  existingColumn: string;
+}
+
+// // Initialize mappings when tableConfig is set
+// useEffect(() => {
+//   if (tableConfig && variables[selectedExistingTable]) {
+//     const existingColumns = variables[selectedExistingTable].columns || [];
+//     const initialMappings = tableConfig.columns.map((csvCol, index) => ({
+//       csvColumn: csvCol,
+//       existingColumn: existingColumns[index] || "",
+//     }));
+//     setColumnMappings(initialMappings);
+//   }
+// }, [tableConfig, selectedExistingTable]);
+
 // Helper function to parse CSV
 const parseCSV = (csvText: string): { headers: string[]; rows: any[] } => {
   const lines = csvText.split("\n").filter((line) => line.trim());
@@ -99,6 +118,28 @@ const parseCSV = (csvText: string): { headers: string[]; rows: any[] } => {
   return { headers, rows };
 };
 
+// Add this helper function to detect duplicates
+const getDuplicateMappings = (mappings: ColumnMapping[]) => {
+  const duplicates = new Map<string, string[]>();
+
+  mappings.forEach((mapping, index) => {
+    if (mapping.existingColumn !== "none") {
+      if (!duplicates.has(mapping.existingColumn)) {
+        duplicates.set(mapping.existingColumn, [mapping.csvColumn]);
+      } else {
+        duplicates.get(mapping.existingColumn)?.push(mapping.csvColumn);
+      }
+    }
+  });
+
+  return Array.from(duplicates.entries())
+    .filter(([_, csvColumns]) => csvColumns.length > 1)
+    .map(([existingColumn, csvColumns]) => ({
+      existingColumn,
+      csvColumns,
+    }));
+};
+
 const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   open,
   onOpenChange,
@@ -108,7 +149,12 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
 }) => {
   const addFileNickname = useSourceStore((state) => state.addFileNickname);
   const [step, setStep] = useState<
-    "select" | "details" | "csv-configure" | "csv-preview" | "table-config"
+    | "select"
+    | "details"
+    | "csv-configure"
+    | "csv-preview"
+    | "table-config"
+    | "table-update-config"
   >(initialStep);
   const [selectedType, setSelectedType] = useState<Source["type"]>(initialType);
   const [newSource, setNewSource] = useState<Source>({
@@ -132,6 +178,9 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
   const [selectedExistingTable, setSelectedExistingTable] =
     useState<string>("");
 
+  // New state for column mapping
+  const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
+
   const currentAgent = useAgentStore((state) => state.currentAgent);
   const variables = useVariableStore((state) => state.variables);
   const {
@@ -140,6 +189,7 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
     addColumnToTable,
     updateTableColumn,
     addTableRow,
+    updateTableVariable,
   } = useVariableStore();
 
   // Update step when dialog opens
@@ -154,6 +204,19 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
       }
     }
   }, [open, initialStep, initialType, openToTableVariable]);
+
+  // Initialize mappings when tableConfig is set
+  useEffect(() => {
+    if (tableConfig && variables[selectedExistingTable]) {
+      const existingColumns = variables[selectedExistingTable].columns || [];
+      const initialMappings = tableConfig.columns.map((csvCol, index) => ({
+        csvColumn: csvCol,
+        // Match by index if the column exists, otherwise use "none"
+        existingColumn: existingColumns[index] || "none",
+      }));
+      setColumnMappings(initialMappings);
+    }
+  }, [tableConfig, selectedExistingTable]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -249,10 +312,12 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
       return;
     }
 
-    console.log(" Starting CSV table variable creation...", {
-      fileName: csvFile.name,
-      fileSize: csvFile.size,
-      fileType: csvFile.type,
+    console.log("Configure Table Flow:", {
+      selectedExistingTable,
+      isUpdatingExisting: Boolean(
+        selectedExistingTable && selectedExistingTable.trim() !== ""
+      ),
+      currentStep: step,
     });
 
     setIsProcessing(true);
@@ -351,16 +416,16 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
         selectedExistingTable: selectedExistingTable,
       });
 
-      console.log("✅ Table config set successfully:", {
-        tableName:
-          file_name?.replace(".csv", "") || csvFile.name.replace(".csv", ""),
-        columns: columns,
-        totalRows: total_rows,
-        previewRows: rows.slice(0, 5).length,
-        sampleRow: rows[0],
+      const isUpdatingExistingTable =
+        selectedExistingTable && selectedExistingTable.trim() !== "";
+      console.log("Routing Decision:", {
+        isUpdatingExistingTable,
+        routingTo: isUpdatingExistingTable
+          ? "table-update-config"
+          : "table-config",
       });
 
-      setStep("table-config");
+      setStep(isUpdatingExistingTable ? "table-update-config" : "table-config");
     } catch (error) {
       console.error("❌ Error configuring table:", error);
       toast.error("Failed to parse CSV file");
@@ -443,6 +508,58 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
     }
   };
 
+  const handleUpdateTableVariable = async () => {
+    if (!tableConfig || !selectedExistingTable) return;
+
+    setIsProcessing(true);
+    try {
+      const existingTable = variables[selectedExistingTable];
+      const existingRows = Array.isArray(existingTable.value)
+        ? existingTable.value
+        : [];
+
+      // First add any new columns
+      const newColumns = columnMappings
+        .filter((mapping) => mapping.existingColumn.startsWith("new_column:"))
+        .map((mapping) => mapping.csvColumn);
+
+      for (const newColumn of newColumns) {
+        await addColumnToTable(selectedExistingTable, newColumn);
+      }
+
+      // Map new data according to column mappings
+      const newRows = tableConfig.allData.map((row) => {
+        const mappedRow: any = {};
+        columnMappings.forEach((mapping) => {
+          if (mapping.existingColumn === "none") return;
+
+          if (mapping.existingColumn.startsWith("new_column:")) {
+            // For new columns, use the original column name
+            mappedRow[mapping.csvColumn] = row[mapping.csvColumn];
+          } else {
+            // For existing columns, use the mapped name
+            mappedRow[mapping.existingColumn] = row[mapping.csvColumn];
+          }
+        });
+        return mappedRow;
+      });
+
+      // Append new rows to existing ones
+      const updatedRows = [...existingRows, ...newRows];
+
+      // Update the table
+      await updateTableVariable(selectedExistingTable, updatedRows);
+
+      toast.success(`Successfully added ${newRows.length} rows to table`);
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error updating table:", error);
+      toast.error("Failed to update table");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleClose = () => {
     onOpenChange(false);
     // Reset form
@@ -479,17 +596,198 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="z-[2000] bg-gray-800 min-w-[800px] max-w-[1000px]">
+      <DialogContent className="z-[2000] bg-gray-800 max-w-[800px]">
         <DialogHeader>
           <DialogTitle>
             {step === "select" && "Add New Source"}
             {step === "details" &&
               `Add New ${selectedType.toUpperCase()} Source`}
-            {step === "table-config" && "Configure Table Variable"}
+            {step === "table-config" && "Configure New Table Variable"}
+            {step === "table-update-config" && "Update Existing Table Variable"}
           </DialogTitle>
         </DialogHeader>
 
-        {step === "select" ? (
+        {step === "table-update-config" ? (
+          <div className="space-y-6 py-4">
+            <Button
+              variant="ghost"
+              className="w-fit"
+              onClick={() => setStep("details")}
+            >
+              ← Back
+            </Button>
+
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="p-4">
+                  <h3 className="text-lg font-semibold mb-4">
+                    Column Mapping Configuration
+                  </h3>
+
+                  {/* Add a scrollable container around the Table */}
+                  <div className="max-h-[500px] overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-1/2 sticky top-0 bg-gray-800">
+                            Uploaded CSV Columns
+                          </TableHead>
+                          <TableHead className="w-1/2 sticky top-0 bg-gray-800">
+                            Existing Table Variable Columns
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {columnMappings.map((mapping, index) => {
+                          const existingTable =
+                            variables[selectedExistingTable];
+                          const existingColumns = existingTable?.columns || [];
+
+                          // Get preview data for both columns
+                          const csvPreviewData = tableConfig?.previewData
+                            .map((row) => row[mapping.csvColumn])
+                            .slice(0, 3);
+                          const existingPreviewData = Array.isArray(
+                            existingTable?.value
+                          )
+                            ? existingTable.value
+                                .slice(0, 3)
+                                .map((row) => row[mapping.existingColumn])
+                            : [];
+
+                          return (
+                            <TableRow key={index}>
+                              <TableCell>
+                                <div className="space-y-2">
+                                  <div className="font-medium truncate">
+                                    {mapping.csvColumn}
+                                  </div>
+                                  {csvPreviewData && (
+                                    <div className="text-xs text-gray-400 max-w-[200px]">
+                                      Preview:{" "}
+                                      {csvPreviewData.slice(0, 3).map((val) => (
+                                        <div key={val} className="truncate">
+                                          {val}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="space-y-2">
+                                  <Select
+                                    value={mapping.existingColumn}
+                                    onValueChange={(selectedColumn) => {
+                                      const newMappings = [...columnMappings];
+                                      newMappings[index] = {
+                                        ...mapping,
+                                        existingColumn: selectedColumn,
+                                      };
+                                      setColumnMappings(newMappings);
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Select a column" />
+                                    </SelectTrigger>
+                                    <SelectContent
+                                      side="bottom"
+                                      position="popper"
+                                      className="z-[9999]"
+                                    >
+                                      <SelectItem value="none">
+                                        Don't upload this column
+                                      </SelectItem>
+                                      <SelectItem
+                                        value={`new_column:${mapping.csvColumn}`}
+                                      >
+                                        Add as new column "{mapping.csvColumn}"
+                                      </SelectItem>
+                                      <SelectItem value="divider" disabled>
+                                        ─────────────
+                                      </SelectItem>
+                                      {existingColumns.map((existingColumn) => {
+                                        const mappedTo = columnMappings.find(
+                                          (m) =>
+                                            m.existingColumn ===
+                                              existingColumn &&
+                                            m.csvColumn !== mapping.csvColumn
+                                        )?.csvColumn;
+
+                                        return (
+                                          <SelectItem
+                                            key={existingColumn}
+                                            value={existingColumn}
+                                          >
+                                            <div className="flex items-center justify-between w-full">
+                                              <div className="truncate max-w-[200px]">
+                                                {existingColumn}
+                                              </div>
+                                              {mappedTo && (
+                                                <span className="ml-2 text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded">
+                                                  Mapped to {mappedTo}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                  {mapping.existingColumn &&
+                                    existingPreviewData && (
+                                      <div className="text-xs text-gray-400 max-w-[200px]">
+                                        Preview:{" "}
+                                        {existingPreviewData.map((val) => (
+                                          <div key={val} className="truncate">
+                                            {val}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {getDuplicateMappings(columnMappings).length > 0 && (
+                <div className="mb-4 p-4 bg-red-500/20 border border-red-500/50 rounded">
+                  <h4 className="text-red-400 font-semibold mb-2">
+                    Duplicate Mappings Found:
+                  </h4>
+                  <ul className="space-y-1 text-sm">
+                    {getDuplicateMappings(columnMappings).map(
+                      ({ existingColumn, csvColumns }) => (
+                        <li key={existingColumn}>
+                          Column "{existingColumn}" is mapped to multiple CSV
+                          columns: {csvColumns.join(", ")}
+                        </li>
+                      )
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={handleUpdateTableVariable}
+                  disabled={
+                    isProcessing ||
+                    getDuplicateMappings(columnMappings).length > 0
+                  }
+                >
+                  {isProcessing ? "Processing..." : "Update Table"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : step === "select" ? (
           <div className="grid grid-cols-2 gap-4 py-4">
             {["image", "pdf", "csv", "website"].map((type) => (
               <Button
@@ -513,21 +811,6 @@ const AddSourceDialog: React.FC<AddSourceDialogProps> = ({
 
             {tableConfig && (
               <div className="space-y-4">
-                <div className="grid gap-2">
-                  <Label>Update Existing Table Variable (Optional)</Label>
-                  <VariableDropdown
-                    value={selectedExistingTable}
-                    onValueChange={setSelectedExistingTable}
-                    agentId={currentAgent?.id}
-                    showOnlyTableVariables={true}
-                    excludeTableVariables={false}
-                  />
-                  <p className="text-sm text-gray-400">
-                    Select an existing table to update, or leave empty to create
-                    a new table
-                  </p>
-                </div>
-
                 <div className="grid gap-2">
                   <Label htmlFor="table-name">Table Variable Name</Label>
                   <Input

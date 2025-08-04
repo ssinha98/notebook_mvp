@@ -58,6 +58,7 @@ interface VariableStore {
     oldColumnName: string,
     newColumnName: string
   ) => Promise<void>;
+  updateTableVariable: (tableId: string, updatedRows: any[]) => Promise<void>;
 }
 
 export const useVariableStore = create<VariableStore>((set, get) => ({
@@ -517,6 +518,40 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
       console.log("Local state updated successfully");
     } catch (error) {
       console.error("Error renaming column:", error);
+      throw error;
+    }
+  },
+
+  updateTableVariable: async (tableId: string, updatedRows: any[]) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      const variable = get().variables[tableId];
+      if (!variable || variable.type !== "table") {
+        throw new Error("Invalid table variable");
+      }
+
+      await updateDoc(doc(db, `users/${userId}/variables`, tableId), {
+        value: updatedRows,
+        updatedAt: new Date().toISOString(),
+      });
+
+      set((state) => ({
+        variables: {
+          ...state.variables,
+          [tableId]: {
+            ...state.variables[tableId],
+            value: updatedRows,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }));
+
+      // Refresh the variables
+      await get().loadVariables(get().variables[tableId].agentId);
+    } catch (error) {
+      console.error("Error updating table variable:", error);
       throw error;
     }
   },

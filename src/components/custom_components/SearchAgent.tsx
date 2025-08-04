@@ -730,7 +730,7 @@ function NewsCard({
       // For grouped stories, display the main title and first story
       const mainStory = result.stories[0];
       return (
-        <Card className="hover:bg-gray-700/50 transition-colors bg-gray-800 border border-gray-700 relative">
+        <Card className="hover:bg-gray-700/50 transition-colors bg-[#141414] border border-white relative">
           <CardContent className="pt-6">
             <div className="absolute top-2 right-2">
               <Checkbox
@@ -771,7 +771,7 @@ function NewsCard({
 
     // For individual news items
     return (
-      <Card className="hover:bg-gray-700/50 transition-colors bg-gray-800 border border-gray-700 relative">
+      <Card className="hover:bg-gray-700/50 transition-colors bg-[#141414] border border-white relative">
         <CardContent className="pt-6">
           <div className="absolute top-2 right-2">
             <Checkbox
@@ -809,7 +809,7 @@ function NewsCard({
     );
   } catch (error) {
     return (
-      <Card className="bg-gray-800 mb-4 border border-gray-700">
+      <Card className="bg-[#141414] mb-4 border border-white">
         <CardContent className="pt-6">
           <div className="text-sm text-gray-500">
             Unable to display this news item
@@ -1372,7 +1372,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         }
 
         return (
-          <div className="mt-4 p-4 bg-gray-800 rounded">
+          <div className="mt-4 p-4 bg-[#141414] rounded border border-white">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2 bg-gray-900">
                 <TabsTrigger
@@ -1692,7 +1692,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     }, [modelResponse, selectedVariableId, searchEngine]);
 
     return (
-      <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
+      <div className="p-4 rounded-lg border border-white bg-[#141414]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-white">
@@ -1712,7 +1712,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                 ⚙️
               </span>
             </PopoverTrigger>
-            <PopoverContent className="w-40 p-0 bg-black border border-red-500">
+            <PopoverContent className="w-40 p-0 bg-[#141414] border border-white">
               <button
                 className="w-full px-4 py-2 text-red-500 hover:bg-red-950 text-left transition-colors"
                 onClick={() => props.onDeleteBlock(props.blockNumber)}

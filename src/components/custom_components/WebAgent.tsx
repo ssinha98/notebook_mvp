@@ -34,6 +34,15 @@ import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
 import { BlockButton } from "./BlockButton";
 import CustomEditor from "@/components/CustomEditor";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 interface WebAgentProps {
   blockNumber: number;
@@ -110,6 +119,10 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
     return initialSelectedVariableId || initialOutputVariable?.id || "";
   });
   const [output, setOutput] = useState<any>(null);
+
+  // Add new state for test dialog
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   // Debounce the inputs to avoid excessive updates
   const debouncedUrl = useDebounce(url, 500);
@@ -529,6 +542,61 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
     }
   };
 
+  // Add new function to handle test runs
+  const handleTest = async () => {
+    if (!url.trim()) return;
+
+    setIsLoading(true);
+    setTestResult(null);
+
+    const newRequestId = crypto.randomUUID();
+
+    try {
+      let processedUrl = url.trim();
+
+      // Handle table variables
+      if (url.match(/{{.*?}}/)) {
+        const [tableName, columnName] = url.replace(/[{}]/g, "").split(".");
+        const tableUrls = getTableColumnValues(`${tableName}.${columnName}`);
+
+        if (tableUrls.length === 0) {
+          throw new Error("No URLs found in table column");
+        }
+
+        // Take only the first URL for testing
+        processedUrl = tableUrls[0];
+      }
+
+      const data = {
+        url: processedUrl, // Use the processed URL instead of raw URL
+        request_id: newRequestId,
+        ...(prompt.trim() && { prompt: prompt.trim() }),
+      };
+
+      console.log("Test payload:", data);
+      const response = await api.post("/scrape", data);
+
+      if (response.cancelled) {
+        console.log("Test scraping was cancelled");
+        return;
+      }
+
+      setTestResult(
+        response.analysis || response.markdown || "No content returned"
+      );
+      setIsTestDialogOpen(true);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to process test request";
+      setTestResult(`Error: ${errorMessage}`);
+      setIsTestDialogOpen(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Helper method to save data to table column with error handling
   const saveToTableColumn = async (
     processedUrl: string,
@@ -698,7 +766,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   };
 
   return (
-    <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
+    <div className="p-4 rounded-lg border border-white bg-[#141414]">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold text-white">
@@ -806,11 +874,33 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
             needsConfirmation={rowCount > 0}
             rowCount={rowCount}
           />
+          <Button
+            variant="outline"
+            onClick={handleTest}
+            disabled={!url.trim() || isLoading}
+          >
+            Test prompt
+          </Button>
           {rowCount > 0 && (
             <span className="text-sm text-gray-400">({rowCount} rows)</span>
           )}
         </div>
       </div>
+
+      {/* Add the test result dialog */}
+      <AlertDialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Test Result</AlertDialogTitle>
+            <AlertDialogDescription className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap">
+              {testResult}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });

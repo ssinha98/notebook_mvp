@@ -67,7 +67,7 @@ export function NavigationDrawer({
 
   const navigation = [
     {
-      name: "Notebook",
+      name: "Agent Editor",
       href: "/notebook",
       current: router.pathname === "/notebook",
     },

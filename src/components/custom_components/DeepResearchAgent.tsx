@@ -123,7 +123,7 @@ const DeepResearchAgent = forwardRef<
       initialTopic = "",
       isProcessing = false,
       onOpenTools,
-      initialSearchEngine = "perplexity",
+      initialSearchEngine = "firecrawl",
       initialOutputVariable = null,
       blockId,
       agentId,
@@ -147,7 +147,7 @@ const DeepResearchAgent = forwardRef<
     });
     const [searchEngine, setSearchEngine] = useState<
       "perplexity" | "firecrawl" | "openai" | "perplexity sonar-deep-research"
-    >(initialSearchEngine || "perplexity");
+    >(initialSearchEngine || "firecrawl");
 
     // Add these state variables after the existing state
     const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -795,7 +795,7 @@ const DeepResearchAgent = forwardRef<
           perplexityStatus.status === "processing"));
 
     return (
-      <div className="bg-gray-900 rounded-lg border border-gray-700">
+      <div className="bg-[#141414] rounded-lg border border-white">
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <div className="flex items-center gap-2">
             <img
@@ -906,23 +906,55 @@ const DeepResearchAgent = forwardRef<
               ) => setSearchEngine(value)}
             >
               <SelectTrigger className="w-[180px] bg-gray-800 border-gray-700 text-white">
-                <SelectValue placeholder="Select search engine" />
+                <SelectValue>
+                  <div className="flex items-center gap-2">
+                    {searchEngine === "perplexity" && (
+                      <img
+                        src="/perplexity_logo.png"
+                        alt="Perplexity"
+                        className="w-4 h-4"
+                      />
+                    )}
+                    {searchEngine === "perplexity sonar-deep-research" && (
+                      <img
+                        src="/perplexity_logo2.png"
+                        alt="Perplexity Sonar"
+                        className="w-4 h-4"
+                      />
+                    )}
+                    {searchEngine === "openai" && (
+                      <img src="/openai.png" alt="OpenAI" className="w-4 h-4" />
+                    )}
+                    {searchEngine === "firecrawl" && <span>🔥</span>}
+                    <span>{searchEngine}</span>
+                  </div>
+                </SelectValue>
               </SelectTrigger>
               <SelectContent className="bg-gray-900 border-gray-700">
-                <SelectItem value="perplexity" className="text-white">
-                  Perplexity
-                </SelectItem>
                 <SelectItem
                   value="perplexity sonar-deep-research"
                   className="text-white"
                 >
-                  Perplexity - Sonar Deep Research
+                  <div className="flex items-center gap-2">
+                    <img
+                      src="/perplexity_logo2.png"
+                      alt="Perplexity Sonar"
+                      className="w-4 h-4"
+                    />
+                    <span>Perplexity - Sonar Deep Research</span>
+                  </div>
                 </SelectItem>
                 <SelectItem value="firecrawl" className="text-white">
-                  Firecrawl
+                  <div className="flex items-center gap-2">
+                    <span>🔥</span>
+                    <span>Firecrawl</span>
+                  </div>
                 </SelectItem>
                 <SelectItem value="openai" className="text-white">
-                  OpenAI
+                  <div className="flex items-center gap-2">
+                    <img src="/openai.png" alt="OpenAI" className="w-4 h-4" />
+                    <span>OpenAI</span>
+                  </div>
                 </SelectItem>
               </SelectContent>
             </Select>

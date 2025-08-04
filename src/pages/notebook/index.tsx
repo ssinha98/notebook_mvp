@@ -69,7 +69,8 @@ const pageStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   minHeight: "100vh",
-  backgroundColor: "#141414",
+  // backgroundColor: "#141414",
+  backgroundColor: "#000000",
   color: "#f3f4f6",
 };
 
@@ -1968,7 +1969,7 @@ export default function Notebook() {
           )}
 
           {/* Updated Input Variables Section */}
-          <div
+          {/* <div
             style={{
               borderRadius: "10px",
               backgroundColor: "transparent",
@@ -2004,7 +2005,7 @@ export default function Notebook() {
                 <ChevronDown className="h-4 w-4" />
               </button>
             </div>
-          </div>
+          </div> */}
           <CollapsibleBox
             title="Workflow and Tools"
             variables={variables}

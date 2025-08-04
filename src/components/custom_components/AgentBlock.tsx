@@ -882,7 +882,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
 
   return (
     <>
-      <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
+      <div className="p-4 bg-[#141414] rounded-lg border border-white">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

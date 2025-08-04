@@ -702,7 +702,7 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
     }));
 
     return (
-      <div className="bg-gray-900 rounded-lg border border-gray-700">
+      <div className="bg-[#141414] rounded-lg border border-white">
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <div className="flex items-center gap-2">
             <span role="img" aria-label="Apollo" className="text-2xl">

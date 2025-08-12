@@ -96,7 +96,6 @@ export default function AgentsList({
     moveAgentToFolder,
     currentAgent,
   } = useAgentStore();
-  const { resetBlocks } = useSourceStore();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newAgentName, setNewAgentName] = useState("");
   const [agentToDelete, setAgentToDelete] = useState<string | null>(null);
@@ -126,7 +125,6 @@ export default function AgentsList({
 
   const handleCreateAgent = async () => {
     if (newAgentName.trim()) {
-      resetBlocks();
       await createAgent(newAgentName);
       setNewAgentName("");
       setIsCreateDialogOpen(false);

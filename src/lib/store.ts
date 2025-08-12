@@ -10,6 +10,7 @@ import {
 } from "../types/types";
 import { fileManager } from "../tools/fileManager";
 import { arrayMove } from "@dnd-kit/sortable";
+import { useAgentStore } from "./agentStore";
 
 interface FileNickname {
   originalName: string;
@@ -20,30 +21,39 @@ interface FileNickname {
 // Define the SourceStore interface here since it's specific to this file
 interface SourceStore {
   sources: Record<string, Source>;
-  blocks: Block[];
-  nextBlockNumber: number;
+  // Remove data management
+  // ❌ blocks: Block[];
+  // ❌ nextBlockNumber: number;
+
+  // Keep source management
   addSource: (name: string, source: Source) => void;
   removeSource: (name: string) => void;
-  addBlockToNotebook: (block: Block) => void;
-  copyBlockAfter: (blockNumber: number) => void; // Add this line
-  updateBlock: (blockNumber: number, updates: Partial<Block>) => void;
-  removeBlock: (blockNumber: number) => void;
-  deleteBlock: (blockNumber: number) => void;
-  resetBlocks: () => void;
-  updateBlockData: (blockNumber: number, updates: Partial<Block>) => void;
+
+  // Remove block data management
+  // ❌ addBlockToNotebook: (block: Block) => void;
+  // ❌ updateBlock: (blockNumber: number, updates: Partial<Block>) => void;
+  // ❌ removeBlock: (blockNumber: number) => void;
+  // ❌ deleteBlock: (blockNumber: number) => void;
+  // ❌ resetBlocks: () => void;
+  // ❌ updateBlockData: (blockNumber: number, updates: Partial<Block>) => void;
+
+  // Keep UI state management
   currentBlockIndex: number | null;
   isPaused: boolean;
   setCurrentBlockIndex: (index: number | null) => void;
   setIsPaused: (paused: boolean) => void;
-  getBlockList: () => Array<{
-    index: number;
-    blockNumber: number;
-    type: Block["type"];
-    systemPrompt?: string;
-    userPrompt?: string;
-    saveAsCsv?: boolean;
-    sourceName?: string;
-  }>;
+
+  // Keep reordering functionality
+  reorderBlocks: (startIndex: number, endIndex: number) => void;
+  copyBlockAfter: (blockNumber: number) => void;
+  updateBlockName: (blockNumber: number, newName: string) => void;
+
+  // Remove data functions
+  // ❌ getBlockList: () => Array<{...}>;
+  // ❌ setBlocksFromFirebase: (blocks: Block[]) => void;
+  // ❌ syncWithAgentStore: () => void;
+
+  // Keep file management
   fileNicknames: { [key: string]: FileNickname };
   addFileNickname: (
     nickname: string,
@@ -54,8 +64,6 @@ interface SourceStore {
   syncWithFirestore: (userId: string) => Promise<void>;
   clearVariables: () => void;
   clearSources: () => void;
-  reorderBlocks: (startIndex: number, endIndex: number) => void;
-  updateBlockName: (blockNumber: number, newName: string) => void;
 }
 
 const usePromptStore = create<PromptStore>()(
@@ -119,32 +127,21 @@ const usePromptStore = create<PromptStore>()(
   )
 );
 
-// Original source store implementation (commented out)
-/*
-export const useSourceStore = create<SourceStore>((set) => ({
-  sources: {},
-  addSource: (source) =>
-    set((state) => ({
-      sources: { ...state.sources, [source.name]: source },
-    })),
-  removeSource: (name) =>
-    set((state) => {
-      const { [name]: _, ...rest } = state.sources;
-      return { sources: rest };
-    }),
-}));
-*/
-
 // New implementation with persist middleware and initial state
 export const useSourceStore = create<SourceStore>()(
   persist(
     (set, get) => ({
       sources: {},
-      blocks: [],
-      nextBlockNumber: 1,
+      // Remove data state
+      // ❌ blocks: [],
+      // ❌ nextBlockNumber: 1,
+
+      // Keep UI state
       currentBlockIndex: null,
       isPaused: false,
       fileNicknames: {},
+
+      // Keep source management
       addSource: (name: string, source: Source) =>
         set((state) => ({
           sources: { ...state.sources, [name]: source },
@@ -154,110 +151,94 @@ export const useSourceStore = create<SourceStore>()(
           const { [name]: _, ...rest } = state.sources;
           return { sources: rest };
         }),
-      resetBlocks: () =>
-        set(() => ({
-          blocks: [],
-          nextBlockNumber: 1,
-        })),
-      addBlockToNotebook: (block: Block) => {
-        set((state) => {
-          const blocks = [...state.blocks];
 
-          // Find the highest existing block number
-          const maxBlockNumber =
-            blocks.length > 0
-              ? Math.max(...blocks.map((b) => b.blockNumber))
-              : 0;
+      // Remove block data management functions
+      // ❌ resetBlocks: () => set(() => ({ blocks: [], nextBlockNumber: 1 })),
+      // ❌ addBlockToNotebook: (block: Block) => { ... },
+      // ❌ updateBlock: (blockNumber: number, updates: Partial<Block>) => { ... },
+      // ❌ removeBlock: (blockNumber: number) => { ... },
+      // ❌ deleteBlock: (blockNumber: number) => { ... },
+      // ❌ updateBlockData: (blockNumber: number, updates: Partial<Block>) => { ... },
 
-          // Ensure the new block has a unique number
-          const newBlockNumber = Math.max(
-            maxBlockNumber + 1,
-            state.nextBlockNumber
-          );
-
-          // If it's a web agent, ensure it has all required fields
-          if (block.type === "webagent") {
-            block = {
-              ...block,
-              blockNumber: newBlockNumber, // Set the new unique block number
-              url: block.url || "",
-              searchVariable: block.searchVariable || "",
-              selectedVariableId: block.selectedVariableId || "",
-              outputVariable: block.outputVariable || null,
-              results: block.results || [],
-            };
-          } else {
-            block = {
-              ...block,
-              blockNumber: newBlockNumber, // Set the new unique block number
-            };
-          }
-
-          blocks.push(block);
-          return { blocks, nextBlockNumber: newBlockNumber + 1 };
-        });
-      },
-      updateBlock: (blockNumber: number, updates: Partial<Block>) =>
-        set((state) => {
-          return {
-            blocks: state.blocks.map((block): Block => {
-              if (block.blockNumber === blockNumber) {
-                // For CodeBlock types, preserve the status field if it exists
-                if (block.type === "codeblock") {
-                  const updatedBlock = { ...block, ...updates };
-                  if (!updates.hasOwnProperty("status")) {
-                    updatedBlock.status = (block as any).status || "tbd";
-                  }
-                  return updatedBlock as Block;
-                }
-                return { ...block, ...updates } as Block;
-              }
-              return block;
-            }),
-          };
-        }),
-      removeBlock: (blockNumber: number) =>
-        set((state) => ({
-          blocks: state.blocks.filter(
-            (block) => block.blockNumber !== blockNumber
-          ),
-        })),
-      deleteBlock: (blockNumber: number) =>
-        set((state) => ({
-          blocks: state.blocks.filter(
-            (block) => block.blockNumber !== blockNumber
-          ),
-        })),
-      updateBlockData: (blockNumber: number, updates: Partial<Block>) =>
-        set((state) => ({
-          blocks: state.blocks.map((block): Block => {
-            if (block.blockNumber === blockNumber) {
-              return { ...block, ...updates } as Block;
-            }
-            return block;
-          }),
-        })),
+      // Keep UI state management
       setCurrentBlockIndex: (index: number | null) =>
         set({ currentBlockIndex: index }),
       setIsPaused: (paused: boolean) => set({ isPaused: paused }),
-      getBlockList: () => {
-        const blocks = get().blocks;
-        const sortedBlocks = [...blocks].sort(
-          (a, b) => a.blockNumber - b.blockNumber
+
+      // Keep reordering functionality (but update to work with AgentStore)
+      reorderBlocks: (startIndex: number, endIndex: number) => {
+        const currentAgent = useAgentStore.getState().currentAgent;
+        if (!currentAgent?.blocks) return;
+
+        const blocks = arrayMove(
+          [...currentAgent.blocks],
+          startIndex,
+          endIndex
+        );
+        // Update blockNumbers to reflect new order
+        blocks.forEach((block, index) => {
+          block.blockNumber = index + 1;
+        });
+
+        // Update AgentStore with reordered blocks
+        useAgentStore.getState().updateCurrentAgent({
+          ...currentAgent,
+          blocks: blocks,
+        });
+      },
+
+      updateBlockName: (blockNumber: number, newName: string) => {
+        const currentAgent = useAgentStore.getState().currentAgent;
+        if (!currentAgent?.blocks) return;
+
+        const updatedBlocks = currentAgent.blocks.map((block) =>
+          block.blockNumber === blockNumber
+            ? { ...block, name: newName }
+            : block
         );
 
-        return sortedBlocks.map((block, index) => ({
-          index,
-          blockNumber: block.blockNumber,
-          type: block.type,
-          ...(block.type === "agent" && {
-            systemPrompt: block.systemPrompt,
-            userPrompt: block.userPrompt,
-            saveAsCsv: block.saveAsCsv,
-            sourceName: block.sourceInfo?.nickname,
-          }),
-        }));
+        useAgentStore.getState().updateCurrentAgent({
+          ...currentAgent,
+          blocks: updatedBlocks,
+        });
       },
+
+      copyBlockAfter: (blockNumber: number) => {
+        const currentAgent = useAgentStore.getState().currentAgent;
+        if (!currentAgent?.blocks) return;
+
+        const sourceBlock = currentAgent.blocks.find(
+          (b) => b.blockNumber === blockNumber
+        );
+        if (!sourceBlock) return;
+
+        const copiedBlock: Block = {
+          ...sourceBlock,
+          id: crypto.randomUUID(),
+          name: `${sourceBlock.name} (Copy)`,
+        };
+
+        const blocks = [...currentAgent.blocks];
+        const sourceIndex = blocks.findIndex(
+          (b) => b.blockNumber === blockNumber
+        );
+        const newBlockNumber =
+          Math.max(...blocks.map((b) => b.blockNumber)) + 1;
+
+        const finalBlock = {
+          ...copiedBlock,
+          blockNumber: newBlockNumber,
+        };
+
+        blocks.splice(sourceIndex + 1, 0, finalBlock);
+
+        useAgentStore.getState().updateCurrentAgent({
+          ...currentAgent,
+          blocks: blocks,
+        });
+      },
+
+      // Keep file management
       addFileNickname: (
         nickname: string,
         originalName: string,
@@ -301,61 +282,6 @@ export const useSourceStore = create<SourceStore>()(
           sources: {},
         }));
       },
-      reorderBlocks: (startIndex: number, endIndex: number) => {
-        set((state) => {
-          const blocks = arrayMove([...state.blocks], startIndex, endIndex);
-          // Update blockNumbers to reflect new order
-          blocks.forEach((block, index) => {
-            block.blockNumber = index + 1;
-          });
-          return { blocks };
-        });
-      },
-      updateBlockName: (blockNumber: number, newName: string) => {
-        set((state) => ({
-          blocks: state.blocks.map((block) =>
-            block.blockNumber === blockNumber
-              ? { ...block, name: newName }
-              : block
-          ),
-        }));
-      },
-      copyBlockAfter: (blockNumber: number) => {
-        const sourceBlock = get().blocks.find(
-          (b) => b.blockNumber === blockNumber
-        );
-        if (!sourceBlock) return;
-
-        // Use existing addBlockToNotebook logic but with copied properties
-        const copiedBlock: Block = {
-          ...sourceBlock,
-          id: crypto.randomUUID(),
-          name: `${sourceBlock.name} (Copy)`,
-        };
-
-        // Insert at specific position instead of end
-        set((state) => {
-          const blocks = [...state.blocks];
-          const sourceIndex = blocks.findIndex(
-            (b) => b.blockNumber === blockNumber
-          );
-          const newBlockNumber =
-            Math.max(...blocks.map((b) => b.blockNumber)) + 1;
-
-          const finalBlock = {
-            ...copiedBlock,
-            blockNumber: newBlockNumber,
-          };
-
-          // This line inserts the copied block immediately after the source block
-          blocks.splice(sourceIndex + 1, 0, finalBlock);
-
-          return {
-            blocks,
-            nextBlockNumber: newBlockNumber + 1,
-          };
-        });
-      },
     }),
     {
       name: "source-storage",
@@ -364,6 +290,7 @@ export const useSourceStore = create<SourceStore>()(
   )
 );
 
-export const getBlockList = () => useSourceStore.getState().getBlockList();
+// Remove the getBlockList export since we removed the function
+// ❌ export const getBlockList = () => useSourceStore.getState().getBlockList();
 
 export default usePromptStore;

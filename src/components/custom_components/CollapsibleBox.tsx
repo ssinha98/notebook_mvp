@@ -59,6 +59,7 @@ import TableTransformBlock, {
   TableTransformBlockRef,
 } from "./TableTransformBlock";
 import { TableTransformBlock as TableTransformBlockType } from "@/types/types";
+import { useAgentStore } from "@/lib/agentStore";
 
 interface CollapsibleBoxProps {
   title: string;
@@ -80,8 +81,11 @@ interface CollapsibleBoxProps {
     outputVariable?: {
       id: string;
       name: string;
-      type: "input" | "intermediate";
-    } | null
+      type: "input" | "intermediate" | "table";
+      columnName?: string;
+    } | null,
+    containsPrimaryInput?: boolean,
+    skip?: boolean
   ) => void;
   blockRefs?: React.MutableRefObject<{
     [key: number]:
@@ -106,13 +110,10 @@ const CollapsibleBox = forwardRef<
   AgentBlockRef | SearchAgentRef,
   CollapsibleBoxProps
 >((props, ref) => {
-  const blocks = useSourceStore((state) => state.blocks);
-  const updateBlock = useSourceStore((state) => state.updateBlock);
-  const addBlockToNotebook = useSourceStore(
-    (state) => state.addBlockToNotebook
-  );
-  const deleteBlock = useSourceStore((state) => state.deleteBlock);
-  const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
+  const { currentAgent, updateBlockData, deleteBlock } = useAgentStore();
+  const blocks = currentAgent?.blocks || [];
+  const nextBlockNumber =
+    blocks.length > 0 ? Math.max(...blocks.map((b) => b.blockNumber)) + 1 : 1;
   const [processingBlocks, setProcessingBlocks] = useState<{
     [key: number]: boolean;
   }>({});
@@ -174,7 +175,12 @@ const CollapsibleBox = forwardRef<
       ...(blockType === "make" && { webhookUrl: "", parameters: [] }),
     } as Block;
 
-    addBlockToNotebook(block);
+    if (!currentAgent) return;
+
+    useAgentStore.getState().updateCurrentAgent({
+      ...currentAgent,
+      blocks: [...currentAgent.blocks, block],
+    });
   };
 
   const handleProcessingChange = (
@@ -256,7 +262,7 @@ const CollapsibleBox = forwardRef<
                 previewData: block.transformations?.previewData || [],
               }}
               onTransformationsUpdate={(updates) =>
-                updateBlock(block.blockNumber, updates)
+                updateBlockData(block.blockNumber, updates)
               }
               onDeleteBlock={(blockNumber) => {
                 deleteBlock(blockNumber);
@@ -310,7 +316,7 @@ const CollapsibleBox = forwardRef<
               }}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber, updates) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               variables={props.variables || []}
               onAddVariable={props.onAddVariable || (() => {})}
@@ -358,15 +364,19 @@ const CollapsibleBox = forwardRef<
                 userPrompt,
                 saveAsCsv,
                 sourceInfo,
-                outputVariable
+                outputVariable,
+                containsPrimaryInput,
+                skip
               ) => {
-                updateBlock(block.blockNumber, {
+                updateBlockData(block.blockNumber, {
                   ...block,
                   systemPrompt,
                   userPrompt,
                   saveAsCsv,
                   sourceInfo,
-                  outputVariable: outputVariable,
+                  outputVariable,
+                  containsPrimaryInput,
+                  skip,
                   type: "agent",
                   agentId: props.agentId || "",
                 });
@@ -417,7 +427,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onSave={(values) => {
-                updateBlock(block.blockNumber, {
+                updateBlockData(block.blockNumber, {
                   ...values,
                   type: "contact",
                   agentId: props.agentId || "",
@@ -457,7 +467,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber, updates) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               onAddVariable={props.onAddVariable || (() => {})}
               onOpenTools={props.onOpenTools}
@@ -488,7 +498,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber: number, updates: any) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               onAddVariable={props.onAddVariable || (() => {})}
               onOpenTools={props.onOpenTools}
@@ -532,7 +542,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber, updates) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               initialWebhookUrl={block.webhookUrl}
               initialParameters={block.parameters}
@@ -563,7 +573,7 @@ const CollapsibleBox = forwardRef<
                 blockNumber: number,
                 updates: Partial<ExcelAgentBlock>
               ) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               initialPrompt={block.prompt}
               isProcessing={processingBlocks[block.blockNumber] || false}
@@ -595,7 +605,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber, updates) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               variables={props.variables || []}
               onAddVariable={props.onAddVariable || (() => {})}
@@ -629,7 +639,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber, updates) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               initialTopic={block.topic}
               isProcessing={processingBlocks[block.blockNumber] || false}
@@ -661,7 +671,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber, updates) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               initialPrompt={block.prompt}
               isProcessing={processingBlocks[block.blockNumber] || false}
@@ -688,7 +698,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber, updates) => {
-                updateBlock(blockNumber, updates as Partial<Block>);
+                updateBlockData(blockNumber, updates as Partial<Block>);
               }}
               initialPrompt={block.prompt}
               initialChartType={block.chartType}
@@ -720,7 +730,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber, updates) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               initialPrompt={(block as ClickUpAgentBlock).prompt}
               isProcessing={processingBlocks[block.blockNumber] || false}
@@ -747,7 +757,7 @@ const CollapsibleBox = forwardRef<
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
               onUpdateBlock={(blockNumber, updates) => {
-                updateBlock(blockNumber, updates);
+                updateBlockData(blockNumber, updates);
               }}
               initialPrompt={(block as GoogleDriveAgentBlock).prompt}
               isProcessing={processingBlocks[block.blockNumber] || false}
@@ -772,7 +782,7 @@ const CollapsibleBox = forwardRef<
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onCopyBlock={copyBlock}
-              onUpdateBlock={updateBlock}
+              onUpdateBlock={updateBlockData}
               initialFullName={block.fullName}
               initialFirstName={block.firstName}
               initialLastName={block.lastName}
@@ -800,7 +810,7 @@ const CollapsibleBox = forwardRef<
               }}
               block={block as TableTransformBlockType}
               onBlockUpdate={(updatedBlock) =>
-                updateBlock(updatedBlock.blockNumber, updatedBlock)
+                updateBlockData(updatedBlock.blockNumber, updatedBlock)
               }
             />
           </div>

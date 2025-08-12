@@ -1,7 +1,7 @@
 import React, { forwardRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { FiSettings, FiInfo } from "react-icons/fi";
-import { DeepResearchAgentBlock, TableVariable } from "@/types/types";
+import { DeepResearchAgentBlock, TableVariable, Agent } from "@/types/types";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -45,11 +45,13 @@ import {
   PerplexityResearchHandler,
   PerplexityStatusData,
 } from "@/tools/perplexityResearch";
-import { auth } from "@/tools/firebase";
+import { auth, db } from "@/tools/firebase";
 import { useDeepResearchStream } from "@/hooks/useDeepResearchStream";
 import { IoExpandSharp } from "react-icons/io5";
 import ResearchResultsSection from "./ResearchResultsSection";
 import CustomEditor from "@/components/CustomEditor";
+import { useRouter } from "next/router";
+import { getDoc, doc } from "firebase/firestore";
 
 interface SearchResult {
   date?: string | null;
@@ -87,10 +89,12 @@ interface DeepResearchAgentProps {
   } | null;
   blockId?: string;
   agentId?: string;
+  containsPrimaryInput?: boolean;
+  skip?: boolean; // Add skip prop
 }
 
 interface DeepResearchAgentRef {
-  processBlock: () => Promise<boolean>;
+  processBlock: (isManualRun?: boolean) => Promise<boolean>;
 }
 
 // Add debounce hook
@@ -127,9 +131,12 @@ const DeepResearchAgent = forwardRef<
       initialOutputVariable = null,
       blockId,
       agentId,
+      containsPrimaryInput,
+      skip, // Add skip to destructuring
     },
     ref
   ) => {
+    const router = useRouter(); // ← Move this to component level
     const [topic, setTopic] = useState(initialTopic);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string>("");
@@ -183,8 +190,10 @@ const DeepResearchAgent = forwardRef<
     const { updateBlockName } = useSourceStore();
 
     // Get current block to display its name
-    const currentBlock = useSourceStore((state) =>
-      state.blocks.find((block) => block.blockNumber === blockNumber)
+    const currentBlock = useAgentStore((state) =>
+      state.currentAgent?.blocks.find(
+        (block) => block.blockNumber === blockNumber
+      )
     );
 
     // Debounced update function
@@ -477,18 +486,101 @@ const DeepResearchAgent = forwardRef<
       }
     }, [researchResults]);
 
-    // Update the processBlock function to handle Perplexity
-    const processBlock = async () => {
+    // Update the processBlock function to use SearchAgent flow
+    const processBlock = async (isManualRun: boolean = true) => {
       try {
         setError("");
         setResearchResults(null);
         setIsLoading(true);
 
-        if (!topic.trim()) {
+        // STEP 1: For manual runs, save current UI state to Firebase first
+        if (isManualRun) {
+          const currentBlock = currentAgent?.blocks?.find(
+            (b) => b.blockNumber === blockNumber
+          );
+
+          if (!currentBlock) {
+            setError("Block not found");
+            return false;
+          }
+
+          // Update the block with current local state
+          const updatedBlockData: Partial<DeepResearchAgentBlock> = {
+            ...currentBlock,
+            type: "deepresearchagent",
+            blockNumber: blockNumber,
+            topic: topic,
+            searchEngine: searchEngine,
+            outputVariable: currentBlock.outputVariable,
+          };
+
+          // Update the block in the agent store
+          const { updateBlockData, saveAgent } = useAgentStore.getState();
+          updateBlockData(blockNumber, updatedBlockData);
+
+          // Save to Firebase
+          const agentToSave = useAgentStore.getState().currentAgent;
+          if (!agentToSave) {
+            setError("No agent to save");
+            return false;
+          }
+
+          await saveAgent(agentToSave.blocks);
+          console.log(
+            "Block data saved to Firebase before research (manual run)"
+          );
+        } else {
+          console.log(
+            "Skipping UI state save for automated research - using existing Firebase data"
+          );
+        }
+
+        // STEP 2: ALWAYS fetch fresh data from Firebase (both manual and automated)
+        const userId = auth.currentUser?.uid;
+        const { agentId } = router.query;
+
+        if (!userId || !agentId || typeof agentId !== "string") {
+          setError("Authentication or agent error");
+          return false;
+        }
+
+        const agentDoc = await getDoc(
+          doc(db, `users/${userId}/agents`, agentId)
+        );
+
+        if (!agentDoc.exists()) {
+          setError("Agent not found");
+          return false;
+        }
+
+        const agent = { id: agentDoc.id, ...agentDoc.data() } as Agent;
+        const freshBlock = agent.blocks.find(
+          (b) => b.blockNumber === blockNumber
+        );
+
+        if (!freshBlock || freshBlock.type !== "deepresearchagent") {
+          setError("Deep research block not found");
+          return false;
+        }
+
+        // NEW: Check if block should be skipped
+        if (freshBlock.skip) {
+          console.log(
+            `Skipping deep research block ${blockNumber} - skip flag is true`
+          );
+          return true; // Return true to indicate successful skip
+        }
+
+        // Use fresh Firebase data for research
+        const topicToUse = (freshBlock as DeepResearchAgentBlock).topic || "";
+        console.log("Using fresh Firebase topic for research:", topicToUse);
+
+        if (!topicToUse.trim()) {
           setError("Please enter a research topic");
           return false;
         }
 
+        // Rest of the existing research logic using topicToUse...
         if (searchEngine === "perplexity sonar-deep-research") {
           // Clear any existing interval first
           if (perplexityPollInterval) {
@@ -504,7 +596,7 @@ const DeepResearchAgent = forwardRef<
           }
 
           const result = await PerplexityResearchHandler.startResearch({
-            query: topic,
+            query: topicToUse,
             blockId: blockId,
             agentId: currentAgent.id,
           });
@@ -564,7 +656,7 @@ const DeepResearchAgent = forwardRef<
           }
 
           const result = await OpenAIResearchHandler.startResearch({
-            prompt: topic,
+            prompt: topicToUse,
             blockId: blockId,
             agentId: currentAgent.id,
           });
@@ -585,7 +677,7 @@ const DeepResearchAgent = forwardRef<
         } else {
           // Handle existing Perplexity/Firecrawl flow
           const response = await api.post("/deepresearch", {
-            prompt: topic.trim(),
+            prompt: topicToUse.trim(),
             search_engine: searchEngine,
           });
 
@@ -621,7 +713,9 @@ const DeepResearchAgent = forwardRef<
     };
 
     React.useImperativeHandle(ref, () => ({
-      processBlock,
+      processBlock: async () => {
+        return processBlock(false); // Pass false for automated runs
+      },
     }));
 
     // Add cleanup effect
@@ -815,6 +909,41 @@ const DeepResearchAgent = forwardRef<
                   blockNumber={blockNumber}
                   onNameUpdate={updateBlockName}
                 />
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`primary-input-${blockNumber}`}
+                    checked={currentBlock?.containsPrimaryInput || false}
+                    onCheckedChange={(checked) => {
+                      onUpdateBlock(blockNumber, {
+                        containsPrimaryInput: checked as boolean,
+                      });
+                    }}
+                    className="border-gray-600 bg-gray-700"
+                  />
+                  <label
+                    htmlFor={`primary-input-${blockNumber}`}
+                    className="text-sm text-gray-400"
+                  >
+                    Contains Primary Input
+                  </label>
+                </div>
+                {/* Add the skip control here */}
+                <Checkbox
+                  id={`skip-if-no-input-${blockNumber}`}
+                  checked={currentBlock?.skip || false}
+                  onCheckedChange={(checked) => {
+                    onUpdateBlock(blockNumber, {
+                      skip: checked as boolean,
+                    });
+                  }}
+                  className="border-gray-600 bg-gray-700"
+                />
+                <label
+                  htmlFor={`skip-if-no-input-${blockNumber}`}
+                  className="text-sm text-gray-400"
+                >
+                  Skip block
+                </label>
               </div>
               <Badge
                 variant="secondary"
@@ -1077,7 +1206,7 @@ const DeepResearchAgent = forwardRef<
 
         <div className="flex justify-start gap-2 p-4 border-t border-gray-700">
           <Button
-            onClick={processBlock}
+            onClick={() => processBlock(true)}
             disabled={
               isLoading ||
               isProcessing ||

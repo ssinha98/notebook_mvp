@@ -43,6 +43,11 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { getDoc, doc } from "firebase/firestore";
+import { db, auth } from "@/tools/firebase";
+import { useRouter } from "next/router";
+import { Agent } from "@/types/types";
 
 interface WebAgentProps {
   blockNumber: number;
@@ -60,6 +65,8 @@ interface WebAgentProps {
     columnName?: string;
   } | null;
   onOpenTools?: () => void;
+  containsPrimaryInput?: boolean;
+  skip?: boolean; // Add this line
 }
 
 interface WebResponse {
@@ -91,6 +98,7 @@ const useDebounce = (value: string, delay: number) => {
 };
 
 const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
+  const router = useRouter();
   const {
     blockNumber,
     onDeleteBlock,
@@ -131,21 +139,16 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   // const variables = useVariableStore((state) => state.variables);
   const currentAgent = useAgentStore((state) => state.currentAgent);
 
-  // Add store hook for updating block names
-  const { updateBlockName, copyBlockAfter } = useSourceStore();
+  // Get reordering functions from AgentStore instead of SourceStore
+  const { updateBlockName, copyBlockAfter } = useAgentStore();
 
-  // Get current block to display its name
-  const currentBlock = useSourceStore((state) =>
-    state.blocks.find((block) => block.blockNumber === blockNumber)
+  // Get current block from AgentStore instead of SourceStore
+  const currentBlock = currentAgent?.blocks?.find(
+    (block) => block.blockNumber === blockNumber
   );
 
-  // Load variables when component mounts
-  React.useEffect(() => {
-    const currentAgentId = useAgentStore.getState().currentAgent?.id;
-    if (currentAgentId) {
-      useVariableStore.getState().loadVariables(currentAgentId);
-    }
-  }, []);
+  // Variables are now loaded centrally in the notebook page
+  // No need to load them in each individual block component
 
   // Update local state when props change
   React.useEffect(() => {
@@ -176,6 +179,11 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       setSelectedVariableId(initialOutputVariable.id);
     }
   }, [initialOutputVariable]);
+
+  // Remove the useEffect that syncs local state with props
+  // React.useEffect(() => {
+  //   setskip(props.skip || false);
+  // }, [props.skip]);
 
   // Debounced update functions
   const debouncedUpdateBlock = useCallback(
@@ -275,14 +283,32 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   const processVariablesInText = (text: string): string => {
     const regex = /{{(.*?)}}/g;
     return text.replace(regex, (match, varName) => {
+      const trimmedName = varName.trim();
+
+      // Handle table.column references
+      if (trimmedName.includes(".")) {
+        const [tableName, columnName] = trimmedName.split(".");
+        const tableVar = useVariableStore
+          .getState()
+          .getVariableByName(tableName);
+        if (tableVar?.type === "table") {
+          const columnValues = useVariableStore
+            .getState()
+            .getTableColumn(tableVar.id, columnName);
+          return JSON.stringify(columnValues);
+        }
+      }
+
+      // Handle regular variables
       const variable = useVariableStore
         .getState()
-        .getVariableByName(varName.trim());
+        .getVariableByName(trimmedName);
       if (!variable) return match;
 
       // Handle table variables
       if (variable.type === "table") {
-        return "[Table data]"; // Or format table data as needed
+        const rows = Array.isArray(variable.value) ? variable.value : [];
+        return JSON.stringify(rows);
       }
 
       return String(variable.value || match);
@@ -365,6 +391,19 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
     return values;
   };
 
+  // 🆕 ADD: Helper function to extract column name from URL variable reference
+  const extractColumnNameFromUrl = (urlText: string): string => {
+    const match = urlText.match(/{{(.*?)}}/);
+    if (match) {
+      const variableName = match[1].trim();
+      if (variableName.includes(".")) {
+        const [tableName, columnName] = variableName.split(".");
+        return columnName;
+      }
+    }
+    return "urls"; // fallback
+  };
+
   // Add state variables after existing state
   const [isRunning, setIsRunning] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -384,161 +423,216 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
     }
   };
 
-  // Update handleFetch function
+  // Replace the existing handleFetch function
   const handleFetch = async () => {
-    if (!url.trim()) return;
-
     const newRequestId = crypto.randomUUID();
     setRequestId(newRequestId);
     setIsRunning(true);
-    console.log("Starting web fetch with request_id:", newRequestId);
-    setIsLoading(true);
-    setResponse(null);
 
     try {
-      // Check if URL is a table variable reference
-      if (url.match(/{{.*?}}/)) {
-        const [tableName, columnName] = url.replace(/[{}]/g, "").split(".");
-        const tableUrls = getTableColumnValues(`${tableName}.${columnName}`);
+      // Direct Firebase fetch for fresh data
+      const userId = auth.currentUser?.uid;
+      const { agentId } = router.query;
 
-        if (tableUrls.length === 0) {
-          setResponse({ error: "No URLs found in table column" });
-          return;
-        }
+      console.log("=== WebAgent Debug ===");
+      console.log("User ID:", userId);
+      console.log("Agent ID:", agentId);
 
-        const summaries = [];
-        const errors = [];
+      if (!userId || !agentId || typeof agentId !== "string") {
+        toast.error("Authentication or agent error");
+        return false;
+      }
 
-        // Process URLs sequentially with individual error handling
-        for (const processedUrl of tableUrls) {
-          try {
-            if (!processedUrl || !processedUrl.trim()) {
-              throw new Error("Empty or invalid URL");
-            }
+      const agentDoc = await getDoc(doc(db, `users/${userId}/agents`, agentId));
+      if (!agentDoc.exists()) {
+        toast.error("Agent not found");
+        return false;
+      }
 
-            const data = {
-              url: processedUrl.trim(),
-              request_id: newRequestId,
-              ...(prompt.trim() && { prompt: prompt.trim() }),
-            };
+      const agent = { id: agentDoc.id, ...agentDoc.data() } as Agent;
+      const freshBlock = agent.blocks.find(
+        (b) => b.blockNumber === blockNumber
+      );
 
-            console.log("Web fetch payload:", data);
-            const response = await api.post("/scrape", data);
+      console.log("Fresh block from Firebase:", freshBlock);
 
-            // Handle cancellation gracefully
-            if (response.cancelled) {
-              console.log("Web scraping was cancelled by user");
-              return;
-            }
+      if (!freshBlock || freshBlock.type !== "webagent") {
+        toast.error("Web agent block not found");
+        return false;
+      }
 
-            if (!response?.analysis) {
-              throw new Error("No analysis returned from API");
-            }
+      // 🆕 ADD: Check skip status from fresh Firebase data
+      if (freshBlock.skip) {
+        console.log(
+          `❌ SKIPPING WebAgent ${blockNumber} - skip flag is true in Firebase`
+        );
+        return true; // Return true to indicate successful skip
+      }
 
-            // Handle successful response
-            if (selectedVariableId.includes(":")) {
-              await saveToTableColumn(
-                processedUrl,
-                columnName,
-                response.analysis
-              );
-            } else {
-              summaries.push(response.analysis);
-            }
-          } catch (err) {
-            const errorMessage =
-              err instanceof Error ? err.message : "Unknown error occurred";
-            console.error(`Error processing URL ${processedUrl}:`, err);
+      console.log(
+        `✅ EXECUTING WebAgent ${blockNumber} - skip flag is false in Firebase`
+      );
 
-            if (selectedVariableId.includes(":")) {
-              await saveToTableColumn(
-                processedUrl,
-                columnName,
-                `Error: ${errorMessage}`
-              );
-            }
+      // Refresh variables from Firebase before processing
+      await useVariableStore.getState().loadVariables(agent.id);
 
-            errors.push({
-              url: processedUrl,
-              error: errorMessage,
-            });
-          }
-        }
+      // Use fresh Firebase data
+      const urlToUse = freshBlock.url || "";
+      const promptToUse = freshBlock.prompt || "";
 
-        // Show summary of results
-        if (errors.length > 0) {
-          toast.warning(
-            `${errors.length} of ${tableUrls.length} URL(s) failed to process. Check table for details.`
+      console.log("URL to use:", urlToUse);
+      console.log("Prompt to use:", promptToUse);
+
+      if (!urlToUse.trim()) {
+        toast.error("URL is required");
+        return false;
+      }
+
+      const processedUrl = processVariablesInText(urlToUse);
+      const processedPrompt = processVariablesInText(promptToUse);
+
+      console.log("Processed URL:", processedUrl);
+      console.log("Processed prompt:", processedPrompt);
+
+      // Check if processedUrl is a JSON array (table column values)
+      let urlsToProcess: string[] = [];
+      try {
+        const parsedUrls = JSON.parse(processedUrl);
+        if (Array.isArray(parsedUrls)) {
+          urlsToProcess = parsedUrls.filter(
+            (url) => url && typeof url === "string"
           );
+        } else {
+          urlsToProcess = [processedUrl];
         }
+      } catch {
+        // Not JSON, treat as single URL
+        urlsToProcess = [processedUrl];
+      }
 
-        if (summaries.length > 0) {
-          toast.success(`Successfully processed ${summaries.length} URL(s)`);
-        }
+      console.log("URLs to process:", urlsToProcess);
 
-        // Save results for non-table variables
-        if (!selectedVariableId.includes(":") && summaries.length > 0) {
-          await useVariableStore
-            .getState()
-            .updateVariable(selectedVariableId, summaries.join(", "));
-        }
+      // Process each URL individually
+      const results = [];
+      for (const singleUrl of urlsToProcess) {
+        if (!singleUrl.trim()) continue;
 
-        setOutput(summaries);
-        setResponse({
-          analysis:
-            summaries.length > 0
-              ? summaries.join(", ")
-              : "All URLs processed (check table for results)",
-        });
-      } else {
-        // Original single URL logic
-        const data = {
-          url: url.trim(),
+        const requestPayload = {
+          url: singleUrl,
+          prompt: processedPrompt,
           request_id: newRequestId,
-          ...(prompt.trim() && { prompt: prompt.trim() }),
         };
 
-        console.log("Web fetch payload:", data);
-        const response = await api.post("/scrape", data);
+        console.log("Processing URL:", singleUrl);
 
-        // Handle cancellation gracefully
-        if (response.cancelled) {
-          console.log("Web scraping was cancelled by user");
-          return;
-        }
+        try {
+          const response = await api.post("/scrape", requestPayload);
 
-        setResponse(response);
-        setOutput(response);
+          if (response && (response.markdown || response.analysis)) {
+            const content = response.analysis || response.markdown;
+            results.push({
+              url: singleUrl,
+              content: content,
+            });
 
-        // Save to variable if selected
-        if (selectedVariableId && response) {
-          const contentToSave = response.analysis || response.markdown || "";
+            // Save to variable if selected - update existing rows
+            if (selectedVariableId && selectedVariableId.includes(":")) {
+              const [tableId, outputColumn] = selectedVariableId.split(":");
+              const tableVar = useVariableStore.getState().variables[tableId];
 
-          // Check if it's a table variable (has ":")
-          if (selectedVariableId.includes(":")) {
-            // Table variable - save as new row
-            const [tableId, columnName] = selectedVariableId.split(":");
-            await useVariableStore
-              .getState()
-              .addTableRow(tableId, { [columnName]: contentToSave });
+              if (tableVar?.type === "table" && Array.isArray(tableVar.value)) {
+                const urlColumnName = extractColumnNameFromUrl(urlToUse);
+                const rowToUpdate = tableVar.value.find(
+                  (row) => row[urlColumnName] === singleUrl
+                );
+                if (rowToUpdate) {
+                  await useVariableStore
+                    .getState()
+                    .updateTableRow(tableId, rowToUpdate.id, {
+                      [outputColumn]: content,
+                    });
+                }
+              }
+            }
           } else {
-            // Regular variable - save directly
-            await useVariableStore
-              .getState()
-              .updateVariable(selectedVariableId, contentToSave);
+            console.log("No valid data for URL:", singleUrl);
+            // Save error message to table
+            if (selectedVariableId && selectedVariableId.includes(":")) {
+              const [tableId, outputColumn] = selectedVariableId.split(":");
+              const tableVar = useVariableStore.getState().variables[tableId];
+
+              if (tableVar?.type === "table" && Array.isArray(tableVar.value)) {
+                const urlColumnName = extractColumnNameFromUrl(urlToUse);
+                const rowToUpdate = tableVar.value.find(
+                  (row) => row[urlColumnName] === singleUrl
+                );
+                if (rowToUpdate) {
+                  await useVariableStore
+                    .getState()
+                    .updateTableRow(tableId, rowToUpdate.id, {
+                      [outputColumn]: "Error: No valid data returned",
+                    });
+                }
+              }
+            }
           }
+        } catch (error) {
+          console.error("Error processing URL:", singleUrl, error);
+
+          // Save error message to table
+          if (selectedVariableId && selectedVariableId.includes(":")) {
+            const [tableId, outputColumn] = selectedVariableId.split(":");
+            const tableVar = useVariableStore.getState().variables[tableId];
+
+            if (tableVar?.type === "table" && Array.isArray(tableVar.value)) {
+              const urlColumnName = extractColumnNameFromUrl(urlToUse);
+              const rowToUpdate = tableVar.value.find(
+                (row) => row[urlColumnName] === singleUrl
+              );
+              if (rowToUpdate) {
+                const errorMessage = `Error: ${error instanceof Error ? error.message : "Unknown error"}`;
+                await useVariableStore
+                  .getState()
+                  .updateTableRow(tableId, rowToUpdate.id, {
+                    [outputColumn]: errorMessage,
+                  });
+              }
+            }
+          }
+          // Continue with next URL instead of stopping
         }
       }
-    } catch (error) {
-      console.error("Overall process error:", error);
-      setResponse({
-        error:
-          error instanceof Error ? error.message : "Failed to process request",
-      });
+
+      // Combine results
+      if (results.length > 0) {
+        const combinedContent = results
+          .map((r) => `${r.url}: ${r.content}`)
+          .join("\n\n");
+        setResponse({ analysis: combinedContent });
+        setOutput(combinedContent);
+        return true;
+      } else {
+        toast.error("No valid results from any URLs");
+        return false;
+      }
+    } catch (error: any) {
+      console.error("❌ Catch block - Fetch error:", error);
+      console.error("Error type:", typeof error);
+      console.error("Error message:", error?.message);
+      console.error("Error stack:", error?.stack);
+
+      if (error.message?.includes("cancelled")) {
+        console.log("Web scraping was cancelled by user");
+      } else {
+        toast.error(
+          "Web scraping failed: " + (error?.message || "Unknown error")
+        );
+      }
+      return false;
     } finally {
-      setIsLoading(false);
       setIsRunning(false);
       setRequestId(null);
+      console.log("=== End WebAgent Debug ===");
     }
   };
 
@@ -754,7 +848,7 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
   useEffect(() => {
     const count = getRowCountForUrl(url);
     setRowCount(count);
-  }, [url, variables]); // Now watches both URL and variables for changes
+  }, [url]); // Remove variables dependency - getRowCountForUrl gets fresh data internally
 
   // Add auto-resize functionality for textarea
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -777,6 +871,41 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
             blockNumber={blockNumber}
             onNameUpdate={updateBlockName}
           />
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`primary-input-${blockNumber}`}
+              checked={currentBlock?.containsPrimaryInput || false}
+              onCheckedChange={(checked) => {
+                onUpdateBlock(blockNumber, {
+                  containsPrimaryInput: checked as boolean,
+                });
+              }}
+              className="border-gray-600 bg-gray-700"
+            />
+            <label
+              htmlFor={`primary-input-${blockNumber}`}
+              className="text-sm text-gray-400"
+            >
+              Contains Primary Input
+            </label>
+          </div>
+          {/* Add the skipControl here */}
+          <Checkbox
+            id={`skip-if-no-input-${blockNumber}`}
+            checked={currentBlock?.skip || false}
+            onCheckedChange={(checked) => {
+              props.onUpdateBlock(blockNumber, {
+                skip: checked as boolean,
+              });
+            }}
+            className="border-gray-600 bg-gray-700"
+          />
+          <label
+            htmlFor={`skip-if-no-input-${blockNumber}`}
+            className="text-sm text-gray-400"
+          >
+            Skip block
+          </label>
         </div>
         <Popover>
           <PopoverTrigger>

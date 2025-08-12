@@ -159,12 +159,8 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
       fetchFiles();
     }, [user, addFileNickname]);
 
-    // Load variables when component mounts
-    useEffect(() => {
-      if (currentAgentId) {
-        useVariableStore.getState().loadVariables(currentAgentId);
-      }
-    }, [currentAgentId]);
+    // Variables are now loaded centrally in the notebook page
+    // No need to load them in each individual block component
 
     // Load initial prompt only once
     useEffect(() => {

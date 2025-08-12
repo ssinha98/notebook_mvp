@@ -46,6 +46,11 @@ import BlockNameEditor from "./BlockNameEditor";
 import { BlockButton } from "./BlockButton";
 import CustomEditor from "@/components/CustomEditor";
 import { FiSettings, FiInfo } from "react-icons/fi";
+import { Label } from "@/components/ui/label";
+import { getDoc, doc } from "firebase/firestore";
+import { db, auth } from "@/tools/firebase";
+import { useRouter } from "next/router";
+import { Agent } from "@/types/types";
 
 interface SearchAgentProps {
   blockNumber: number;
@@ -79,6 +84,8 @@ interface SearchAgentProps {
     type: "input" | "intermediate" | "table";
     columnName?: string;
   } | null;
+  containsPrimaryInput?: boolean;
+  skip?: boolean;
 }
 
 export interface SearchAgentRef {
@@ -492,12 +499,12 @@ const NEWS_TOPICS = {
       gadgets: {
         label: "Gadgets",
         value:
-          "CAQiW0NCQVNQZ29JTDIwdk1EZGpNWFlTQW1WdUdnSlZVeUlQQ0FRYUN3b0pMMjB2TURKdFpqRnVLaGtLRndvVFIwRkVSMFZVWDFORlExUkpUMDVmVGtGTlJTQUJLQUEqKggAKiYICiIgQ0JBU0Vnb0lMMjB2TURsek1XWVNBbVZ1R2dKVlV5Z0FQAVAB",
+          "CAQiW0NCQVNQZ29JTDIwdk1EZGpNWFlTQW1WdUdnSlZVeUlQQ0FRYUN3b0pMMjB2TURKd29JTDIwdk1EZGpNWFlTQW1WdUdnSlZVeWdBUAFQAQ",
       },
       internet: {
         label: "Internet",
         value:
-          "CAQiRkNCQVNMZ29JTDIwdk1EZGpNWFlTQW1WdUdnSlZVeUlPQ0FRYUNnb0lMMjB2TUROeWJIUXFDaElJTDIwdk1ETnliSFFvQUEqKggAKiYICiIgQ0JBU0Vnb0lMMjB2TURkak1YWVNBbVZ1R2dKVlV5Z0FQAVAB",
+          "CAQiRkNCQVNMZ29JTDIwdk1EZGpNWFlTQW1WdUdnSlZVeUlPQ0FRYUNnb0lMMjB2TURkak1YWVNBbVZ1R2dKVlV5Z0FQAVAB",
       },
       "virtual-reality": {
         label: "Virtual Reality",
@@ -523,7 +530,7 @@ const NEWS_TOPICS = {
       economy: {
         label: "Economy",
         value:
-          "CAQiSENCQVNNQW9JTDIwdk1EbHpNV1lTQW1WdUdnSlZVeUlQQ0FRYUN3b0pMMjB2TUdkbWNITXpLZ3NTQ1M5dEx6Qm5abkJ6TXlnQSoqCAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnVHZ0pWVXlnQVABUAE",
+          "CAQiSENCQVNNQW9JTDIwdk1EbHpNV1lTQW1WdUdnSlZVeUlQQ0FRYUN3b0pMMjB2TURkak1YWVNBbVZ1R2dKVlV5Z0FQAVAB",
       },
       markets: {
         label: "Markets",
@@ -839,6 +846,7 @@ const useDebounce = (value: string, delay: number) => {
 
 const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
   (props, ref) => {
+    const router = useRouter();
     const [query, setQuery] = useState(props.initialQuery || "");
     const [searchEngine, setSearchEngine] = useState(
       props.initialEngine || "search"
@@ -891,12 +899,12 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     const [hasSaved, setHasSaved] = useState(false);
 
     // Add store hook for updating block names
-    const { updateBlockName } = useSourceStore();
+    const { updateBlockName } = useAgentStore();
 
     // Get current block to display its name
-    const currentBlock = useSourceStore((state) =>
-      state.blocks.find((block) => block.blockNumber === props.blockNumber)
-    );
+    // const currentBlock = useSourceStore((state) =>
+    //   state.blocks.find((block) => block.blockNumber === props.blockNumber)
+    // );
 
     // Add debounced query
     const debouncedQuery = useDebounce(query, 500);
@@ -954,7 +962,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     // Expose processBlock to parent components
     useImperativeHandle(ref, () => ({
       processBlock: async () => {
-        return handleSearch();
+        return handleSearch(false); // Pass false for automated searches
       },
     }));
 
@@ -1021,7 +1029,12 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     // Only update block when debounced query changes (after user stops typing)
     useEffect(() => {
       if (debouncedQuery !== props.initialQuery) {
+        const currentBlock = currentAgent?.blocks?.find(
+          (b) => b.blockNumber === props.blockNumber
+        );
+
         debouncedUpdateBlock({
+          ...currentBlock, // Preserve existing properties
           type: "searchagent",
           blockNumber: props.blockNumber,
           query: debouncedQuery,
@@ -1046,6 +1059,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       debouncedUpdateBlock,
       props.initialQuery,
       props.blockNumber,
+      currentAgent,
     ]);
 
     // Simple query change handler - only updates local state (no immediate block update)
@@ -1219,104 +1233,222 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       }
     };
 
-    // Keep the original handleSearch function but remove automatic saving
-    const handleSearch = async (): Promise<boolean> => {
+    // Replace the existing handleSearch function
+    const handleSearch = async (
+      isManualSearch: boolean = true
+    ): Promise<boolean> => {
       const newRequestId = crypto.randomUUID();
       setRequestId(newRequestId);
       setIsRunning(true);
-      console.log("Starting search with request_id:", newRequestId); // <-- PRINT HERE
+      console.log(
+        "Starting search with request_id:",
+        newRequestId,
+        "isManualSearch:",
+        isManualSearch
+      );
+
       if (props.onProcessingChange) {
         props.onProcessingChange(true);
       }
+
       try {
-        // console.log("SearchAgent: handleSearch called with query:", query);
-        // console.log("SearchAgent: initialQuery prop:", props.initialQuery);
+        // STEP 1: Update current block with latest local state (ONLY for manual searches)
+        if (isManualSearch) {
+          const currentBlock = currentAgent?.blocks?.find(
+            (b) => b.blockNumber === props.blockNumber
+          );
 
-        // Use prop values as fallback when internal state is empty
-        const queryToUse = query || props.initialQuery || "";
-        const engineToUse = searchEngine || props.initialEngine || "search";
-        const limitToUse = limit || props.initialLimit || 5;
+          if (!currentBlock) {
+            toast.error("Block not found");
+            return false;
+          }
 
-        // console.log("SearchAgent: Using query:", queryToUse);
-        // console.log("SearchAgent: Using engine:", engineToUse);
-        // console.log("SearchAgent: Using limit:", limitToUse);
+          // Update the block with current local state
+          const updatedBlockData: Partial<SearchAgentBlock> = {
+            ...currentBlock,
+            type: "searchagent",
+            blockNumber: props.blockNumber,
+            query: query,
+            engine: searchEngine,
+            limit: limit,
+            topic: newsTopic,
+            section: newsSection,
+            timeWindow: timeWindow,
+            trend: marketsTrend,
+            region: marketsRegion,
+            newsSearchType: newsSearchType,
+            newsTopic: newsTopic,
+            newsSection: newsSection,
+            financeWindow: props.financeWindow,
+            marketsIndexMarket: props.marketsIndexMarket,
+          };
+
+          // Update the block in the agent store
+          const { updateBlockData, saveAgent } = useAgentStore.getState();
+          updateBlockData(props.blockNumber, updatedBlockData);
+
+          // STEP 2: Save to Firebase
+          const agentToSave = useAgentStore.getState().currentAgent;
+          if (!agentToSave) {
+            toast.error("No agent to save");
+            return false;
+          }
+
+          await saveAgent(agentToSave.blocks);
+          console.log(
+            "Block data saved to Firebase before search (manual search)"
+          );
+        } else {
+          console.log(
+            "Skipping UI state save for automated search - using existing Firebase data"
+          );
+        }
+
+        // STEP 3: Now fetch fresh data from Firebase and proceed with search
+        const userId = auth.currentUser?.uid;
+        const { agentId } = router.query;
+
+        if (!userId || !agentId || typeof agentId !== "string") {
+          toast.error("Authentication or agent error");
+          return false;
+        }
+
+        const agentDoc = await getDoc(
+          doc(db, `users/${userId}/agents`, agentId)
+        );
+        if (!agentDoc.exists()) {
+          toast.error("Agent not found");
+          return false;
+        }
+
+        const agent = { id: agentDoc.id, ...agentDoc.data() } as Agent;
+        const freshBlock = agent.blocks.find(
+          (b) => b.blockNumber === props.blockNumber
+        );
+
+        if (!freshBlock || freshBlock.type !== "searchagent") {
+          toast.error("Search block not found");
+          return false;
+        }
+
+        // NEW: Check if block should be skipped
+        if (freshBlock.skip) {
+          console.log(
+            `Skipping search block ${props.blockNumber} - skip flag is true`
+          );
+          return true; // Return true to indicate successful skip
+        }
+
+        // Use fresh Firebase data for validation and API call
+        const queryToUse = freshBlock.query || "";
+        const engineToUse = freshBlock.engine || "search";
+        const limitToUse = freshBlock.limit || 5;
+        const topicToUse = freshBlock.topic || "";
+        const sectionToUse = freshBlock.section || "";
+        const timeWindowToUse = freshBlock.timeWindow || "";
+        const regionToUse = freshBlock.region || "";
+        const newsSearchTypeToUse = freshBlock.newsSearchType || "query"; // 🆕 ADD: Get from fresh data
 
         const processedQuery = processVariablesInText(queryToUse);
-        // console.log("SearchAgent: processedQuery:", processedQuery);
 
-        // Updated validation: allow news search with topic without requiring query
+        // 🆕 FIX: Use fresh data for validation instead of local state
         const isNewsWithTopic =
-          engineToUse === "news" && newsSearchType === "topic" && newsTopic;
+          engineToUse === "news" &&
+          newsSearchTypeToUse === "topic" &&
+          topicToUse;
 
         if (
           !isNewsWithTopic &&
           (!processedQuery || processedQuery.trim() === "")
         ) {
-          // console.error("SearchAgent: Query is empty after processing");
           toast.error("Search query is required");
           return false;
         }
 
-        // Additional validation for news with topic - ensure we have a topic
+        // 🆕 FIX: Use fresh data for validation
         if (
           engineToUse === "news" &&
-          newsSearchType === "topic" &&
-          !newsTopic
+          newsSearchTypeToUse === "topic" &&
+          !topicToUse
         ) {
           toast.error("Please select a news topic");
           return false;
         }
 
-        const endpoint =
-          engineToUse === "image" ? "/api/image_search" : "/api/search";
+        const endpoint = "/api/search";
 
-        let payload: any = {
-          engine: engineToUse,
+        let requestData: any = {
           request_id: newRequestId,
+          engine: engineToUse,
+          num: limitToUse,
         };
 
-        if (engineToUse === "news") {
-          if (newsSearchType === "topic") {
-            payload.topic_token = newsTopic;
-            if (newsSection) {
-              payload.section_token = newsSection;
-            }
+        // Add engine-specific parameters using fresh data
+        if (engineToUse === "search") {
+          requestData = {
+            ...requestData,
+            query: processedQuery,
+          };
+        } else if (engineToUse === "news") {
+          if (newsSearchTypeToUse === "query") {
+            // 🆕 FIX: Use fresh data
+            // News with query
+            requestData = {
+              ...requestData,
+              query: processedQuery,
+            };
           } else {
-            payload.query = processedQuery;
-            payload.num = limitToUse;
+            // News with topic_token (and optional section_token)
+            requestData = {
+              ...requestData,
+              topic_token: topicToUse,
+            };
+
+            if (sectionToUse) {
+              requestData.section_token = sectionToUse;
+            }
           }
+        } else if (engineToUse === "finance") {
+          requestData = {
+            ...requestData,
+            query: processedQuery,
+            time_window: props.financeWindow || "1D",
+          };
+        } else if (engineToUse === "markets") {
+          requestData = {
+            ...requestData,
+            query: processedQuery,
+            market: props.marketsIndexMarket || "americas",
+          };
         } else if (engineToUse === "image") {
-          payload.query = processedQuery;
-          payload.image_prompt = imagePrompt;
-          payload.num = limitToUse;
-        } else {
-          payload.query = processedQuery;
-          payload.num = limitToUse;
+          requestData = {
+            ...requestData,
+            query: processedQuery,
+            analysis_prompt: imagePrompt,
+          };
         }
 
-        console.log("Search payload:", payload); // <-- PRINT FULL PAYLOAD
+        const response = await api.post(endpoint, requestData);
 
-        // console.log("SearchAgent: Making API call with payload:", payload);
-        const response = await api.post(endpoint, payload);
-
-        // Handle cancellation gracefully
+        // Rest of the existing response handling logic stays the same
         if (response.cancelled) {
           console.log("Search request was cancelled by user");
           return false;
         }
 
+        if (!response || typeof response !== "object") {
+          throw new Error("Invalid response format from server");
+        }
+
         setModelResponse(JSON.stringify(response, null, 2));
-
-        // Reset save state for new results
-        setIsSaving(false);
-        setHasSaved(false);
-
         return true;
       } catch (error: any) {
-        console.error("5. Search error:", error);
-        toast.error(
-          `Search failed: ${error.message || "Unknown error occurred"}`
-        );
+        console.error("Search error:", error);
+        if (error.message?.includes("cancelled")) {
+          console.log("Search was cancelled by user");
+        } else {
+          toast.error("Search failed: " + error.message);
+        }
         return false;
       } finally {
         setIsRunning(false);
@@ -1331,6 +1463,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     useEffect(() => {
       if (modelResponse) {
         setSelectedItems(new Set());
+        setHasSaved(false); // Reset hasSaved when new results come in
       }
     }, [modelResponse]);
 
@@ -1623,25 +1756,15 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       }
     };
 
-    // Add this after the definition of handleSaveToVariable and after selectedItems state is set up
-
-    // Auto-save results to variable if a variable is pre-selected and results come in (non-image engines)
+    // Auto-select and auto-save results atomically if a variable is pre-selected (non-image engines)
     useEffect(() => {
+      // Only proceed if we have results and a pre-selected variable (non-image engines)
       if (
         modelResponse &&
         selectedVariableId &&
         searchEngine !== "image" &&
-        selectedItems.size > 0 &&
-        !hasSaved // Prevent double-saving
+        !hasSaved
       ) {
-        handleSaveToVariable(selectedVariableId);
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedItems, selectedVariableId, searchEngine]);
-
-    // Auto-select all items if a variable is pre-selected and results come in (non-image engines)
-    useEffect(() => {
-      if (modelResponse && selectedVariableId && searchEngine !== "image") {
         try {
           const parsedResponse =
             typeof modelResponse === "string"
@@ -1649,6 +1772,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
               : modelResponse;
           const allIds = new Set<string>();
 
+          // Extract all result IDs based on search engine
           switch (searchEngine) {
             case "search":
               parsedResponse.results?.forEach((item: any) => {
@@ -1682,30 +1806,147 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           }
 
           if (allIds.size > 0) {
+            // Auto-select all items (check all checkboxes)
             setSelectedItems(allIds);
+
+            // Immediately save to variable
+            const saveToVariable = async () => {
+              try {
+                setIsSaving(true);
+                const selectedItemsArray = Array.from(allIds);
+
+                if (selectedVariableId.includes(":")) {
+                  // Table variable - save as rows
+                  const [tableId, columnName] = selectedVariableId.split(":");
+                  for (const item of selectedItemsArray) {
+                    await useVariableStore.getState().addTableRow(tableId, {
+                      [columnName]: item,
+                    });
+                  }
+                } else {
+                  // Regular variable - save as comma-separated list
+                  const value = selectedItemsArray.join(", ");
+                  await useVariableStore
+                    .getState()
+                    .updateVariable(selectedVariableId, value);
+                }
+
+                setHasSaved(true);
+                toast.success(
+                  `${allIds.size} results automatically saved to variable!`,
+                  {
+                    duration: 10000, // 10 seconds
+                    action: {
+                      label: "Dismiss",
+                      onClick: () => toast.dismiss(),
+                    },
+                  }
+                );
+              } catch (error) {
+                console.error("Error auto-saving to variable:", error);
+                toast.error("Failed to auto-save results to variable");
+              } finally {
+                setIsSaving(false);
+              }
+            };
+
+            saveToVariable();
           }
         } catch (error) {
-          // fail silently
+          console.error(
+            "Error processing search results for auto-save:",
+            error
+          );
         }
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [modelResponse, selectedVariableId, searchEngine]);
+    }, [modelResponse, selectedVariableId, searchEngine, hasSaved]);
+
+    // Add this near the top of the SearchAgent component
+    const currentBlock = currentAgent?.blocks?.find(
+      (b) => b.blockNumber === props.blockNumber
+    );
+
+    // Add this useEffect after the existing ones
+    React.useEffect(() => {
+      // Update local state when initial props change
+      setQuery(props.initialQuery || "");
+      setSearchEngine(props.initialEngine || "search");
+      setLimit(props.initialLimit || 5);
+      setNewsTopic(props.initialTopic || "");
+      setNewsSection(props.initialSection || "");
+      setTimeWindow(props.initialTimeWindow || "");
+      setMarketsRegion(props.initialRegion || "");
+
+      if (
+        props.initialTrend &&
+        validTrends.includes(props.initialTrend as any)
+      ) {
+        setMarketsTrend(props.initialTrend as (typeof validTrends)[number]);
+      }
+    }, [
+      props.initialQuery,
+      props.initialEngine,
+      props.initialLimit,
+      props.initialTopic,
+      props.initialSection,
+      props.initialTimeWindow,
+      props.initialRegion,
+      props.initialTrend,
+    ]);
 
     return (
       <div className="p-4 rounded-lg border border-white bg-[#141414]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-white">
-              Search Agent #{props.blockNumber}
-            </h3>
-            <BlockNameEditor
-              blockName={
-                currentBlock?.name || `Search Agent ${props.blockNumber}`
-              }
-              blockNumber={props.blockNumber}
-              onNameUpdate={updateBlockName}
-            />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-white">
+                Search Agent {props.blockNumber}
+              </h3>
+              <BlockNameEditor
+                blockName={
+                  currentBlock?.name || `Search Agent ${props.blockNumber}`
+                }
+                blockNumber={props.blockNumber}
+                onNameUpdate={updateBlockName}
+              />
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={`primary-input-${props.blockNumber}`}
+                  checked={currentBlock?.containsPrimaryInput || false}
+                  onCheckedChange={(checked) => {
+                    props.onUpdateBlock(props.blockNumber, {
+                      containsPrimaryInput: checked as boolean,
+                    });
+                  }}
+                  className="border-gray-600 bg-gray-700"
+                />
+                <label
+                  htmlFor={`primary-input-${props.blockNumber}`}
+                  className="text-sm text-gray-400"
+                >
+                  Contains Primary Input
+                </label>
+              </div>
+              <Checkbox
+                id={`skip-if-no-input-${props.blockNumber}`}
+                checked={currentBlock?.skip || false}
+                onCheckedChange={(checked) => {
+                  props.onUpdateBlock(props.blockNumber, {
+                    skip: checked as boolean,
+                  });
+                }}
+                className="border-gray-600 bg-gray-700"
+              />
+              <label
+                htmlFor={`skip-if-no-input-${props.blockNumber}`}
+                className="text-sm text-gray-400"
+              >
+                Skip block
+              </label>
+            </div>
           </div>
+
+          {/* Move the Popover outside the main controls group */}
           <Popover>
             <PopoverTrigger>
               <span className="text-gray-400 hover:text-gray-200 cursor-pointer">
@@ -2031,7 +2272,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
             <div className="mt-4 flex justify-start">
               <BlockButton
                 isRunning={isRunning}
-                onRun={handleSearch}
+                onRun={() => handleSearch(true)} // Pass true for manual searches
                 onCancel={handleCancel}
                 runLabel="Search"
                 runningLabel="Searching..."

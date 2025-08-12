@@ -24,8 +24,21 @@ const SortableBlock: React.FC<SortableBlockProps> = ({ block, children }) => {
     opacity: isDragging ? 0.5 : 1,
   };
 
+  // Add visual styling for skipped blocks
+  const isSkipped = block.skip === true;
+  const blockStyle = {
+    ...style,
+    opacity: isDragging ? 0.5 : isSkipped ? 0.4 : 1,
+    filter: isSkipped ? "grayscale(0.8)" : "none",
+  };
+
   return (
-    <div ref={setNodeRef} style={style} {...attributes} className="relative">
+    <div
+      ref={setNodeRef}
+      style={blockStyle}
+      {...attributes}
+      className={`relative ${isSkipped ? "border-l-4 border-l-gray-400 bg-gray-50 dark:bg-gray-800" : ""}`}
+    >
       {/* Drag handle - only this part captures drag events */}
       <div
         {...listeners}

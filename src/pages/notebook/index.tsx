@@ -35,7 +35,7 @@ import TransformBlock from "@/components/custom_components/TransformBlock";
 // import { useBlockManager } from "@/hooks/useBlockManager";
 import AgentBlock from "@/components/custom_components/AgentBlock";
 import { useBlockManager } from "@/hooks/useBlockManager";
-import { getBlockList } from "@/lib/store";
+// import { getBlockList } from "@/lib/store";
 import SearchAgent from "@/components/custom_components/SearchAgent";
 import Layout from "@/components/Layout";
 import { useVariableStore } from "@/lib/variableStore";
@@ -64,6 +64,52 @@ import SearchPreviewDialog from "@/components/custom_components/SearchPreviewDia
 import { PreviewRow } from "@/types/types";
 import FloatingAgentNav from "@/components/custom_components/FloatingAgentNav";
 import AddSourceDialog from "@/components/custom_components/AddSourceDialog";
+import { PrimaryInputDialog } from "@/components/custom_components/PrimaryInputDialog";
+import { useTaskStore } from "@/lib/taskStore";
+
+// Block input requirements definition
+const BLOCK_INPUT_REQUIREMENTS: Record<string, string[]> = {
+  searchagent: ["query"], // Base requirement - always check for query
+  agent: ["userPrompt"],
+  webagent: ["url"],
+  contact: ["to", "subject", "body"],
+  codeblock: ["code"],
+  excelagent: ["prompt"],
+  pipedriveagent: ["prompt"],
+  clickupagent: ["prompt"],
+  googledriveagent: ["prompt"],
+  apolloagent: ["prompt"],
+  instagramagent: ["url"],
+  deepresearchagent: ["topic"],
+  datavizagent: ["prompt"],
+  make: ["webhookUrl"],
+  // Add other block types as needed
+  checkin: [], // No input required
+  transform: [], // No input required
+};
+
+// Helper function to get required fields for a specific block
+const getRequiredFieldsForBlock = (block: Block): string[] => {
+  const baseRequirements = BLOCK_INPUT_REQUIREMENTS[block.type] || [];
+
+  // Special handling for searchagent with news topic search
+  if (block.type === "searchagent") {
+    const searchBlock = block as any; // Cast to access engine and newsSearchType
+
+    // If it's a news search and using topic search type, check for topic instead of query
+    if (
+      searchBlock.engine === "news" &&
+      searchBlock.newsSearchType === "topic"
+    ) {
+      return ["topic"]; // Check topic dropdown instead of query
+    }
+
+    // Otherwise, use the base query requirement
+    return baseRequirements;
+  }
+
+  return baseRequirements;
+};
 
 const pageStyle: CSSProperties = {
   display: "flex",
@@ -82,42 +128,6 @@ const mainStyle: CSSProperties = {
   gap: "16px",
 };
 
-// Sample Firebase data structure
-// const sampleFirebaseData = {
-//   columns: [
-//     "prospective_customers",
-//     "description_of_needs",
-//     "stage",
-//     "summary_of_company_website",
-//   ],
-//   value: [
-//     {
-//       prospective_customers: "Windsurf (via BI)",
-//       description_of_needs: "Looking for engineering leadership best practices",
-//       stage: "Researching",
-//       summary_of_company_website: "BI article highlights developer success",
-//     },
-//     {
-//       prospective_customers: "Windsurf (via FC)",
-//       description_of_needs: "Branding & marketing strategy",
-//       stage: "Interest",
-//       summary_of_company_website: "Feature on AI branding transformation",
-//     },
-//     {
-//       prospective_customers: "Windsurf (via TC)",
-//       description_of_needs: "Building AI assistants for dev workflows",
-//       stage: "Engaged",
-//       summary_of_company_website: "TC article details their AI roadmap",
-//     },
-//     {
-//       prospective_customers: "AeroStack",
-//       description_of_needs: "Needs help automating internal tooling with AI",
-//       stage: "Qualified",
-//       summary_of_company_website: "Early-stage SaaS for enterprise ops teams",
-//     },
-//   ],
-// };
-
 // Define types for navigation items
 type NavigationItem =
   | {
@@ -130,6 +140,18 @@ type NavigationItem =
       variables: Variable[];
       displayName: string;
     };
+
+interface PrimaryInputDialogProps {
+  blocks: Block[];
+  onComplete: (updatedBlocks: Block[]) => void;
+  onCancel: () => void;
+  onRun: () => void;
+}
+
+interface PrimaryInputDialogState {
+  currentBlockIndex: number;
+  updatedBlocks: Block[];
+}
 
 export default function Notebook() {
   const [isApiKeySheetOpen, setIsApiKeySheetOpen] = useState(false);
@@ -152,7 +174,8 @@ export default function Notebook() {
 
   const router = useRouter();
   const { agentId } = router.query;
-  const { loadAgent, currentAgent } = useAgentStore();
+  const { loadAgent, currentAgent, updateBlockData, deleteBlock } =
+    useAgentStore();
   const [isLoading, setIsLoading] = useState(true);
 
   // const testBackend = async () => {
@@ -167,17 +190,10 @@ export default function Notebook() {
   const { addPrompt, getPrompt, getAllPrompts, clearPrompts } =
     usePromptStore();
 
-  // Keep only one instance of blocks from the store
-  const { blocks, deleteBlock, updateBlockData } = useSourceStore(
-    (state) => state
-  );
+  // Add this to get blocks from currentAgent:
+  const blocks = currentAgent?.blocks || [];
 
-  // Add this line near other store hooks
-  const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
-  const addBlockToNotebook = useSourceStore(
-    (state) => state.addBlockToNotebook
-  );
-
+  // Update the handleSavePrompts function to include skip parameter
   const handleSavePrompts = (
     blockNumber: number,
     systemPrompt: string,
@@ -189,7 +205,9 @@ export default function Notebook() {
       name: string;
       type: "input" | "intermediate" | "table";
       columnName?: string;
-    } | null
+    } | null,
+    containsPrimaryInput?: boolean,
+    skip?: boolean // Add this parameter
   ) => {
     // Update the block in the store
     updateBlockData(blockNumber, {
@@ -198,6 +216,8 @@ export default function Notebook() {
       saveAsCsv,
       sourceInfo,
       outputVariable,
+      containsPrimaryInput,
+      skip, // Add this field
     });
 
     // Also update prompts if needed
@@ -335,9 +355,12 @@ export default function Notebook() {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [blocks.length, focusedBlockIndex]);
+  }, [focusedBlockIndex]); // Removed blocks.length from dependency array
 
   const renderBlock = (block: Block, index: number) => {
+    // Create a version key that changes when agent data is updated
+    const agentVersion = currentAgent?.id || Date.now();
+
     const blockContent = (() => {
       switch (block.type) {
         case "agent":
@@ -351,10 +374,10 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`agent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
-              onCopyBlock={handleCopyBlock} // Add this line
+              onCopyBlock={handleCopyBlock}
               initialOutputVariable={block.outputVariable}
               variables={variables}
               onAddVariable={handleAddVariable}
@@ -372,7 +395,7 @@ export default function Notebook() {
         case "transform":
           return (
             <TransformBlock
-              key={block.blockNumber}
+              key={`transform-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               originalFilePath={block.originalFilePath || ""}
@@ -396,7 +419,7 @@ export default function Notebook() {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
               agentId={agentId as string}
-              key={block.blockNumber}
+              key={`checkin-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               isProcessing={isProcessing && pausedAtBlock === block.blockNumber}
@@ -415,7 +438,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`searchagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -426,6 +449,8 @@ export default function Notebook() {
               onAddVariable={handleAddVariable}
               initialEngine={block.engine}
               initialQuery={block.query}
+              containsPrimaryInput={block.containsPrimaryInput}
+              skip={block.skip}
               initialLimit={block.limit}
               initialTopic={block.topic}
               initialSection={block.section}
@@ -443,7 +468,7 @@ export default function Notebook() {
         case "contact":
           return (
             <ContactBlock
-              key={block.blockNumber}
+              key={`contact-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               initialChannel={block.channel}
@@ -471,7 +496,7 @@ export default function Notebook() {
                 updateBlockData(blockNumber, updates as Partial<Block>);
                 handleBlockEdit(index);
               }}
-              key={block.blockNumber}
+              key={`webagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onAddVariable={handleAddVariable}
@@ -488,7 +513,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`codeblock-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -519,7 +544,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`make-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -539,7 +564,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`excelagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -561,7 +586,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`deepresearchagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -585,7 +610,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`instagramagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -609,7 +634,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`pipedriveagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -628,7 +653,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`datavizagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -650,7 +675,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`clickupagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -669,7 +694,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`googledriveagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -688,7 +713,7 @@ export default function Notebook() {
               ref={(ref) => {
                 if (ref) blockRefs.current[block.blockNumber] = ref;
               }}
-              key={block.blockNumber}
+              key={`apolloagent-${block.blockNumber}-${agentVersion}`}
               blockNumber={block.blockNumber}
               onDeleteBlock={deleteBlock}
               onUpdateBlock={(blockNumber, updates) => {
@@ -707,7 +732,11 @@ export default function Notebook() {
             />
           );
         case "tabletransform": {
-          return <div>Table Transform Block</div>;
+          return (
+            <div key={`tabletransform-${block.blockNumber}-${agentVersion}`}>
+              Table Transform Block
+            </div>
+          );
         }
         default:
           const _exhaustiveCheck: never = block;
@@ -743,15 +772,108 @@ export default function Notebook() {
     // console.log("Current blockRefs contents:", blockRefs.current);
   }, [blockRefs.current]);
 
-  // And modify runAllBlocks to wait for refs
-  const runAllBlocks = () => {
-    console.log("Starting new run");
-    setIsRunning(true); // Show the side panel
-    runBlocks(0); // Use our new implementation
+  // Add this helper function to get primary input blocks
+  const getPrimaryInputBlocks = () => {
+    return blocks.filter((block) => block.containsPrimaryInput);
+  };
 
-    // Temporarily commented out for testing - DO NOT DELETE
-    /*
-     */
+  // In notebook/index.tsx, add this state
+  const [isPrimaryInputDialogOpen, setIsPrimaryInputDialogOpen] =
+    useState(false);
+  const [primaryInputBlocks, setPrimaryInputBlocks] = useState<Block[]>([]);
+  const [dialogResolver, setDialogResolver] =
+    useState<(value: Block[] | null) => void>();
+
+  // Update showPrimaryInputDialog
+  const showPrimaryInputDialog = async (
+    blocks: Block[]
+  ): Promise<Block[] | null> => {
+    return new Promise((resolve) => {
+      setPrimaryInputBlocks(blocks);
+      setDialogResolver(() => resolve);
+      setIsPrimaryInputDialogOpen(true);
+    });
+  };
+
+  const handleCancel = () => {
+    console.log("=== PrimaryInputDialog CANCELLED ===");
+    console.log("User cancelled the primary input dialog");
+    setIsPrimaryInputDialogOpen(false);
+    dialogResolver?.(null);
+  };
+
+  // Modify runAllBlocks
+  const runAllBlocks = async () => {
+    console.log("=== STARTING NEW RUN ===");
+    console.log("Total blocks in agent:", currentAgent?.blocks?.length || 0);
+
+    // 1. Get all blocks that need primary input
+    const primaryInputBlocks = getPrimaryInputBlocks();
+    console.log("Blocks requiring primary input:", primaryInputBlocks.length);
+    primaryInputBlocks.forEach((block, index) => {
+      console.log(
+        `  ${index + 1}. Block ${block.blockNumber} (${block.type}): ${block.name || "unnamed"}`
+      );
+    });
+
+    if (primaryInputBlocks.length > 0) {
+      console.log(
+        "Showing PrimaryInputDialog for",
+        primaryInputBlocks.length,
+        "blocks"
+      );
+      // 2. Show primary input dialog sequence
+      const updatedBlocks = await showPrimaryInputDialog(primaryInputBlocks);
+
+      if (!updatedBlocks) {
+        console.log(
+          "PrimaryInputDialog cancelled by user - stopping execution"
+        );
+        return;
+      }
+
+      console.log("PrimaryInputDialog completed successfully");
+      console.log(
+        "Updated blocks from dialog:",
+        updatedBlocks.map((b) => ({
+          blockNumber: b.blockNumber,
+          type: b.type,
+          name: b.name,
+          skip: b.skip,
+          // query: b.query,
+          // url: b.url,
+        }))
+      );
+
+      // 3. Update blocks with new inputs
+      updatedBlocks.forEach((block) => {
+        console.log(
+          `Updating block ${block.blockNumber} (${block.type}) with new data`
+        );
+        if (block.type === "searchagent") {
+          updateBlockData(block.blockNumber, {
+            ...block,
+            query: block.query || "",
+            engine: block.engine || "search",
+            limit: block.limit || 5,
+          });
+        } else if (block.type === "webagent") {
+          updateBlockData(block.blockNumber, {
+            ...block,
+            url: block.url || "",
+          });
+        }
+      });
+    } else {
+      console.log(
+        "No blocks require primary input - proceeding directly to execution"
+      );
+    }
+
+    // 4. Run all blocks with updated configurations
+    console.log("Starting block execution...");
+    setIsRunning(true);
+    runBlocks(0);
   };
 
   React.useEffect(() => {
@@ -804,34 +926,42 @@ export default function Notebook() {
 
   // Add this effect to load blocks from the agent if there is a current agent
   useEffect(() => {
-    const currentAgent = useAgentStore.getState().currentAgent;
-    if (currentAgent && currentAgent.blocks) {
-      // Clear existing blocks
-      useSourceStore.getState().resetBlocks();
-
-      // Load agent's blocks with their prompts
-      currentAgent.blocks.forEach((block) => {
-        useSourceStore.getState().addBlockToNotebook(
-          block.type === "agent"
-            ? {
-                ...block,
-                systemPrompt: block.systemPrompt || "",
-                userPrompt: block.userPrompt || "",
-              }
-            : block
-        );
-      });
-    }
-  }, []);
-
-  // Load agent when agentId is available
-  useEffect(() => {
     async function loadAgentData() {
       if (agentId && typeof agentId === "string") {
-        // console.log("Loading agent with ID:", agentId);
+        console.log("Starting to load agent:", agentId);
         try {
           await loadAgent(agentId);
-          // console.log("Agent loaded successfully");
+          const currentAgent = useAgentStore.getState().currentAgent;
+
+          if (currentAgent && currentAgent.blocks) {
+            // Load variables once for the entire agent
+            await useVariableStore.getState().loadVariables(agentId);
+            console.log("Variables loaded for agent:", agentId);
+
+            // Use the new function to set blocks from Firebase
+            // useSourceStore
+            //   .getState()
+            //   .setBlocksFromFirebase(currentAgent.blocks);
+
+            // Debug log
+            console.log("=== AGENT AND STORE STATE ===");
+            currentAgent?.blocks?.forEach((block, index) => {
+              console.log(`Block ${index + 1} (${block.type}):`, {
+                ...(block.type === "webagent" && {
+                  url: block.url,
+                  prompt: block.prompt,
+                  containsPrimaryInput: block.containsPrimaryInput,
+                }),
+                ...(block.type === "searchagent" && {
+                  query: block.query,
+                  engine: block.engine,
+                  limit: block.limit,
+                }),
+                fullBlock: block,
+              });
+            });
+            console.log("=== END STATE DEBUG ===");
+          }
         } catch (error) {
           console.error("Error loading agent:", error);
         } finally {
@@ -841,7 +971,7 @@ export default function Notebook() {
     }
 
     loadAgentData();
-  }, [agentId, loadAgent]);
+  }, [agentId, loadAgent]); // Add proper dependencies
 
   // Debug current agent state
   useEffect(() => {
@@ -905,25 +1035,30 @@ export default function Notebook() {
 
   const handleAddCheckIn = () => {
     // console.log("Add Check-In button clicked!");
-    const { addBlockToNotebook, blocks } = useSourceStore.getState();
+    if (!currentAgent) return;
 
     // Calculate the next block number based on existing blocks
     const nextBlockNumber =
-      blocks.length > 0 ? Math.max(...blocks.map((b) => b.blockNumber)) + 1 : 1;
+      currentAgent.blocks.length > 0
+        ? Math.max(...currentAgent.blocks.map((b) => b.blockNumber)) + 1
+        : 1;
 
     const newBlock: Block = {
-      agentId: agentId as string,
       type: "checkin",
       blockNumber: nextBlockNumber,
       id: crypto.randomUUID(),
       name: `Check-in ${nextBlockNumber}`,
-      // Add missing required fields
+      agentId: agentId as string,
+      // Add required BaseBlock fields
       systemPrompt: "",
       userPrompt: "",
       saveAsCsv: false,
     };
 
-    addBlockToNotebook(newBlock);
+    useAgentStore.getState().updateCurrentAgent({
+      ...currentAgent,
+      blocks: [...currentAgent.blocks, newBlock],
+    });
   };
 
   const [editedVariableNames, setEditedVariableNames] = useState<string[]>([]);
@@ -959,10 +1094,41 @@ export default function Notebook() {
     });
   };
 
+  // Add this after the getRequiredFieldsForBlock function
+
+  // Check if a block has the required input fields
+  // const checkBlockHasInput = (block: Block): boolean => {
+  //   const requiredFields = getRequiredFieldsForBlock(block);
+
+  //   // If no required fields, block can run
+  //   if (requiredFields.length === 0) {
+  //     return true;
+  //   }
+
+  //   // Check each required field
+  //   for (const field of requiredFields) {
+  //     const value = (block as any)[field];
+
+  //     // Check if the field has a meaningful value
+  //     if (!value || (typeof value === "string" && value.trim() === "")) {
+  //       console.log(
+  //         `Block ${block.blockNumber} (${block.type}) skipped: missing required field "${field}"`
+  //       );
+  //       return false;
+  //     }
+  //   }
+
+  //   return true;
+  // };
+
+  // Update the runBlocks function to include skip logic
   const runBlocks = async (startIndex: number = 0) => {
     setIsRunning(true);
-    const blockList = getBlockList();
-    // console.log("Starting run from index:", startIndex);
+    const blockList = currentAgent?.blocks || [];
+    console.log("=== RUNNING BLOCKS ===");
+    console.log("Starting run from index:", startIndex);
+    console.log("Total blocks to process:", blockList.length);
+
     if (startIndex === 0) {
       useSourceStore.getState().clearVariables();
     }
@@ -973,12 +1139,44 @@ export default function Notebook() {
         const block = blockList[i];
         setCurrentBlock(block as unknown as Block);
         setCurrentBlockIndex(i);
-        // console.log(`Processing block ${block.blockNumber} (${block.type})`);
+        console.log(
+          `\n--- Processing block ${block.blockNumber} (${block.type}) ---`
+        );
+        console.log(`Block name: ${block.name || "unnamed"}`);
+        console.log(`Block skip flag: ${block.skip}`);
+        console.log(
+          `Block containsPrimaryInput: ${block.containsPrimaryInput}`
+        );
+
+        // Check if block should be skipped due to missing input
+        // if (!checkBlockHasInput(block)) {
+        //   console.log(
+        //     `Skipping block ${block.blockNumber} (${block.type}) - missing required input`
+        //   );
+        //   continue; // Skip to next block
+        // }
+
+        if (block.skip) {
+          console.log(
+            `❌ SKIPPING block ${block.blockNumber} (${block.type}) - skip flag is true`
+          );
+          console.log(`   Block details:`, {
+            name: block.name,
+            type: block.type,
+            blockNumber: block.blockNumber,
+            skip: block.skip,
+          });
+          continue; // Skip to next block
+        }
+
+        console.log(`✅ EXECUTING block ${block.blockNumber} (${block.type})`);
 
         try {
           const blockRef = blockRefs.current[block.blockNumber];
           if (!blockRef) {
-            console.error(`Block ref not found for block ${block.blockNumber}`);
+            console.error(
+              `❌ Block ref not found for block ${block.blockNumber}`
+            );
             continue;
           }
 
@@ -988,26 +1186,21 @@ export default function Notebook() {
 
           switch (block.type) {
             case "checkin":
-              // console.log(`Pausing at CheckInBlock ${block.blockNumber}`);
+              console.log(`⏸️ Pausing at CheckInBlock ${block.blockNumber}`);
 
               // Send email notification before pausing
               try {
                 const currentUser = auth.currentUser;
-                // console.log("Current user data:", {
-                //   email: currentUser?.email,
-                //   uid: currentUser?.uid,
-                //   displayName: currentUser?.displayName,
-                // });
 
                 if (currentUser?.email) {
                   const response = await api.get(
                     `/api/send-checkin-email?email=${encodeURIComponent(currentUser.email)}`
                   );
                   if (response.success) {
-                    // console.log(
-                    //   "Check-in email sent successfully to:",
-                    //   response.sent_to
-                    // );
+                    console.log(
+                      "Check-in email sent successfully to:",
+                      response.sent_to
+                    );
                   } else {
                     console.error("Failed to send email:", response.error);
                   }
@@ -1020,7 +1213,7 @@ export default function Notebook() {
               setIsRunPaused(true);
               return; // Stop execution after sending email
             case "contact":
-              // console.log("Processing contact block", block.blockNumber);
+              console.log("Processing contact block", block.blockNumber);
               success = await blockRef.processBlock();
               if (!success) {
                 console.error("Contact block failed, stopping execution");
@@ -1035,7 +1228,7 @@ export default function Notebook() {
               }
               break;
             case "searchagent":
-              // console.log("Processing search agent block", block.blockNumber);
+              console.log("Processing search agent block", block.blockNumber);
               const searchRef = blockRefs.current[block.blockNumber];
               if (!searchRef) {
                 console.error(
@@ -1065,7 +1258,7 @@ export default function Notebook() {
               }
               break;
             case "codeblock":
-              // console.log("Processing code block", block.blockNumber);
+              console.log("Processing code block", block.blockNumber);
               success = await blockRef.processBlock();
               if (!success) {
                 console.error("Code block failed, stopping execution");
@@ -1073,7 +1266,7 @@ export default function Notebook() {
               }
               break;
             case "excelagent":
-              // console.log("Processing Excel agent block", block.blockNumber);
+              console.log("Processing Excel agent block", block.blockNumber);
               success = await blockRef.processBlock();
               if (!success) {
                 console.error("Excel agent block failed, stopping execution");
@@ -1081,10 +1274,10 @@ export default function Notebook() {
               }
               break;
             case "instagramagent":
-              // console.log(
-              //   "Processing Instagram agent block",
-              //   block.blockNumber
-              // );
+              console.log(
+                "Processing Instagram agent block",
+                block.blockNumber
+              );
               success = await blockRef.processBlock();
               if (!success) {
                 console.error(
@@ -1094,10 +1287,10 @@ export default function Notebook() {
               }
               break;
             case "deepresearchagent":
-              // console.log(
-              //   "Processing deep research agent block",
-              //   block.blockNumber
-              // );
+              console.log(
+                "Processing deep research agent block",
+                block.blockNumber
+              );
               success = await blockRef.processBlock();
               if (!success) {
                 console.error(
@@ -1107,10 +1300,10 @@ export default function Notebook() {
               }
               break;
             case "pipedriveagent":
-              // console.log(
-              //   "Processing Pipedrive agent block",
-              //   block.blockNumber
-              // );
+              console.log(
+                "Processing Pipedrive agent block",
+                block.blockNumber
+              );
               success = await blockRef.processBlock();
               if (!success) {
                 console.error(
@@ -1120,7 +1313,7 @@ export default function Notebook() {
               }
               break;
             case "datavizagent":
-              // console.log("Processing DataViz agent block", block.blockNumber);
+              console.log("Processing DataViz agent block", block.blockNumber);
               success = await blockRef.processBlock();
               if (!success) {
                 console.error("DataViz agent block failed, stopping execution");
@@ -1135,10 +1328,10 @@ export default function Notebook() {
               }
               break;
             case "googledriveagent":
-              // console.log(
-              //   "Processing Google Drive agent block",
-              //   block.blockNumber
-              // );
+              console.log(
+                "Processing Google Drive agent block",
+                block.blockNumber
+              );
               success = await blockRef.processBlock();
               if (!success) {
                 console.error(
@@ -1156,10 +1349,14 @@ export default function Notebook() {
               break;
           }
 
+          console.log(
+            `✅ Block ${block.blockNumber} (${block.type}) completed successfully`
+          );
+
           // Handle output variable if present
-          const blockData = useSourceStore
-            .getState()
-            .blocks.find((b) => b.blockNumber === block.blockNumber);
+          const blockData = currentAgent?.blocks?.find(
+            (b) => b.blockNumber === block.blockNumber
+          );
           if (
             blockData?.outputVariable &&
             blockData.outputVariable.type === "table" &&
@@ -1171,10 +1368,6 @@ export default function Notebook() {
 
             if (tableVar?.type === "table" && "getOutput" in blockRef) {
               const output = blockRef.getOutput();
-              // console.log(
-              //   `Appending to table column ${tableVar.name}.${columnName}:`,
-              //   output
-              // );
 
               // If the output is a string, always create a new row (append)
               if (typeof output === "string" && output.trim()) {
@@ -1201,14 +1394,50 @@ export default function Notebook() {
               .updateVariable(blockData.outputVariable.id, output);
           }
         } catch (error) {
-          console.error(`Error processing block ${block.blockNumber}:`, error);
+          console.error(
+            `❌ Error processing block ${block.blockNumber}:`,
+            error
+          );
           return;
         }
       }
+
+      console.log("=== BLOCK EXECUTION COMPLETED ===");
     } finally {
       if (!isRunPaused) {
         setIsProcessing(false);
         setCurrentBlockIndex(null);
+
+        // 🆕 ADD THIS: Create review task when run completes (regardless of success/failure)
+        if (currentAgent?.id) {
+          const { createReviewTask } = useTaskStore.getState();
+          await createReviewTask(currentAgent.id);
+        }
+
+        // 🆕 ADD THIS: Send completion notification email
+        try {
+          const currentUser = auth.currentUser;
+          if (currentUser?.email && currentAgent?.name) {
+            const agentLink = `${window.location.origin}/notebook/${currentAgent.id}`;
+            const response = await api.post("/api/send-completion-email", {
+              email: currentUser.email,
+              agentName: currentAgent.name,
+              agentLink: agentLink,
+            });
+
+            if (response.success) {
+              console.log(
+                "Completion email sent successfully to:",
+                response.sent_to
+              );
+            } else {
+              console.error("Failed to send completion email:", response.error);
+            }
+          }
+        } catch (error) {
+          console.error("Error sending completion email:", error);
+          // Don't throw - email failure shouldn't break the UI
+        }
       }
     }
   };
@@ -1222,6 +1451,13 @@ export default function Notebook() {
   };
 
   const addNewCheckInBlock = () => {
+    if (!currentAgent) return;
+
+    const nextBlockNumber =
+      currentAgent.blocks.length > 0
+        ? Math.max(...currentAgent.blocks.map((b) => b.blockNumber)) + 1
+        : 1;
+
     const newBlock: Block = {
       type: "checkin",
       blockNumber: nextBlockNumber,
@@ -1234,7 +1470,10 @@ export default function Notebook() {
       saveAsCsv: false,
     };
 
-    addBlockToNotebook(newBlock);
+    useAgentStore.getState().updateCurrentAgent({
+      ...currentAgent,
+      blocks: [...currentAgent.blocks, newBlock],
+    });
   };
 
   // Add a handler for ratings
@@ -1656,7 +1895,7 @@ export default function Notebook() {
       // Show preview dialog with all results
       setPreviewData(previewRows);
       setIsPreviewDialogOpen(true);
-      return;
+      return; // Exit early, don't save results yet
     }
 
     // For each selected item, run the block and save to that row
@@ -2636,11 +2875,9 @@ export default function Notebook() {
 
                       // Handle output variable saving
                       let variableSaved = null;
-                      const updatedBlock = useSourceStore
-                        .getState()
-                        .blocks.find(
-                          (b) => b.blockNumber === block.blockNumber
-                        );
+                      const updatedBlock = currentAgent?.blocks?.find(
+                        (b) => b.blockNumber === block.blockNumber
+                      );
 
                       if (updatedBlock?.outputVariable && output !== null) {
                         // console.log(
@@ -2752,6 +2989,23 @@ export default function Notebook() {
         onAddSource={() => {}}
         openToTableVariable={true} // Add this prop
       />
+
+      {isPrimaryInputDialogOpen && (
+        <PrimaryInputDialog
+          blocks={primaryInputBlocks}
+          onComplete={(updatedBlocks) => {
+            console.log("Primary input dialog completed");
+            setIsPrimaryInputDialogOpen(false);
+            // Run blocks after dialog completes, but skip the primary input check
+            setTimeout(() => {
+              setIsRunning(true);
+              runBlocks(0); // Call runBlocks directly instead of runAllBlocks
+            }, 100);
+          }}
+          onCancel={handleCancel}
+          onRun={() => {}} // Empty function since we handle running in onComplete
+        />
+      )}
     </Layout>
   );
 }

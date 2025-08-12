@@ -76,6 +76,8 @@ export interface BaseBlock {
   userPrompt: string;
   saveAsCsv: boolean;
   modelResponse?: string;
+  containsPrimaryInput?: boolean; // New field to mark blocks that need input before running
+  skip?: boolean; // Skip block if skip flag is true
   outputVariable?: {
     id: string;
     name: string;
@@ -218,11 +220,6 @@ export interface SourceInfo {
   downloadUrl: string;
 }
 
-export interface CheckInBlock extends BaseBlock {
-  type: "checkin";
-  agentId: string;
-}
-
 // Update ContactBlock interface
 export interface ContactBlock extends BaseBlock {
   type: "contact";
@@ -344,6 +341,21 @@ export interface AgentStore {
   deleteFolder: (folderId: string) => Promise<void>;
   updateFolderName: (folderId: string, newName: string) => Promise<void>;
   moveAgentToFolder: (agentId: string, folderId: string) => Promise<void>;
+  currentBlockIndex: number | null;
+  isPaused: boolean;
+  setCurrentBlockIndex: (index: number | null) => void;
+  setIsPaused: (paused: boolean) => void;
+
+  // Add these missing methods:
+  updateCurrentAgent: (agent: Agent) => void;
+  updateBlockData: (blockNumber: number, updates: Partial<Block>) => void;
+  reorderBlocks: (startIndex: number, endIndex: number) => void;
+  updateBlockName: (blockNumber: number, newName: string) => void;
+  copyBlockAfter: (blockNumber: number) => void;
+  deleteBlock: (blockNumber: number) => void;
+  addBlockToAgent: (
+    blockData: Partial<Block> & { type: Block["type"] }
+  ) => void;
 }
 
 export interface FileDocument {

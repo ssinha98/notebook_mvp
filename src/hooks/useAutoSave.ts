@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAgentStore } from "@/lib/agentStore";
-import { useSourceStore } from "@/lib/store";
+// import { useSourceStore } from "@/lib/store";
 import { isEqual } from "lodash";
 import { toast } from "sonner";
 
@@ -11,28 +11,34 @@ interface AutoSaveOptions {
 
 export const useAutoSave = (options: AutoSaveOptions = {}) => {
   const { currentAgent, saveAgent } = useAgentStore();
-  const { blocks } = useSourceStore();
+  // const { blocks } = useSourceStore();
 
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const autoSaveInterval = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedBlocks = useRef<any[]>([]);
 
-  // Track changes by comparing current blocks with saved agent blocks
+  // Track changes by comparing current blocks with last saved blocks
   useEffect(() => {
     if (currentAgent) {
-      const hasUnsavedChanges = !isEqual(blocks, currentAgent.blocks);
+      const currentBlocks = currentAgent.blocks || [];
+      const hasUnsavedChanges = !isEqual(
+        currentBlocks,
+        lastSavedBlocks.current
+      );
       setHasChanges(hasUnsavedChanges);
     }
-  }, [blocks, currentAgent]);
+  }, [currentAgent]);
 
-  // Auto-save function (60-second timer)
+  // Auto-save function (180-second timer)
   const performAutoSave = useCallback(async () => {
     if (!currentAgent || !hasChanges || isSaving) return;
 
     try {
       setIsSaving(true);
-      const blocksToSave = useSourceStore.getState().blocks;
+      const blocksToSave = currentAgent.blocks || [];
       await saveAgent(blocksToSave);
+      lastSavedBlocks.current = [...blocksToSave];
       toast.success("Auto-saved", { duration: 2000 });
     } catch (error) {
       console.error("Auto-save failed:", error);
@@ -50,8 +56,9 @@ export const useAutoSave = (options: AutoSaveOptions = {}) => {
 
       try {
         setIsSaving(true);
-        const blocksToSave = useSourceStore.getState().blocks;
+        const blocksToSave = currentAgent.blocks || [];
         await saveAgent(blocksToSave);
+        lastSavedBlocks.current = [...blocksToSave];
         toast.success("Agent saved successfully");
       } catch (error) {
         console.error("Save failed:", error);

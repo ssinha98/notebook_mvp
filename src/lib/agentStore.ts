@@ -22,18 +22,23 @@ import {
   WebAgentBlock,
   ContactBlock,
   Folder,
+  CheckInBlock,
 } from "../types/types";
-import { useSourceStore } from "./store";
+// import { useSourceStore } from "./store";
 import usePromptStore from "./store";
 // import { createRoot } from "react-dom/client";
 // import { SessionExpiredAlert } from "@/components/custom_components/SessionExpiredAlert";
 import { onAuthStateChanged } from "firebase/auth";
 import { useVariableStore } from "./variableStore";
+// Add this import
+import { arrayMove } from "@dnd-kit/sortable";
 
 export const useAgentStore = create<AgentStore>()((set, get) => ({
   agents: [],
   currentAgent: null,
   folders: [],
+  currentBlockIndex: null, // Add this
+  isPaused: false, // Add this
 
   loadAgents: async () => {
     try {
@@ -259,6 +264,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             trend: block.trend || "indexes",
             region: block.region || "",
             outputVariable: block.outputVariable || null,
+            containsPrimaryInput: block.containsPrimaryInput || false,
+            skip: block.skip || false, // NEW FIELD
             newsSearchType: block.newsSearchType || "query",
             newsTopic: block.newsTopic || "",
             newsSection: block.newsSection || "",
@@ -274,9 +281,13 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             code: block.code || "",
             status: block.status || "tbd", // Preserve status field
             outputVariable: block.outputVariable || null,
+            skip: block.skip || false, // NEW FIELD
           };
         }
-        return block;
+        return {
+          ...block,
+          skip: block.skip || false, // NEW FIELD
+        };
       });
 
       const cleanData = {
@@ -314,6 +325,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: agentBlock.systemPrompt || "",
               userPrompt: agentBlock.userPrompt || "",
               saveAsCsv: Boolean(agentBlock.saveAsCsv),
+              skip: agentBlock.skip || false, // NEW FIELD
               outputVariable:
                 agentBlock.outputVariable?.id &&
                 agentBlock.outputVariable.name &&
@@ -340,22 +352,24 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
           }
 
           case "searchagent": {
+            const searchBlock = block as SearchAgentBlock;
             const preparedBlock = {
-              ...block,
-              query: block.query || "",
-              engine: block.engine || "search",
-              limit: block.limit || 5,
+              ...searchBlock,
+              query: searchBlock.query || "",
+              engine: searchBlock.engine || "search",
+              limit: searchBlock.limit || 5,
+              skip: searchBlock.skip || false, // NEW FIELD
               outputVariable:
-                block.outputVariable?.id &&
-                block.outputVariable.name &&
-                block.outputVariable.type
-                  ? block.outputVariable
+                searchBlock.outputVariable?.id &&
+                searchBlock.outputVariable.name &&
+                searchBlock.outputVariable.type
+                  ? searchBlock.outputVariable
                   : null,
               // Ensure required fields have default values
-              id: block.id || `block-${block.blockNumber}`,
-              name: block.name || `Block ${block.blockNumber}`,
-              blockNumber: block.blockNumber,
-              type: block.type,
+              id: searchBlock.id || `block-${searchBlock.blockNumber}`,
+              name: searchBlock.name || `Block ${searchBlock.blockNumber}`,
+              blockNumber: searchBlock.blockNumber,
+              type: searchBlock.type,
               agentId: get().currentAgent?.id || "",
             } as SearchAgentBlock;
 
@@ -374,6 +388,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
                 filterCriteria: [],
               },
               sourceName: transformBlock.sourceName || "",
+              skip: transformBlock.skip || false, // NEW FIELD
               outputVariable:
                 transformBlock.outputVariable?.id &&
                 transformBlock.outputVariable.name &&
@@ -396,12 +411,17 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
           }
 
           case "checkin": {
+            const checkinBlock = block as CheckInBlock;
             const preparedBlock = {
-              ...block,
-              id: block.id || `block-${block.blockNumber}`,
-              name: block.name || `Block ${block.blockNumber}`,
-              blockNumber: block.blockNumber,
-              type: block.type,
+              ...checkinBlock,
+              skip: checkinBlock.skip || false, // NEW FIELD
+              id: checkinBlock.id || `block-${checkinBlock.blockNumber}`,
+              name: checkinBlock.name || `Block ${checkinBlock.blockNumber}`,
+              blockNumber: checkinBlock.blockNumber,
+              type: checkinBlock.type,
+              systemPrompt: checkinBlock.systemPrompt || "",
+              userPrompt: checkinBlock.userPrompt || "",
+              saveAsCsv: checkinBlock.saveAsCsv || false,
               agentId: get().currentAgent?.id || "",
             };
             return preparedBlock;
@@ -457,6 +477,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: webBlock.systemPrompt || "",
               userPrompt: webBlock.userPrompt || "",
               saveAsCsv: webBlock.saveAsCsv || false,
+              skip: webBlock.skip || false, // NEW FIELD
               url: webBlock.url || "",
               selectedVariableId: webBlock.selectedVariableId || "",
               selectedVariableName: webBlock.selectedVariableName || "",
@@ -492,6 +513,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: makeBlock.systemPrompt || "",
               userPrompt: makeBlock.userPrompt || "",
               saveAsCsv: makeBlock.saveAsCsv || false,
+              skip: makeBlock.skip || false, // NEW FIELD
             };
 
             logUndefinedFields(
@@ -503,7 +525,10 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
           default: {
             // Remove exhaustive check since we handle all known types
-            return block;
+            return {
+              ...block,
+              skip: block.skip || false, // NEW FIELD
+            };
           }
         }
       });
@@ -556,6 +581,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               language: block.language || "python",
               code: block.code || "",
               outputVariable: block.outputVariable || null,
+              skip: block.skip || false, // NEW FIELD
             };
           }
           // Add this new condition for Apollo agent blocks
@@ -568,9 +594,54 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               company: block.company || "",
               prompt: block.prompt || "",
               outputVariable: block.outputVariable || null,
+              skip: block.skip || false, // NEW FIELD
             };
           }
-          return block;
+          // Add handling for searchagent blocks
+          if (block.type === "searchagent") {
+            return {
+              ...block,
+              query: block.query || "",
+              engine: block.engine || "search",
+              limit: block.limit || 5,
+              topic: block.topic || "",
+              section: block.section || "",
+              timeWindow: block.timeWindow || "",
+              trend: block.trend || "indexes",
+              region: block.region || "",
+              outputVariable: block.outputVariable || null,
+              containsPrimaryInput: block.containsPrimaryInput || false,
+              skip: block.skip || false, // NEW FIELD
+              newsSearchType: block.newsSearchType || "query",
+              newsTopic: block.newsTopic || "",
+              newsSection: block.newsSection || "",
+              financeWindow: block.financeWindow || "1D",
+              marketsIndexMarket:
+                (block.marketsIndexMarket as
+                  | "americas"
+                  | "europe-middle-east-africa"
+                  | "asia-pacific") || undefined,
+            };
+          }
+          // Add handling for webagent blocks
+          if (block.type === "webagent") {
+            return {
+              ...block,
+              url: block.url || "",
+              prompt: block.prompt || "",
+              selectedVariableId: block.selectedVariableId || "",
+              selectedVariableName: block.selectedVariableName || "",
+              outputVariable: block.outputVariable || null,
+              activeTab: block.activeTab || "url",
+              searchVariable: block.searchVariable || "",
+              results: block.results || [],
+              skip: block.skip || false, // NEW FIELD
+            };
+          }
+          return {
+            ...block,
+            skip: block.skip || false, // NEW FIELD
+          };
         });
 
         const processedAgent = {
@@ -580,12 +651,12 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
         set({ currentAgent: processedAgent });
 
-        // Update blocks in source store
-        const { resetBlocks, addBlockToNotebook } = useSourceStore.getState();
-        resetBlocks();
-        processedAgent.blocks.forEach((block) => {
-          addBlockToNotebook(block);
-        });
+        // Remove sourceStore sync
+        // const { resetBlocks, addBlockToNotebook } = useSourceStore.getState();
+        // resetBlocks();
+        // processedAgent.blocks.forEach((block) => {
+        //   addBlockToNotebook(block);
+        // });
 
         // Load all variables for the user
         await useVariableStore.getState().loadVariables(agentId);
@@ -743,7 +814,12 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
                 newsTopic: block.newsTopic || "",
                 newsSection: block.newsSection || "",
                 financeWindow: block.financeWindow || "1D",
-                marketsIndexMarket: block.marketsIndexMarket || "",
+                marketsIndexMarket:
+                  (block.marketsIndexMarket as
+                    | "americas"
+                    | "europe-middle-east-africa"
+                    | "asia-pacific"
+                    | undefined) || undefined,
               };
             } else if (block.type === "codeblock") {
               return {
@@ -783,6 +859,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: agentBlock.systemPrompt || "",
               userPrompt: agentBlock.userPrompt || "",
               saveAsCsv: Boolean(agentBlock.saveAsCsv),
+              skip: agentBlock.skip || false, // NEW FIELD
               outputVariable:
                 agentBlock.outputVariable?.id &&
                 agentBlock.outputVariable.name &&
@@ -808,21 +885,23 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
           }
 
           case "searchagent": {
+            const searchBlock = block as SearchAgentBlock;
             const preparedBlock = {
-              ...block,
-              query: block.query || "",
-              engine: block.engine || "search",
-              limit: block.limit || 5,
+              ...searchBlock,
+              query: searchBlock.query || "",
+              engine: searchBlock.engine || "search",
+              limit: searchBlock.limit || 5,
+              skip: searchBlock.skip || false, // NEW FIELD
               outputVariable:
-                block.outputVariable?.id &&
-                block.outputVariable.name &&
-                block.outputVariable.type
-                  ? block.outputVariable
+                searchBlock.outputVariable?.id &&
+                searchBlock.outputVariable.name &&
+                searchBlock.outputVariable.type
+                  ? searchBlock.outputVariable
                   : null,
-              id: block.id || `block-${block.blockNumber}`,
-              name: block.name || `Block ${block.blockNumber}`,
-              blockNumber: block.blockNumber,
-              type: block.type,
+              id: searchBlock.id || `block-${searchBlock.blockNumber}`,
+              name: searchBlock.name || `Block ${searchBlock.blockNumber}`,
+              blockNumber: searchBlock.blockNumber,
+              type: searchBlock.type,
               agentId: get().currentAgent?.id || "",
             } as SearchAgentBlock;
 
@@ -841,6 +920,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
                 filterCriteria: [],
               },
               sourceName: transformBlock.sourceName || "",
+              skip: transformBlock.skip || false, // NEW FIELD
               outputVariable:
                 transformBlock.outputVariable?.id &&
                 transformBlock.outputVariable.name &&
@@ -863,12 +943,17 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
           }
 
           case "checkin": {
+            const checkinBlock = block as CheckInBlock;
             const preparedBlock = {
-              ...block,
-              id: block.id || `block-${block.blockNumber}`,
-              name: block.name || `Block ${block.blockNumber}`,
-              blockNumber: block.blockNumber,
-              type: block.type,
+              ...checkinBlock,
+              skip: checkinBlock.skip || false, // NEW FIELD
+              id: checkinBlock.id || `block-${checkinBlock.blockNumber}`,
+              name: checkinBlock.name || `Block ${checkinBlock.blockNumber}`,
+              blockNumber: checkinBlock.blockNumber,
+              type: checkinBlock.type,
+              systemPrompt: checkinBlock.systemPrompt || "",
+              userPrompt: checkinBlock.userPrompt || "",
+              saveAsCsv: checkinBlock.saveAsCsv || false,
               agentId: get().currentAgent?.id || "",
             };
             return preparedBlock;
@@ -891,6 +976,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: contactBlock.systemPrompt || "",
               userPrompt: contactBlock.userPrompt || "",
               saveAsCsv: contactBlock.saveAsCsv || false,
+              skip: contactBlock.skip || false, // NEW FIELD
             } as ContactBlock;
 
             logUndefinedFields(
@@ -914,6 +1000,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: webBlock.systemPrompt || "",
               userPrompt: webBlock.userPrompt || "",
               saveAsCsv: webBlock.saveAsCsv || false,
+              skip: webBlock.skip || false, // NEW FIELD
               url: webBlock.url || "",
               selectedVariableId: webBlock.selectedVariableId || "",
               selectedVariableName: webBlock.selectedVariableName || "",
@@ -948,6 +1035,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: makeBlock.systemPrompt || "",
               userPrompt: makeBlock.userPrompt || "",
               saveAsCsv: makeBlock.saveAsCsv || false,
+              skip: makeBlock.skip || false, // NEW FIELD
             };
 
             logUndefinedFields(
@@ -961,6 +1049,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             // For block types not explicitly handled, preserve all properties
             return {
               ...block,
+              skip: (block as any).skip || false, // NEW FIELD
               agentId: "", // Will be set to new agent ID below
             };
           }
@@ -1109,18 +1198,17 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         columns?: string[];
       }>;
 
-      // Create new variables with new IDs and empty values
+      // Create new variables with SAME IDs but new agentId
       const variableCopyPromises = variablesToCopy.map(
         async (originalVariable) => {
-          const newVariableId = crypto.randomUUID();
-          const newVariableRef = doc(variablesRef, newVariableId);
+          const newVariableRef = doc(variablesRef, originalVariable.id); // Use same ID
           const newVariable = {
-            id: newVariableId,
+            id: originalVariable.id, // Keep same ID
             name: originalVariable.name,
             type: originalVariable.type,
             value: originalVariable.type === "table" ? [] : "", // Empty array for tables, empty string for others
             updatedAt: new Date().toISOString(),
-            agentId: newAgentId,
+            agentId: newAgentId, // Point to new agent
             ...(originalVariable.columns && {
               columns: originalVariable.columns, // Keep the column structure for tables
             }),
@@ -1142,8 +1230,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         createdAt: new Date().toISOString(),
         blocks: copiedBlocks as Block[],
         // Preserve folder assignment
-        folderId: agentToCopy.folderId,
-        folderName: agentToCopy.folderName,
+        folderId: agentToCopy.folderId || "",
+        folderName: agentToCopy.folderName || "",
         // Only copy properties that are not undefined
         ...(agentToCopy.agent_rating_thumbs_up !== undefined && {
           agent_rating_thumbs_up: agentToCopy.agent_rating_thumbs_up,
@@ -1182,5 +1270,143 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       console.error("Error copying agent:", error);
       throw error;
     }
+  },
+
+  updateBlockData: (blockNumber: number, updates: Partial<Block>) => {
+    set((state: AgentStore): AgentStore => {
+      if (!state.currentAgent) return state;
+      return {
+        ...state,
+        currentAgent: {
+          ...state.currentAgent,
+          blocks: state.currentAgent.blocks.map((block) =>
+            block.blockNumber === blockNumber
+              ? ({ ...block, ...updates } as Block)
+              : block
+          ),
+        },
+      };
+    });
+  },
+
+  reorderBlocks: (startIndex: number, endIndex: number) => {
+    set((state) => {
+      if (!state.currentAgent) return state;
+      const blocks = arrayMove(
+        [...state.currentAgent.blocks],
+        startIndex,
+        endIndex
+      );
+      blocks.forEach((block: Block, index: number) => {
+        block.blockNumber = index + 1;
+      });
+      return {
+        ...state,
+        currentAgent: {
+          ...state.currentAgent,
+          blocks,
+        },
+      };
+    });
+  },
+
+  updateBlockName: (blockNumber: number, newName: string) => {
+    set((state) => {
+      if (!state.currentAgent) return state;
+      return {
+        ...state,
+        currentAgent: {
+          ...state.currentAgent,
+          blocks: state.currentAgent.blocks.map((block) =>
+            block.blockNumber === blockNumber
+              ? { ...block, name: newName }
+              : block
+          ),
+        },
+      };
+    });
+  },
+
+  copyBlockAfter: (blockNumber: number) => {
+    set((state) => {
+      if (!state.currentAgent) return state;
+      const blocks = [...state.currentAgent.blocks];
+      const sourceBlock = blocks.find((b) => b.blockNumber === blockNumber);
+      if (!sourceBlock) return state;
+
+      const sourceIndex = blocks.findIndex(
+        (b) => b.blockNumber === blockNumber
+      );
+      const newBlockNumber = Math.max(...blocks.map((b) => b.blockNumber)) + 1;
+
+      const copiedBlock: Block = {
+        ...sourceBlock,
+        id: crypto.randomUUID(),
+        name: `${sourceBlock.name} (Copy)`,
+        blockNumber: newBlockNumber,
+      };
+
+      blocks.splice(sourceIndex + 1, 0, copiedBlock);
+
+      return {
+        ...state,
+        currentAgent: {
+          ...state.currentAgent,
+          blocks,
+        },
+      };
+    });
+  },
+
+  deleteBlock: (blockNumber: number) => {
+    set((state) => {
+      if (!state.currentAgent) return state;
+      return {
+        ...state,
+        currentAgent: {
+          ...state.currentAgent,
+          blocks: state.currentAgent.blocks.filter(
+            (block) => block.blockNumber !== blockNumber
+          ),
+        },
+      };
+    });
+  },
+
+  setCurrentBlockIndex: (index: number | null) =>
+    set({ currentBlockIndex: index }),
+
+  setIsPaused: (paused: boolean) => set({ isPaused: paused }),
+
+  updateCurrentAgent: (agent: Agent) => set({ currentAgent: agent }),
+
+  addBlockToAgent: (blockData: Partial<Block> & { type: Block["type"] }) => {
+    set((state) => {
+      if (!state.currentAgent) return state;
+
+      const blocks = [...state.currentAgent.blocks];
+      const maxBlockNumber =
+        blocks.length > 0 ? Math.max(...blocks.map((b) => b.blockNumber)) : 0;
+      const newBlockNumber = maxBlockNumber + 1;
+
+      // Create complete block with defaults
+      const block = {
+        id: crypto.randomUUID(),
+        name: `Block ${newBlockNumber}`,
+        agentId: state.currentAgent.id,
+        systemPrompt: "",
+        userPrompt: "",
+        saveAsCsv: false,
+        blockNumber: newBlockNumber,
+        ...blockData, // Override with provided data
+      } as Block;
+
+      blocks.push(block);
+
+      return {
+        ...state,
+        currentAgent: { ...state.currentAgent, blocks },
+      };
+    });
   },
 }));

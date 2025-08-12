@@ -57,7 +57,7 @@ export default function AgentHeader({
     checkMasterRole,
     createAgentForUser,
   } = useAgentStore();
-  const { blocks } = useSourceStore();
+  // ❌ Remove: const { blocks } = useSourceStore();
   const { createAgentTemplate } = useAgentTemplateStore();
 
   // Use auto-save hook - this provides hasChanges
@@ -133,7 +133,7 @@ export default function AgentHeader({
   const performSave = async (target: "current" | "other") => {
     try {
       setIsSaving(true);
-      const blocksToSave = useSourceStore.getState().blocks;
+      const blocksToSave = currentAgent?.blocks || [];
 
       // Get all variables associated with current agent
       const currentVariables = Object.values(
@@ -143,7 +143,7 @@ export default function AgentHeader({
       if (target === "other" && targetUserId.trim()) {
         if (saveAsTemplate) {
           // Clean blocks the same way as saveAgent does
-          const cleanBlocks = blocksToSave.map((block) => {
+          const cleanBlocks = blocksToSave.map((block: Block) => {
             if (block.type === "searchagent") {
               return {
                 id: block.id || crypto.randomUUID(),

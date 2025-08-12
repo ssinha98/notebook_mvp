@@ -88,9 +88,6 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
     }
   };
 
-  // Get variables from the store and convert to array
-  const variablesObj = useVariableStore((state) => state.variables);
-  const variables = Object.values(variablesObj);
   const currentAgent = useAgentStore((state) => state.currentAgent);
 
   // Add store hook for updating block names
@@ -101,17 +98,8 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
     state.blocks.find((block) => block.blockNumber === props.blockNumber)
   );
 
-  // Load variables when component mounts
-  useEffect(() => {
-    const loadVars = async () => {
-      const currentAgentId = currentAgent?.id;
-      if (currentAgentId) {
-        // console.log("Loading variables for agent:", currentAgentId);
-        await useVariableStore.getState().loadVariables(currentAgentId);
-      }
-    };
-    loadVars();
-  }, [currentAgent?.id]);
+  // Variables are now loaded centrally in the notebook page
+  // No need to load them in each individual block component
 
   // Update local variable value when initialOutputVariable changes
   React.useEffect(() => {

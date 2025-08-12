@@ -51,6 +51,11 @@ import BlockNameEditor from "./BlockNameEditor";
 import { ChevronDown } from "lucide-react";
 import { BlockButton } from "./BlockButton";
 import CustomEditor from "@/components/CustomEditor";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useRouter } from "next/router";
+import { db } from "@/tools/firebase";
+import { Agent } from "@/types/types";
+// import skipControl from "./skipControl";
 
 // Add debounce hook
 const useDebounce = (value: string, delay: number) => {
@@ -85,7 +90,9 @@ interface AgentBlockProps {
       name: string;
       type: "input" | "intermediate" | "table";
       columnName?: string;
-    } | null
+    } | null,
+    containsPrimaryInput?: boolean,
+    skip?: boolean // Add this line
   ) => void;
   onProcessedPrompts?: (processedSystem: string, processedUser: string) => void;
   isProcessing: boolean;
@@ -106,6 +113,7 @@ interface AgentBlockProps {
     type: "input" | "intermediate" | "table";
     columnName?: string;
   } | null;
+  skip?: boolean; // Add this line
 }
 
 // Add this interface to define the ref methods
@@ -116,6 +124,7 @@ export interface AgentBlockRef {
 
 // Convert component to use forwardRef
 const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
+  const router = useRouter(); // ← Add this at component level
   const [isSystemPromptOpen, setIsSystemPromptOpen] = useState(false);
   const [isUserPromptOpen, setIsUserPromptOpen] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState(
@@ -144,29 +153,29 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [saveAsCsv, setSaveAsCsv] = useState(props.initialSaveAsCsv || false);
   const [selectedModel, setSelectedModel] = useState<string>("");
   // const { variables: storeVariables } = useSourceStore();
-  const syncWithFirestore = useSourceStore((state) => state.syncWithFirestore);
+  // Remove this line that causes the infinite loop
+  // const syncWithFirestore = useSourceStore((state) => state.syncWithFirestore);
   const currentAgent = useAgentStore((state) => state.currentAgent);
   const [output, setOutput] = useState<any>(null);
+  // Remove this line:
+  // const [skip, setskip] = useState(props.skip || false);
 
   // Add store hook for updating block names
   const { updateBlockName } = useSourceStore();
 
   // Get current block to display its name
-  const currentBlock = useSourceStore((state) =>
-    state.blocks.find((block) => block.blockNumber === props.blockNumber)
+  const currentBlock = useAgentStore((state) =>
+    state.currentAgent?.blocks.find(
+      (block) => block.blockNumber === props.blockNumber
+    )
   );
 
   // Debounce the prompts to avoid excessive updates
   const debouncedSystemPrompt = useDebounce(systemPrompt, 500);
   const debouncedUserPrompt = useDebounce(userPrompt, 500);
 
-  // Load variables when component mounts
-  useEffect(() => {
-    const currentAgentId = useAgentStore.getState().currentAgent?.id;
-    if (currentAgentId) {
-      useVariableStore.getState().loadVariables(currentAgentId);
-    }
-  }, []);
+  // Variables are now loaded centrally in the notebook page
+  // No need to load them in each individual block component
 
   // Add useEffect to update prompts when they change
   useEffect(() => {
@@ -201,9 +210,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
 
   useEffect(() => {
     if (user) {
-      syncWithFirestore(user.uid);
+      // useSourceStore.getState().syncWithFirestore(user.uid);
     }
-  }, [user, syncWithFirestore]);
+  }, [user]);
 
   // Update useEffect to handle initial source
   useEffect(() => {
@@ -279,7 +288,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
               downloadUrl: fileNicknames[selectedSource].downloadLink,
             }
           : undefined,
-        outputVariable || null
+        outputVariable || null,
+        currentBlock?.containsPrimaryInput || false,
+        currentBlock?.skip || false // Add this line
       );
     }
   };
@@ -530,17 +541,139 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   };
 
   // Update handleProcessBlock to handle single source
-  const handleProcessBlock = async () => {
+  const handleProcessBlock = async (
+    isManualRun: boolean = true
+  ): Promise<boolean> => {
     const newRequestId = crypto.randomUUID();
     setRequestId(newRequestId);
     setIsRunning(true);
+
     try {
       props.onProcessingChange(true);
-      const processedSystemPrompt = processVariablesInText(systemPrompt);
-      const processedUserPrompt = processVariablesInText(userPrompt);
 
-      // Check for source with improved regex pattern
-      const sourceMatch = userPrompt.match(/@([a-zA-Z_]+(?:\.[a-zA-Z]+)?)/);
+      // STEP 1: For manual runs, save current UI state to Firebase first
+      if (isManualRun) {
+        const currentBlock = currentAgent?.blocks?.find(
+          (b) => b.blockNumber === props.blockNumber
+        );
+
+        if (!currentBlock) {
+          throw new Error("Block not found");
+        }
+
+        // Update the block with current local state
+        const sourceInfo =
+          selectedSource !== "none" && fileNicknames[selectedSource]
+            ? {
+                nickname: selectedSource,
+                downloadUrl: fileNicknames[selectedSource].downloadLink,
+              }
+            : undefined;
+
+        // Find the selected variable and format it properly
+        const variables = useVariableStore.getState().variables;
+        let outputVariable;
+
+        if (selectedVariableId.includes(":")) {
+          const [tableId, columnName] = selectedVariableId.split(":");
+          const selectedVariable = Object.values(variables).find(
+            (v) => v.id === tableId
+          );
+
+          if (selectedVariable) {
+            outputVariable = {
+              id: selectedVariable.id,
+              name: `${selectedVariable.name}.${columnName}`,
+              type: "table" as const,
+              columnName: columnName,
+            };
+          }
+        } else if (selectedVariableId) {
+          const selectedVariable = Object.values(variables).find(
+            (v) => v.id === selectedVariableId
+          );
+
+          if (selectedVariable) {
+            outputVariable = {
+              id: selectedVariable.id,
+              name: selectedVariable.name,
+              type: selectedVariable.type as "input" | "intermediate" | "table",
+            };
+          }
+        }
+
+        // Save current UI state to Firebase
+        props.onSavePrompts(
+          props.blockNumber,
+          systemPrompt,
+          userPrompt,
+          saveAsCsv,
+          sourceInfo,
+          outputVariable || null,
+          currentBlock?.containsPrimaryInput || false,
+          currentBlock?.skip || false // Add this line
+        );
+
+        // Give it a moment to save
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        console.log(
+          "Block data saved to Firebase before processing (manual run)"
+        );
+      } else {
+        console.log(
+          "Skipping UI state save for automated processing - using existing Firebase data"
+        );
+      }
+
+      // STEP 2: ALWAYS fetch fresh data from Firebase (both manual and automated)
+      const userId = auth.currentUser?.uid;
+      const { agentId } = router.query;
+
+      if (!userId || !agentId || typeof agentId !== "string") {
+        throw new Error("Authentication or agent error");
+      }
+
+      const agentDoc = await getDoc(doc(db, `users/${userId}/agents`, agentId));
+
+      if (!agentDoc.exists()) {
+        throw new Error("Agent not found");
+      }
+
+      const agent = { id: agentDoc.id, ...agentDoc.data() } as Agent;
+      const freshBlock = agent.blocks.find(
+        (b) => b.blockNumber === props.blockNumber
+      );
+
+      if (!freshBlock || freshBlock.type !== "agent") {
+        throw new Error("Agent block not found");
+      }
+
+      // 🆕 ADD: Check skip status from fresh Firebase data
+      if (freshBlock.skip) {
+        console.log(
+          `❌ SKIPPING AgentBlock ${props.blockNumber} - skip flag is true in Firebase`
+        );
+        return true; // Return true to indicate successful skip
+      }
+
+      console.log(
+        `✅ EXECUTING AgentBlock ${props.blockNumber} - skip flag is false in Firebase`
+      );
+
+      // Use fresh Firebase data for processing
+      const systemPromptToUse = freshBlock.systemPrompt || "";
+      const userPromptToUse = freshBlock.userPrompt || "";
+      const saveAsCsvToUse = freshBlock.saveAsCsv || false;
+
+      console.log("Using fresh Firebase prompts for processing");
+
+      const processedSystemPrompt = processVariablesInText(systemPromptToUse);
+      const processedUserPrompt = processVariablesInText(userPromptToUse);
+
+      // Rest of the existing API call logic using fresh Firebase data...
+      const sourceMatch = userPromptToUse.match(
+        /@([a-zA-Z_]+(?:\.[a-zA-Z]+)?)/
+      );
       const sourceNickname = sourceMatch
         ? sourceMatch[1].trim()
         : selectedSource;
@@ -551,6 +684,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         sourceNickname !== "none" &&
         fileNicknames[sourceNickname]
       ) {
+        // Source-based API calls
         const sourceData = fileNicknames[sourceNickname];
 
         if (sourceData.file_type === "website") {
@@ -565,7 +699,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
             system_prompt: processedSystemPrompt,
             user_prompt: processedUserPrompt,
             download_url: sourceData.downloadLink,
-            save_as_csv: saveAsCsv,
+            save_as_csv: saveAsCsvToUse,
             request_id: newRequestId,
           });
         }
@@ -573,77 +707,38 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         response = await api.post("/api/call-model", {
           system_prompt: processedSystemPrompt,
           user_prompt: processedUserPrompt,
-          save_as_csv: saveAsCsv,
+          save_as_csv: saveAsCsvToUse,
           request_id: newRequestId,
         });
       }
 
-      if (response.success) {
-        // Handle CSV download if present
-        if (saveAsCsv && response.csv_content) {
-          const blob = new Blob([response.csv_content], { type: "text/csv" });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = response.filename || "response.csv";
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          a.remove();
-        }
+      // ADD: Save to variable if one is selected (use local state like other components)
+      if (response && selectedVariableId) {
+        try {
+          const responseValue = response.response || response;
 
-        setModelResponse(response.response);
-
-        if (selectedVariableId) {
-          try {
-            // Add try-catch block for better error handling
-            if (selectedVariableId.includes(":")) {
-              // Table variable - save to specific column
-              const [tableId, columnName] = selectedVariableId.split(":");
-              const tableVar = storeVariables[tableId];
-
-              if (tableVar && tableVar.type === "table") {
-                // Create a new row with the response in the specified column
-                await useVariableStore.getState().addTableRow(tableId, {
-                  [columnName]: response.response,
-                });
-              } else {
-                console.warn(
-                  "Selected table variable not found or not a table type"
-                );
-              }
-            } else {
-              // Regular variable - save entire response
-              await useVariableStore
-                .getState()
-                .updateVariable(selectedVariableId, response.response);
-            }
-          } catch (error) {
-            console.error("Error saving to variable:", error);
-            toast.error("Failed to save results to variable"); // Add error toast
+          if (selectedVariableId.includes(":")) {
+            // Table variable with column
+            const [tableId, columnName] = selectedVariableId.split(":");
+            await useVariableStore.getState().addTableRow(tableId, {
+              [columnName]: responseValue,
+            });
+            console.log(`Response saved to table ${tableId}.${columnName}`);
+          } else {
+            // Regular variable
+            await useVariableStore
+              .getState()
+              .updateVariable(selectedVariableId, responseValue);
+            console.log(`Response saved to variable ${selectedVariableId}`);
           }
+        } catch (error) {
+          console.error("Error saving to variable:", error);
         }
-
-        if (props.onProcessedPrompts) {
-          props.onProcessedPrompts(processedSystemPrompt, processedUserPrompt);
-        }
-
-        setOutput(response.response);
-        return true;
-      } else {
-        // Handle cancellation gracefully
-        if (response.cancelled) {
-          console.log("Block processing was cancelled by user");
-          return false;
-        }
-
-        if (response.needs_api_key) {
-          alert("Please add your own API key to continue using the service.");
-        } else {
-          console.error("Error from model:", response.response);
-        }
-        return false;
       }
+
+      // CHANGE: Show only the response content, not full JSON
+      setModelResponse(response.response || response);
+      return true;
     } catch (error) {
       console.error("Error processing block:", error);
       return false;
@@ -663,7 +758,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   };
 
   useImperativeHandle(ref, () => ({
-    processBlock: handleProcessBlock,
+    processBlock: async () => {
+      return handleProcessBlock(false); // Pass false for automated runs
+    },
     getOutput: () => output,
   }));
 
@@ -717,7 +814,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       userPrompt, // Use current values, not debounced
       saveAsCsv,
       sourceInfo,
-      outputVariable || null
+      outputVariable || null,
+      currentBlock?.containsPrimaryInput || false,
+      currentBlock?.skip || false // Add this line
     );
   }, [
     systemPrompt,
@@ -728,6 +827,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     selectedVariableId,
     props.onSavePrompts,
     props.blockNumber,
+    currentBlock?.containsPrimaryInput,
+    currentBlock?.skip, // Add this line
   ]);
 
   // Debounced save function for auto-save when typing
@@ -780,7 +881,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       debouncedUserPrompt, // Use debounced values for auto-save
       saveAsCsv,
       sourceInfo,
-      outputVariable || null
+      outputVariable || null,
+      currentBlock?.containsPrimaryInput || false,
+      currentBlock?.skip || false // Add this line
     );
   }, [
     debouncedSystemPrompt,
@@ -791,6 +894,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     selectedVariableId,
     props.onSavePrompts,
     props.blockNumber,
+    currentBlock?.containsPrimaryInput,
+    currentBlock?.skip, // Add this line
   ]);
 
   // Save prompts only when debounced values change
@@ -858,7 +963,9 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
               downloadUrl: fileNicknames[selectedSource].downloadLink,
             }
           : undefined,
-        updates.outputVariable
+        updates.outputVariable,
+        currentBlock?.containsPrimaryInput || false,
+        currentBlock?.skip || false // Add this line
       );
     },
     [
@@ -869,6 +976,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       saveAsCsv,
       selectedSource,
       fileNicknames,
+      currentBlock?.containsPrimaryInput,
+      currentBlock?.skip, // Add this line
     ]
   );
 
@@ -879,6 +988,32 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       toast.success("Block copied successfully!");
     }
   };
+
+  useEffect(() => {
+    // Auto-save when response comes in and variable is selected (like SearchAgent/DeepResearchAgent)
+    if (modelResponse && selectedVariableId) {
+      const saveToVariable = async () => {
+        try {
+          const responseValue = modelResponse;
+
+          if (selectedVariableId.includes(":")) {
+            const [tableId, columnName] = selectedVariableId.split(":");
+            await useVariableStore.getState().addTableRow(tableId, {
+              [columnName]: responseValue,
+            });
+          } else {
+            await useVariableStore
+              .getState()
+              .updateVariable(selectedVariableId, responseValue);
+          }
+        } catch (error) {
+          console.error("AgentBlock auto-save error:", error);
+        }
+      };
+
+      saveToVariable();
+    }
+  }, [modelResponse, selectedVariableId]);
 
   return (
     <>
@@ -894,24 +1029,129 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                 blockNumber={props.blockNumber}
                 onNameUpdate={updateBlockName}
               />
+              <div className="flex items-center gap-2">
+                {/* CONTAINS PRIMARY INPUT CHECKBOX */}
+                <Checkbox
+                  id={`primary-input-${props.blockNumber}`}
+                  checked={currentBlock?.containsPrimaryInput || false}
+                  onCheckedChange={(checked) => {
+                    props.onSavePrompts(
+                      props.blockNumber,
+                      systemPrompt,
+                      userPrompt,
+                      saveAsCsv,
+                      selectedSource !== "none" && fileNicknames[selectedSource]
+                        ? {
+                            nickname: selectedSource,
+                            downloadUrl:
+                              fileNicknames[selectedSource].downloadLink,
+                          }
+                        : undefined,
+                      selectedVariableId
+                        ? (() => {
+                            if (selectedVariableId.includes(":")) {
+                              const [tableId, columnName] =
+                                selectedVariableId.split(":");
+                              const tableVar = Object.values(
+                                storeVariables
+                              ).find((v) => v.id === tableId);
+                              if (tableVar) {
+                                return {
+                                  id: tableId,
+                                  name: `${tableVar.name}.${columnName}`,
+                                  type: "table",
+                                  columnName: columnName,
+                                };
+                              }
+                            }
+                            const variable = Object.values(storeVariables).find(
+                              (v) => v.id === selectedVariableId
+                            );
+                            return {
+                              id: selectedVariableId,
+                              name: variable?.name || "",
+                              type: variable?.type || "input",
+                            };
+                          })()
+                        : undefined,
+                      checked as boolean, // This is correct
+                      currentBlock?.skip || false // This should be the current value, not the new value
+                    );
+                  }}
+                  className="border-gray-600 bg-gray-700"
+                />
+                <label
+                  htmlFor={`primary-input-${props.blockNumber}`}
+                  className="text-sm text-gray-400"
+                >
+                  Contains Primary Input
+                </label>
+              </div>
+              {/* SKIP block CHECKBOX */}
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={`skip-if-no-input-${props.blockNumber}`}
+                  checked={currentBlock?.skip || false}
+                  onCheckedChange={(checked) => {
+                    props.onSavePrompts(
+                      props.blockNumber,
+                      systemPrompt,
+                      userPrompt,
+                      saveAsCsv,
+                      selectedSource !== "none" && fileNicknames[selectedSource]
+                        ? {
+                            nickname: selectedSource,
+                            downloadUrl:
+                              fileNicknames[selectedSource].downloadLink,
+                          }
+                        : undefined,
+                      selectedVariableId
+                        ? (() => {
+                            if (selectedVariableId.includes(":")) {
+                              const [tableId, columnName] =
+                                selectedVariableId.split(":");
+                              const tableVar = Object.values(
+                                storeVariables
+                              ).find((v) => v.id === tableId);
+                              if (tableVar) {
+                                return {
+                                  id: tableId,
+                                  name: `${tableVar.name}.${columnName}`,
+                                  type: "table",
+                                  columnName: columnName,
+                                };
+                              }
+                            }
+                            const variable = Object.values(storeVariables).find(
+                              (v) => v.id === selectedVariableId
+                            );
+                            return {
+                              id: selectedVariableId,
+                              name: variable?.name || "",
+                              type: variable?.type || "input",
+                            };
+                          })()
+                        : undefined,
+                      currentBlock?.containsPrimaryInput || false, // Add this line - use current value
+                      checked as boolean // This is correct
+                    );
+                  }}
+                  className="border-gray-600 bg-gray-700"
+                />
+                <label
+                  htmlFor={`skip-if-no-input-${props.blockNumber}`}
+                  className="text-sm text-gray-400"
+                >
+                  Skip block
+                </label>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              {/* <Card className="w-[180px] h-[60px]"> */}
-              {/* <div className="text-center">Powered by GPT-4</div> */}
-              {/* <div className="flex flex-col items-center justify-center">
+            {/* <Card className="w-[180px] h-[60px]"> */}
+            {/* <div className="text-center">Powered by GPT-4</div> */}
+            {/* <div className="flex flex-col items-center justify-center">
                   <img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/OpenAI_Logo.svg" alt="OpenAI Logo" className="w-1/4 h-1/4" />
                 </div> */}
-              {/* </Card> */}
-            </div>
-            {/* <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select model" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gpt-4">GPT-4</SelectItem>
-                <SelectItem value="gpt-3.5">GPT-3.5</SelectItem>
-              </SelectContent>
-            </Select> */}
+            {/* </Card> */}
           </div>
           <Popover>
             <PopoverTrigger>
@@ -1099,6 +1339,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                           };
                         })()
                       : undefined
+                    // currentBlock?.containsPrimaryInput || false,
+                    // currentBlock?.skip || false // Add this line
                   );
                 }}
                 className="form-checkbox bg-gray-700 border-gray-600"
@@ -1111,7 +1353,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         <div className="mt-4 flex justify-start">
           <BlockButton
             isRunning={isRunning}
-            onRun={handleProcessBlock}
+            onRun={() => handleProcessBlock(true)} // Pass true for manual runs
             onCancel={handleCancel}
             runLabel="Run Block"
             runningLabel="Running..."

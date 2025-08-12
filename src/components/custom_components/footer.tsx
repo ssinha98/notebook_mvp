@@ -252,17 +252,17 @@ export default function Footer({
   const [isScheduleConfigOpen, setIsScheduleConfigOpen] = useState(false);
 
   // Add these from the store
-  const addBlockToNotebook = useSourceStore(
-    (state) => state.addBlockToNotebook
-  );
-  const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
+  const { currentAgent, addBlockToAgent } = useAgentStore();
+  const blocks = currentAgent?.blocks || [];
+  const nextBlockNumber =
+    blocks.length > 0 ? Math.max(...blocks.map((b) => b.blockNumber)) + 1 : 1;
 
   // Add debugging to see current state
-  const blocks = useSourceStore((state) => state.blocks);
+  // const blocks = useSourceStore((state) => state.blocks);
 
   // Create the addNewBlock function
   const addNewBlock = () => {
-    addBlockToNotebook({
+    addBlockToAgent({
       type: "agent",
       blockNumber: nextBlockNumber,
       systemPrompt: "",
@@ -276,18 +276,10 @@ export default function Footer({
 
   // Add new function to handle check-in blocks with debugging
   const addNewCheckInBlock = () => {
-    const newBlock = {
-      type: "checkin" as const,
-      blockNumber: nextBlockNumber,
-      id: crypto.randomUUID(),
+    addBlockToAgent({
+      type: "checkin",
       name: `Check-in ${nextBlockNumber}`,
-      agentId: useAgentStore.getState().currentAgent?.id || "",
-      systemPrompt: "",
-      userPrompt: "",
-      saveAsCsv: false,
-    };
-
-    addBlockToNotebook(newBlock);
+    });
   };
 
   const { addBlock } = useBlockManager();
@@ -309,12 +301,11 @@ export default function Footer({
       label: "Agent Block",
       tooltip: "Add a new agent block...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "agent",
-          blockNumber: nextBlockNumber,
           id: crypto.randomUUID(),
           name: `Agent ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
+          agentId: currentAgent?.id || "",
           systemPrompt: "You are a helpful assistant",
           userPrompt: "",
           saveAsCsv: false,
@@ -332,15 +323,9 @@ export default function Footer({
       label: "Contact",
       tooltip: "Have your agent send...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "contact",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Contact ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           channel: "email",
           recipient: "",
           subject: "",
@@ -354,15 +339,9 @@ export default function Footer({
       label: "Check In",
       tooltip: "Tell your agent to pause...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "checkin",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Check-in ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
         });
       },
     },
@@ -372,18 +351,12 @@ export default function Footer({
       label: "Search Agent",
       tooltip: "Add a search agent block...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "searchagent",
-          blockNumber: nextBlockNumber,
+          name: `Search ${nextBlockNumber}`,
           engine: "search",
           query: "",
           limit: 5,
-          id: crypto.randomUUID(),
-          name: `Search ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
         });
       },
     },
@@ -393,19 +366,13 @@ export default function Footer({
       label: "Web Agent",
       tooltip: "Add a web agent block...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "webagent",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Web ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
           activeTab: "url",
           url: "",
           searchVariable: "",
           selectedVariableId: "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           results: [],
         });
       },
@@ -417,15 +384,9 @@ export default function Footer({
       tooltip: "Add a code block...",
       onClick: () => {
         console.log("Adding code block");
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "codeblock",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Code ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           language: "python",
           code: "",
           outputVariable: null,
@@ -447,15 +408,9 @@ export default function Footer({
       label: "Make.com Integration",
       tooltip: "Add a Make.com webhook integration...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "make",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Make ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           webhookUrl: "",
           parameters: [{ key: "", value: "" }],
         });
@@ -467,15 +422,9 @@ export default function Footer({
       label: "Excel Agent",
       tooltip: "Add an Excel processing block...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "excelagent",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Excel ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           fileUrl: "",
           sheetName: "",
           range: "",
@@ -489,15 +438,9 @@ export default function Footer({
       label: "Instagram Agent",
       tooltip: "Add an Instagram processing block...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "instagramagent",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Instagram ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           url: "",
           postCount: 5,
         });
@@ -509,15 +452,9 @@ export default function Footer({
       label: "Deep Research Agent",
       tooltip: "Add a deep research block...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "deepresearchagent",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Deep Research ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           topic: "",
         });
       },
@@ -534,15 +471,9 @@ export default function Footer({
       label: "Pipedrive Agent",
       tooltip: "Add a Pipedrive CRM integration block...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "pipedriveagent",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Pipedrive ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           prompt: "",
         });
       },
@@ -553,15 +484,9 @@ export default function Footer({
       label: "Data Visualization",
       tooltip: "Create charts and visualizations...",
       onClick: () => {
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "datavizagent",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `DataViz ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           prompt: "",
           chartType: "smart",
           outputVariable: null,
@@ -573,36 +498,26 @@ export default function Footer({
       icon: <FaListAlt className="w-5 h-5" />,
       label: "ClickUp Agent",
       tooltip: "Add ClickUp Agent block",
-      onClick: () =>
-        addBlockToNotebook({
+      onClick: () => {
+        addBlockToAgent({
           type: "clickupagent",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `ClickUp ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           prompt: "",
-        }),
+        });
+      },
     },
     {
       id: "googledriveagent",
       icon: <FaGoogleDrive className="w-5 h-5" />,
       label: "Google Drive Agent",
       tooltip: "Add Google Drive Agent block",
-      onClick: () =>
-        addBlockToNotebook({
+      onClick: () => {
+        addBlockToAgent({
           type: "googledriveagent",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Google Drive ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           prompt: "",
-        }),
+        });
+      },
     },
     {
       id: "apolloagent",
@@ -610,17 +525,9 @@ export default function Footer({
       label: "Apollo",
       tooltip: "Add Apollo enrichment block",
       onClick: () => {
-        const { addBlockToNotebook, nextBlockNumber } =
-          useSourceStore.getState();
-        addBlockToNotebook({
+        addBlockToAgent({
           type: "apolloagent",
-          blockNumber: nextBlockNumber,
-          id: crypto.randomUUID(),
           name: `Apollo Agent ${nextBlockNumber}`,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           fullName: "",
           company: "",
         });
@@ -632,24 +539,17 @@ export default function Footer({
       label: "Transform Table",
       tooltip:
         "Transform an existing table with operations like deduplication and filtering",
-      onClick: () =>
-        addBlockToNotebook({
+      onClick: () => {
+        addBlockToAgent({
           type: "tabletransform",
-          id: crypto.randomUUID(),
           name: `Table Transform ${nextBlockNumber}`,
-          blockNumber: nextBlockNumber,
-          agentId: useAgentStore.getState().currentAgent?.id || "",
-          systemPrompt: "",
-          userPrompt: "",
-          saveAsCsv: false,
           tableId: "",
           operation: "deduplicate",
           config: {},
-        }),
+        });
+      },
     },
   ];
-
-  const { getBlockList } = useSourceStore();
 
   const sendCheckInEmail = async () => {
     try {

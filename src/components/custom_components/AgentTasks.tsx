@@ -10,22 +10,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTaskStore } from "@/lib/taskStore";
+import { useAgentStore } from "@/lib/agentStore"; // Add this import
 
 interface AgentTasksProps {
   agentNames: Record<string, string>;
 }
 
-// const demoTask = {
-//   id: "demo-task-2",
-//   title: "Respond to incoming lead",
-//   agentId: "email-lead-qualifier",
-//   date: new Date().toLocaleDateString(),
-//   completed: false, // checkbox is unchecked
-// };
-
 export default function AgentTasks({ agentNames }: AgentTasksProps) {
   const router = useRouter();
   const { tasks, loadTasks, updateTask } = useTaskStore();
+  const { agents } = useAgentStore(); // Add this to get agents
 
   useEffect(() => {
     loadTasks();
@@ -39,9 +33,27 @@ export default function AgentTasks({ agentNames }: AgentTasksProps) {
     await updateTask(taskId, { completed });
   };
 
-  const allTasks = tasks;
+  // Helper function to get agent name
+  const getAgentName = (agentId: string) => {
+    // First try to find in the agents list
+    const agent = agents.find((a) => a.id === agentId);
+    if (agent?.name) {
+      return agent.name;
+    }
 
-  if (allTasks.length === 0) {
+    // Fallback to agentNames prop if provided
+    if (agentNames[agentId]) {
+      return agentNames[agentId];
+    }
+
+    // Final fallback
+    return `Agent #${agentId.substring(0, 8)}...`;
+  };
+
+  // Filter to only show uncompleted tasks
+  const uncompletedTasks = tasks.filter((task) => !task.completed);
+
+  if (uncompletedTasks.length === 0) {
     return (
       <div>
         <h2 className="text-xl font-bold text-white mb-4">Your Tasks</h2>
@@ -50,7 +62,7 @@ export default function AgentTasks({ agentNames }: AgentTasksProps) {
           style={{ backgroundColor: "#131722" }}
         >
           <div className="py-8 text-center text-gray-400">
-            <div>No agent tasks yet</div>
+            <div>No pending tasks</div>
             <a
               href="https://lytix-nocode-agents.beehiiv.com/p/notebook-changelog-feb-28"
               target="_blank"
@@ -82,7 +94,7 @@ export default function AgentTasks({ agentNames }: AgentTasksProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {allTasks.map((task) => (
+            {uncompletedTasks.map((task) => (
               <TableRow
                 key={task.id}
                 className="cursor-pointer hover:bg-gray-800"
@@ -108,10 +120,9 @@ export default function AgentTasks({ agentNames }: AgentTasksProps) {
                 </TableCell>
                 <TableCell className="align-top">
                   <div>
-                    {/* <div className="font-medium">
-                      {agentNames[task.agentId] || "email-lead-qualifier"}
-                    </div> */}
-                    <div className="text-sm text-gray-400">{task.agentId}</div>
+                    <div className="text-sm text-gray-400">
+                      {getAgentName(task.agentId)}
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell>{task.date}</TableCell>

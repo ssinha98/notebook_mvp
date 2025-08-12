@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "@/tools/firebase";
 import { AgentTask } from "@/types/types";
+import { useAgentStore } from "./agentStore";
 
 interface TaskStore {
   tasks: AgentTask[];
@@ -18,6 +19,7 @@ interface TaskStore {
   createTask: (task: Omit<AgentTask, "id">) => Promise<AgentTask>;
   updateTask: (id: string, updates: Partial<AgentTask>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
+  createReviewTask: (agentId: string) => Promise<void>; // Add this new method
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -96,6 +98,49 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     } catch (error) {
       console.error("Error deleting task:", error);
       throw error;
+    }
+  },
+
+  //  Add the new helper function
+  createReviewTask: async (agentId: string) => {
+    try {
+      // Get the current agent to get its name
+      const { currentAgent, agents } = useAgentStore.getState();
+      const agent = currentAgent;
+
+      // Get agent name, fallback to "Agent #{id}" if not available
+      let agentName = agent?.name;
+      if (!agentName) {
+        // Try to get agent name from the agents list
+        const foundAgent = agents.find((a) => a.id === agentId);
+        agentName = foundAgent?.name || `Agent #${agentId}`;
+      }
+
+      // Check if there's already an uncompleted review task for this agent
+      const { tasks } = get();
+      const existingTask = tasks.find(
+        (task) =>
+          task.agentId === agentId &&
+          task.title.includes("Review") &&
+          !task.completed
+      );
+
+      if (existingTask) {
+        console.log(`Review task already exists for agent: ${agentName}`);
+        return;
+      }
+
+      // Create the review task
+      await get().createTask({
+        title: `Review ${agentName} output`,
+        agentId: agentId,
+        date: new Date().toLocaleDateString(),
+        completed: false,
+      });
+
+      console.log(`Review task created for agent: ${agentName}`);
+    } catch (error) {
+      console.error("Error creating review task:", error);
     }
   },
 }));

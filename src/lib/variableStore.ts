@@ -265,7 +265,8 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
 
       const variable = get().variables[tableId];
       if (!variable || variable.type !== "table") {
-        throw new Error("Invalid table variable");
+        console.warn("Invalid table variable:", tableId, "Variable:", variable);
+        return ""; // Return early instead of throwing
       }
 
       const newRow = {
@@ -549,7 +550,7 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
       }));
 
       // Refresh the variables
-      await get().loadVariables(get().variables[tableId].agentId);
+      // await get().loadVariables(get().variables[tableId].agentId);
     } catch (error) {
       console.error("Error updating table variable:", error);
       throw error;

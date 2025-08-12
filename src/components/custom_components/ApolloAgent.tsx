@@ -99,9 +99,6 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
     const variables = useVariableStore((state) => state.variables);
     const currentAgent = useAgentStore((state) => state.currentAgent);
     const { updateBlockName } = useSourceStore();
-    const currentBlock = useSourceStore((state) =>
-      state.blocks.find((block) => block.blockNumber === blockNumber)
-    );
 
     // Add cancellation state variables
     const [isRunning, setIsRunning] = useState(false);
@@ -715,7 +712,8 @@ const ApolloAgent = forwardRef<ApolloAgentRef, ApolloAgentProps>(
                 </h3>
                 <BlockNameEditor
                   blockName={
-                    currentBlock?.name || `Apollo Agent ${blockNumber}`
+                    currentAgent?.blocks[blockNumber]?.name ||
+                    `Apollo Agent ${blockNumber}`
                   }
                   blockNumber={blockNumber}
                   onNameUpdate={updateBlockName}

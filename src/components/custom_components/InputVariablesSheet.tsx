@@ -59,7 +59,7 @@ const InputVariablesSheet: React.FC<InputVariablesSheetProps> = ({
   >({});
   const variables = useVariableStore((state) => state.variables);
   const currentAgent = useAgentStore((state) => state.currentAgent);
-  const loadVariables = useVariableStore((state) => state.loadVariables);
+  // const loadVariables = useVariableStore((state) => state.loadVariables);
   const router = useRouter();
   const [hasLoadedVariables, setHasLoadedVariables] = useState(false);
 

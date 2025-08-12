@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useSourceStore } from "@/lib/store";
+import { useAgentStore } from "@/lib/agentStore";
 import { Block } from "@/types/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -83,7 +84,8 @@ const FloatingAgentNav: React.FC<FloatingAgentNavProps> = ({
   onExpandedChange,
 }) => {
   const [internalIsExpanded, setInternalIsExpanded] = useState(false);
-  const blocks = useSourceStore((state) => state.blocks);
+  const currentAgent = useAgentStore((state) => state.currentAgent);
+  const blocks = currentAgent?.blocks || [];
 
   // Use external state if provided, otherwise use internal state
   const isExpanded =

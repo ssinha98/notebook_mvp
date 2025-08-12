@@ -6,6 +6,7 @@ import { Dialog, DialogContent } from "../ui/dialog";
 import { Block } from "@/types/types";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useSourceStore } from "@/lib/store";
+import { useAgentStore } from "@/lib/agentStore";
 import BlockNameEditor from "./BlockNameEditor";
 import { toast } from "sonner";
 
@@ -45,8 +46,9 @@ const TransformBlock: React.FC<TransformBlockProps> = ({
   const { updateBlockName } = useSourceStore();
 
   // Get current block to display its name
-  const currentBlock = useSourceStore((state) =>
-    state.blocks.find((block) => block.blockNumber === blockNumber)
+  const currentAgent = useAgentStore((state) => state.currentAgent);
+  const currentBlock = currentAgent?.blocks?.find(
+    (block) => block.blockNumber === blockNumber
   );
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);

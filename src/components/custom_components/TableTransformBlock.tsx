@@ -48,11 +48,13 @@ const TableTransformBlock = forwardRef<
   const [error, setError] = useState<string | null>(null);
 
   // Add store hook for updating block names and deleting blocks
-  const { updateBlockName, deleteBlock } = useSourceStore();
+  const { updateBlockName } = useSourceStore();
+  const { deleteBlock } = useAgentStore();
 
   // Get current block to display its name
-  const currentBlock = useSourceStore((state) =>
-    state.blocks.find((b) => b.blockNumber === block.blockNumber)
+  const currentAgent = useAgentStore((state) => state.currentAgent);
+  const currentBlock = currentAgent?.blocks?.find(
+    (b) => b.blockNumber === block.blockNumber
   );
 
   // Add state for dynamic UI

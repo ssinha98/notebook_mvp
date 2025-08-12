@@ -34,6 +34,7 @@ import { Variable } from "@/types/types";
 import { auth } from "@/tools/firebase";
 import { api } from "@/tools/api";
 import { useSourceStore } from "@/lib/store";
+import { useAgentStore } from "@/lib/agentStore";
 import BlockNameEditor from "./BlockNameEditor";
 import { toast } from "sonner";
 
@@ -74,8 +75,9 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
     const { updateBlockName } = useSourceStore();
 
     // Get current block to display its name
-    const currentBlock = useSourceStore((state) =>
-      state.blocks.find((block) => block.blockNumber === props.blockNumber)
+    const currentAgent = useAgentStore((state) => state.currentAgent);
+    const currentBlock = currentAgent?.blocks?.find(
+      (block) => block.blockNumber === props.blockNumber
     );
 
     // Add debug logs
@@ -144,9 +146,9 @@ const CheckInBlock = forwardRef<CheckInBlockRef, CheckInBlockProps>(
             // Send email notification
             const currentUser = auth.currentUser;
             // console.log("Current user data:", {
-                // email: currentUser?.email,
-                // uid: currentUser?.uid,
-                // displayName: currentUser?.displayName,
+            // email: currentUser?.email,
+            // uid: currentUser?.uid,
+            // displayName: currentUser?.displayName,
             // });
 
             if (currentUser?.email) {

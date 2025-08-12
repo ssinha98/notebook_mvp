@@ -110,8 +110,8 @@ export function PrimaryInputDialog({
         type: b.type,
         name: b.name,
         skip: b.skip,
-        query: b.query,
-        url: b.url,
+        // query: b.query,
+        // url: b.url,
       }))
     );
 

@@ -1,10 +1,10 @@
-import { useSourceStore } from "@/lib/store";
+import { useAgentStore } from "@/lib/agentStore";
 import { Block, SearchAgentBlock } from "@/types/types";
 
 export const useBlockManager = () => {
-  const { blocks, addBlockToNotebook, removeBlock, updateBlock } =
-    useSourceStore();
-  const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
+  const { addBlockToAgent, deleteBlock, updateBlockData } = useAgentStore();
+  const currentAgent = useAgentStore((state) => state.currentAgent);
+  const blocks = currentAgent?.blocks || [];
 
   const getNextBlockNumber = () => {
     return blocks.length > 0
@@ -32,22 +32,22 @@ export const useBlockManager = () => {
       // };
     }
 
-    addBlockToNotebook(newBlock as Block);
+    addBlockToAgent(newBlock as Block);
   };
 
-  const deleteBlock = (blockNumber: number) => {
-    removeBlock(blockNumber);
+  const removeBlock = (blockNumber: number) => {
+    deleteBlock(blockNumber);
   };
 
-  const updateBlockData = (blockNumber: number, updates: Partial<Block>) => {
-    updateBlock(blockNumber, updates);
+  const updateBlock = (blockNumber: number, updates: Partial<Block>) => {
+    updateBlockData(blockNumber, updates);
   };
 
   return {
     blocks,
     addBlock,
-    deleteBlock,
-    updateBlockData,
+    deleteBlock: removeBlock, // Keep the old name for backward compatibility
+    updateBlockData: updateBlock, // Keep the old name for backward compatibility
     getNextBlockNumber,
   };
 };

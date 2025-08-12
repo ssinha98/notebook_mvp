@@ -62,7 +62,6 @@ const InstagramAgent = forwardRef<InstagramAgentRef, InstagramAgentProps>(
     const [selectedVariableId, setSelectedVariableId] = useState<string>("");
     const [modelResponse, setModelResponse] = useState<string | null>(null);
     const storeVariables = useVariableStore((state) => state.variables);
-    const currentAgent = useAgentStore((state) => state.currentAgent);
     const [posts, setPosts] = useState<SimplifiedPost[]>([]);
     const [selectedPosts, setSelectedPosts] = useState<SimplifiedPost[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -72,8 +71,9 @@ const InstagramAgent = forwardRef<InstagramAgentRef, InstagramAgentProps>(
     const { updateBlockName } = useSourceStore();
 
     // Get current block to display its name
-    const currentBlock = useSourceStore((state) =>
-      state.blocks.find((block) => block.blockNumber === props.blockNumber)
+    const currentAgent = useAgentStore((state) => state.currentAgent);
+    const currentBlock = currentAgent?.blocks?.find(
+      (block) => block.blockNumber === props.blockNumber
     );
 
     // Expose processBlock to parent components

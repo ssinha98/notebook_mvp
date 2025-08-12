@@ -143,7 +143,6 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
     } | null>(null);
     const [selectedVariableId, setSelectedVariableId] = useState<string>("");
     const variables = useVariableStore((state) => state.variables);
-    const currentAgent = useAgentStore((state) => state.currentAgent);
 
     // Add cancellation state variables
     const [isRunning, setIsRunning] = useState(false);
@@ -168,8 +167,9 @@ const DataVizAgent = forwardRef<DataVizAgentRef, DataVizAgentProps>(
     const { updateBlockName } = useSourceStore();
 
     // Get current block to display its name
-    const currentBlock = useSourceStore((state) =>
-      state.blocks.find((block) => block.blockNumber === props.blockNumber)
+    const currentAgent = useAgentStore((state) => state.currentAgent);
+    const currentBlock = currentAgent?.blocks?.find(
+      (block) => block.blockNumber === props.blockNumber
     );
 
     const selectedChart =

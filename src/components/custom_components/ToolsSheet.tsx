@@ -73,8 +73,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
   const removeFileNickname = useSourceStore(
     (state) => state.removeFileNickname
   );
-  const blocks = useSourceStore((state) => state.blocks);
-  const removeBlock = useSourceStore((state) => state.removeBlock);
+  const { deleteBlock } = useAgentStore();
   const { addBlock } = useBlockManager();
   const variables = useVariableStore((state) => state.variables);
   const currentAgent = useAgentStore((state) => state.currentAgent);
@@ -91,6 +90,9 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
   const handleSourceDelete = (nickname: string) => {
     removeFileNickname(nickname);
 
+    // Get blocks from current agent instead of SourceStore
+    const blocks = currentAgent?.blocks || [];
+
     blocks
       .filter(
         (block) =>
@@ -99,7 +101,7 @@ const ToolsSheet: React.FC<ToolsSheetProps> = ({
             block.originalFilePath?.includes(nickname))
       )
       .forEach((block) => {
-        removeBlock(block.blockNumber);
+        deleteBlock(block.blockNumber);
       });
 
     // toast({

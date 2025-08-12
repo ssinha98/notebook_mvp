@@ -104,14 +104,14 @@ const ClickUpAgent = forwardRef<ClickUpAgentRef, ClickUpAgentProps>(
     const [selectedVariableId, setSelectedVariableId] = useState<string>("");
 
     const variables = useVariableStore((state) => state.variables);
-    const currentAgent = useAgentStore((state) => state.currentAgent);
 
     // Add store hook for updating block names
     const { updateBlockName } = useSourceStore();
 
     // Get current block to display its name
-    const currentBlock = useSourceStore((state) =>
-      state.blocks.find((block) => block.blockNumber === blockNumber)
+    const currentAgent = useAgentStore((state) => state.currentAgent);
+    const currentBlock = currentAgent?.blocks?.find(
+      (block) => block.blockNumber === blockNumber
     );
 
     const handleVariableSelect = (value: string) => {

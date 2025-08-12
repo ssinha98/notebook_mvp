@@ -89,13 +89,14 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
   };
 
   const currentAgent = useAgentStore((state) => state.currentAgent);
+  const variables = useVariableStore((state) => state.variables);
 
   // Add store hook for updating block names
   const { updateBlockName } = useSourceStore();
 
   // Get current block to display its name
-  const currentBlock = useSourceStore((state) =>
-    state.blocks.find((block) => block.blockNumber === props.blockNumber)
+  const currentBlock = currentAgent?.blocks?.find(
+    (block) => block.blockNumber === props.blockNumber
   );
 
   // Variables are now loaded centrally in the notebook page
@@ -180,8 +181,9 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
             ? {
                 id: selectedVariableId,
                 name:
-                  variables.find((v) => v.id === selectedVariableId)?.name ||
-                  "",
+                  Object.values(variables).find(
+                    (v) => v.id === selectedVariableId
+                  )?.name || "",
                 type: "intermediate",
               }
             : null,
@@ -316,7 +318,7 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
 
       // Save output to selected variable if one is selected
       if (selectedVariableId && outputText) {
-        const selectedVariable = variables.find(
+        const selectedVariable = Object.values(variables).find(
           (v) => v.id === selectedVariableId
         );
         if (selectedVariable) {
@@ -440,7 +442,11 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
           {selectedVariableId && (
             <div className="mt-2 text-sm text-green-400">
               Output set as{" "}
-              {variables.find((v) => v.id === selectedVariableId)?.name}
+              {
+                Object.values(variables).find(
+                  (v) => v.id === selectedVariableId
+                )?.name
+              }
             </div>
           )}
         </div>
@@ -478,8 +484,9 @@ const CodeBlock = forwardRef<CodeBlockRef, CodeBlockProps>((props, ref) => {
                   ? {
                       id: selectedVariableId,
                       name:
-                        variables.find((v) => v.id === selectedVariableId)
-                          ?.name || "",
+                        Object.values(variables).find(
+                          (v) => v.id === selectedVariableId
+                        )?.name || "",
                       type: "intermediate",
                     }
                   : null,

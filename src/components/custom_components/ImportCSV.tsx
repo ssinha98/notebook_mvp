@@ -3,6 +3,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { useSourceStore } from "@/lib/store";
+import { useAgentStore } from "@/lib/agentStore";
 import { toast } from "sonner";
 import { Block } from "@/types/types";
 
@@ -32,10 +33,8 @@ const ImportCSV: React.FC<ImportCSVProps> = ({
     processedData.originalName.replace(".csv", "")
   );
   const addSource = useSourceStore((state) => state.addSource);
-  const addBlockToNotebook = useSourceStore(
-    (state) => state.addBlockToNotebook
-  );
-  const nextBlockNumber = useSourceStore((state) => state.nextBlockNumber);
+  const { addBlockToAgent } = useAgentStore();
+  const currentAgent = useAgentStore((state) => state.currentAgent);
 
   const handleImport = () => {
     if (!sourceName.trim()) {
@@ -52,6 +51,11 @@ const ImportCSV: React.FC<ImportCSVProps> = ({
       metadata: processedData.metadata,
     });
 
+    // Get the next block number from current agent
+    const blocks = currentAgent?.blocks || [];
+    const nextBlockNumber =
+      blocks.length > 0 ? Math.max(...blocks.map((b) => b.blockNumber)) + 1 : 1;
+
     const transformBlock = {
       type: "transform",
       blockNumber: nextBlockNumber,
@@ -65,7 +69,7 @@ const ImportCSV: React.FC<ImportCSVProps> = ({
       },
     };
 
-    addBlockToNotebook(transformBlock as Block);
+    addBlockToAgent(transformBlock as Block);
 
     toast.success("Source added successfully");
     onImport();

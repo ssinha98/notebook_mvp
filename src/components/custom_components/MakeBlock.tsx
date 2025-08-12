@@ -82,14 +82,13 @@ const MakeBlock = forwardRef<MakeBlockRef, MakeBlockProps>((props, ref) => {
     }
   };
 
-  const currentAgent = useAgentStore((state) => state.currentAgent);
-
   // Add store hook for updating block names
   const { updateBlockName } = useSourceStore();
 
   // Get current block to display its name
-  const currentBlock = useSourceStore((state) =>
-    state.blocks.find((block) => block.blockNumber === props.blockNumber)
+  const currentAgent = useAgentStore((state) => state.currentAgent);
+  const currentBlock = currentAgent?.blocks?.find(
+    (block) => block.blockNumber === props.blockNumber
   );
 
   // Helper function to interpolate variables in a string

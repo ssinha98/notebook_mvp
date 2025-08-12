@@ -22,6 +22,7 @@ import { useVariableStore } from "@/lib/variableStore";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
 import { toast } from "sonner";
+import { useAgentStore } from "@/lib/agentStore";
 
 interface ContactBlockProps {
   blockNumber: number;
@@ -72,8 +73,9 @@ const ContactBlock = forwardRef<ContactBlockRef, ContactBlockProps>(
     const { updateBlockName } = useSourceStore();
 
     // Get current block to display its name
-    const currentBlock = useSourceStore((state) =>
-      state.blocks.find((block) => block.blockNumber === blockNumber)
+    const currentAgent = useAgentStore((state) => state.currentAgent);
+    const currentBlock = currentAgent?.blocks?.find(
+      (block) => block.blockNumber === blockNumber
     );
 
     // Add helper function to process variables in text

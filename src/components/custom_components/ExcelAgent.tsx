@@ -87,7 +87,6 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
     const { addFileNickname } = useSourceStore();
     const variables = useVariableStore((state) => state.variables);
     const currentAgentId = useAgentStore((state) => state.currentAgent?.id);
-    const currentAgent = useAgentStore((state) => state.currentAgent);
     const [files, setFiles] = useState<
       Array<{ name: string; url: string; nickname?: string }>
     >([]);
@@ -122,8 +121,9 @@ const ExcelAgent = forwardRef<ExcelAgentRef, ExcelAgentProps>(
     const { updateBlockName } = useSourceStore();
 
     // Get current block to display its name
-    const currentBlock = useSourceStore((state) =>
-      state.blocks.find((block) => block.blockNumber === blockNumber)
+    const currentAgent = useAgentStore((state) => state.currentAgent);
+    const currentBlock = currentAgent?.blocks?.find(
+      (block) => block.blockNumber === blockNumber
     );
 
     useEffect(() => {

@@ -168,6 +168,8 @@ export default function AgentHeader({
                 systemPrompt: (block as any).systemPrompt || "",
                 userPrompt: (block as any).userPrompt || "",
                 saveAsCsv: (block as any).saveAsCsv || false,
+                containsPrimaryInput: block.containsPrimaryInput || false,
+                skip: block.skip || false,
               } as const; // Add as const to preserve literal types
             } else if (block.type === "codeblock") {
               return {
@@ -178,9 +180,15 @@ export default function AgentHeader({
                 code: block.code || "",
                 status: block.status || "tbd",
                 outputVariable: block.outputVariable || null,
+                containsPrimaryInput: block.containsPrimaryInput || false,
+                skip: block.skip || false,
               };
             }
-            return block;
+            return {
+              ...block,
+              containsPrimaryInput: block.containsPrimaryInput || false,
+              skip: block.skip || false,
+            };
           });
 
           // Clean variables to remove undefined values

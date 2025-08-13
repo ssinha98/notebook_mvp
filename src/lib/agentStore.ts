@@ -358,6 +358,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               query: searchBlock.query || "",
               engine: searchBlock.engine || "search",
               limit: searchBlock.limit || 5,
+              containsPrimaryInput: searchBlock.containsPrimaryInput || false,
               skip: searchBlock.skip || false, // NEW FIELD
               outputVariable:
                 searchBlock.outputVariable?.id &&
@@ -473,10 +474,11 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               type: webBlock.type,
               activeTab: webBlock.activeTab || "url",
               searchVariable: webBlock.searchVariable || "",
-              agentId: get().currentAgent?.id || "",
+              agentId: "", // Will be set to new agent ID below
               systemPrompt: webBlock.systemPrompt || "",
               userPrompt: webBlock.userPrompt || "",
               saveAsCsv: webBlock.saveAsCsv || false,
+              containsPrimaryInput: webBlock.containsPrimaryInput || false,
               skip: webBlock.skip || false, // NEW FIELD
               url: webBlock.url || "",
               selectedVariableId: webBlock.selectedVariableId || "",
@@ -508,11 +510,11 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               webhookUrl: makeBlock.webhookUrl || "",
               parameters: makeBlock.parameters || [],
               outputVariable: makeBlock.outputVariable || null,
-              agentId: get().currentAgent?.id || "",
-              // Ensure all required fields from BaseBlock are included
+              agentId: "", // Will be set to new agent ID below
               systemPrompt: makeBlock.systemPrompt || "",
               userPrompt: makeBlock.userPrompt || "",
               saveAsCsv: makeBlock.saveAsCsv || false,
+              containsPrimaryInput: makeBlock.containsPrimaryInput || false,
               skip: makeBlock.skip || false, // NEW FIELD
             };
 
@@ -527,6 +529,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             // Remove exhaustive check since we handle all known types
             return {
               ...block,
+              containsPrimaryInput:
+                (block as any).containsPrimaryInput || false,
               skip: block.skip || false, // NEW FIELD
             };
           }
@@ -891,6 +895,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               query: searchBlock.query || "",
               engine: searchBlock.engine || "search",
               limit: searchBlock.limit || 5,
+              containsPrimaryInput: searchBlock.containsPrimaryInput || false,
               skip: searchBlock.skip || false, // NEW FIELD
               outputVariable:
                 searchBlock.outputVariable?.id &&
@@ -976,6 +981,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: contactBlock.systemPrompt || "",
               userPrompt: contactBlock.userPrompt || "",
               saveAsCsv: contactBlock.saveAsCsv || false,
+              containsPrimaryInput: contactBlock.containsPrimaryInput || false,
               skip: contactBlock.skip || false, // NEW FIELD
             } as ContactBlock;
 
@@ -1000,6 +1006,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: webBlock.systemPrompt || "",
               userPrompt: webBlock.userPrompt || "",
               saveAsCsv: webBlock.saveAsCsv || false,
+              containsPrimaryInput: webBlock.containsPrimaryInput || false,
               skip: webBlock.skip || false, // NEW FIELD
               url: webBlock.url || "",
               selectedVariableId: webBlock.selectedVariableId || "",
@@ -1035,6 +1042,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               systemPrompt: makeBlock.systemPrompt || "",
               userPrompt: makeBlock.userPrompt || "",
               saveAsCsv: makeBlock.saveAsCsv || false,
+              containsPrimaryInput: makeBlock.containsPrimaryInput || false,
               skip: makeBlock.skip || false, // NEW FIELD
             };
 
@@ -1049,6 +1057,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             // For block types not explicitly handled, preserve all properties
             return {
               ...block,
+              containsPrimaryInput:
+                (block as any).containsPrimaryInput || false,
               skip: (block as any).skip || false, // NEW FIELD
               agentId: "", // Will be set to new agent ID below
             };

@@ -107,6 +107,9 @@ export const useAgentTemplateStore = create<AgentTemplateStore>()(
                 userPrompt: block.userPrompt || "",
                 saveAsCsv: block.saveAsCsv || false,
                 outputVariable: block.outputVariable || null,
+                containsPrimaryInput:
+                  (block as any).containsPrimaryInput || false,
+                skip: (block as any).skip || false,
                 // Handle specific block types that might have undefined fields
                 ...(block.type === "apolloagent" && {
                   fullName: (block as any).fullName || "",

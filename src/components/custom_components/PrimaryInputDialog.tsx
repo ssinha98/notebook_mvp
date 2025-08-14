@@ -73,27 +73,49 @@ export function PrimaryInputDialog({
 
   const handleCopyBlock = async () => {
     setIsCopying(true);
-    toast.info("Refreshing to reflect the latest change...");
+    toast.info("Adding new block...");
 
     try {
       const { copyBlockAfter } = useAgentStore.getState();
       copyBlockAfter(updatedBlocks[currentIndex].blockNumber);
 
-      setTimeout(async () => {
-        const { currentAgent } = useAgentStore.getState();
-        if (currentAgent) {
-          const originalCount = updatedBlocks.length;
-          const newCount = currentAgent.blocks.length;
+      // Get the updated agent from store
+      const { currentAgent } = useAgentStore.getState();
+      if (currentAgent) {
+        const originalCount = updatedBlocks.length;
+        const newCount = currentAgent.blocks.length;
 
-          if (newCount > originalCount) {
-            setUpdatedBlocks(currentAgent.blocks);
+        if (newCount > originalCount) {
+          // Find the new block that was added
+          const newBlock = currentAgent.blocks.find(
+            (block) =>
+              !updatedBlocks.some(
+                (existingBlock) => existingBlock.id === block.id
+              )
+          );
+
+          if (newBlock) {
+            // Add the new block to local state while preserving existing changes
+            setUpdatedBlocks((prev) => {
+              const newBlocks = [...prev];
+              // Insert the new block after the current block
+              const insertIndex = currentIndex + 1;
+              newBlocks.splice(insertIndex, 0, newBlock);
+              return newBlocks;
+            });
+
+            // Automatically navigate to the new block
+            setCurrentIndex(currentIndex + 1);
+
             toast.success("Block copied successfully!");
           } else {
-            toast.error("Copy failed - no new block found");
+            toast.error("Copy failed - new block not found");
           }
+        } else {
+          toast.error("Copy failed - no new block found");
         }
-        setIsCopying(false);
-      }, 2000);
+      }
+      setIsCopying(false);
     } catch (error) {
       setIsCopying(false);
       toast.error("Failed to copy block");

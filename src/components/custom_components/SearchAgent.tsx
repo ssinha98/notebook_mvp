@@ -86,6 +86,7 @@ interface SearchAgentProps {
   } | null;
   containsPrimaryInput?: boolean;
   skip?: boolean;
+  initialPreviewMode?: boolean; // Add this prop
 }
 
 export interface SearchAgentRef {
@@ -898,6 +899,11 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
     const [isSaving, setIsSaving] = useState(false);
     const [hasSaved, setHasSaved] = useState(false);
 
+    // Add preview mode state - MOVED HERE to be with other state variables
+    const [previewMode, setPreviewMode] = useState<boolean>(
+      props.initialPreviewMode || false
+    );
+
     // Add store hook for updating block names
     const { updateBlockName } = useAgentStore();
 
@@ -1045,6 +1051,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
           timeWindow,
           trend: marketsTrend,
           region: marketsRegion,
+          previewMode: props.initialPreviewMode, // Add preview mode to block updates
         });
       }
     }, [
@@ -1056,6 +1063,7 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       timeWindow,
       marketsTrend,
       marketsRegion,
+      previewMode, // Add to dependencies
       debouncedUpdateBlock,
       props.initialQuery,
       props.blockNumber,
@@ -1894,6 +1902,17 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
       props.initialTrend,
     ]);
 
+    // Add preview mode change handler
+    const handlePreviewModeChange = (checked: boolean) => {
+      setPreviewMode(checked);
+      // Immediate update for preview mode change
+      debouncedUpdateBlock({
+        type: "searchagent",
+        blockNumber: props.blockNumber,
+        previewMode: checked,
+      });
+    };
+
     return (
       <div className="p-4 rounded-lg border border-white bg-[#141414]">
         <div className="flex items-center justify-between mb-4">
@@ -1942,6 +1961,19 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                 className="text-sm text-gray-400"
               >
                 Skip block
+              </label>
+              {/* Add Preview Mode checkbox */}
+              <Checkbox
+                id={`preview-mode-${props.blockNumber}`}
+                checked={previewMode}
+                onCheckedChange={handlePreviewModeChange}
+                className="border-gray-600 bg-gray-700"
+              />
+              <label
+                htmlFor={`preview-mode-${props.blockNumber}`}
+                className="text-sm text-gray-400"
+              >
+                Preview Mode
               </label>
             </div>
           </div>
@@ -2252,6 +2284,33 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
             {/* Conditional divider before variable selector */}
             <Separator className="my-4" />
 
+            {/* Add Preview Mode checkbox before variable selector */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={`preview-mode-${props.blockNumber}`}
+                  checked={previewMode}
+                  onCheckedChange={handlePreviewModeChange}
+                  className="border-gray-600 bg-gray-700"
+                />
+                <label
+                  htmlFor={`preview-mode-${props.blockNumber}`}
+                  className="text-sm text-gray-300"
+                >
+                  Preview Mode - Review results before saving
+                </label>
+              </div>
+              {previewMode && (
+                <div className="mt-2 text-xs text-gray-400">
+                  When enabled, search results will be shown for review before
+                  being added to the table.
+                </div>
+              )}
+            </div>
+
+            {/* Conditional divider before variable selector */}
+            <Separator className="my-4" />
+
             <div className="flex items-center gap-2 text-gray-300">
               <span>Set output as:</span>
               <VariableDropdown
@@ -2259,7 +2318,6 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
                 onValueChange={handleVariableSelect}
                 agentId={currentAgent?.id || null}
                 onAddNew={props.onOpenTools}
-                // Add the save button functionality
                 showSaveButton={!!modelResponse}
                 onSave={handleSaveToVariable}
                 isSaving={isSaving}
@@ -2282,6 +2340,20 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
         )}
 
         {modelResponse && !props.isProcessing && renderResults()}
+
+        {/* Add Preview Mode description */}
+        {previewMode && (
+          <div className="mb-4 p-3 bg-blue-900/20 border border-blue-600/30 rounded-md">
+            <div className="text-blue-300 text-sm font-medium mb-1">
+              ⚠️ Preview Mode Enabled
+            </div>
+            <div className="text-blue-200 text-xs">
+              Search results will be shown for review before being added to the
+              table. After the agent runs, you'll see a "Review" button to
+              select which results to save.
+            </div>
+          </div>
+        )}
       </div>
     );
   }

@@ -266,6 +266,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             outputVariable: block.outputVariable || null,
             containsPrimaryInput: block.containsPrimaryInput || false,
             skip: block.skip || false, // NEW FIELD
+            previewMode: block.previewMode || false, // ADD PREVIEW MODE
             newsSearchType: block.newsSearchType || "query",
             newsTopic: block.newsTopic || "",
             newsSection: block.newsSection || "",
@@ -360,6 +361,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               limit: searchBlock.limit || 5,
               containsPrimaryInput: searchBlock.containsPrimaryInput || false,
               skip: searchBlock.skip || false, // NEW FIELD
+              previewMode: searchBlock.previewMode || false, // ADD PREVIEW MODE
               outputVariable:
                 searchBlock.outputVariable?.id &&
                 searchBlock.outputVariable.name &&
@@ -616,6 +618,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               outputVariable: block.outputVariable || null,
               containsPrimaryInput: block.containsPrimaryInput || false,
               skip: block.skip || false, // NEW FIELD
+              previewMode: block.previewMode || false, // ADD PREVIEW MODE
               newsSearchType: block.newsSearchType || "query",
               newsTopic: block.newsTopic || "",
               newsSection: block.newsSection || "",
@@ -739,6 +742,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             trend: block.trend || "indexes",
             region: block.region || "",
             outputVariable: block.outputVariable || null,
+            previewMode: block.previewMode || false, // ADD PREVIEW MODE
           };
         }
         return block;
@@ -897,6 +901,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               limit: searchBlock.limit || 5,
               containsPrimaryInput: searchBlock.containsPrimaryInput || false,
               skip: searchBlock.skip || false, // NEW FIELD
+              previewMode: searchBlock.previewMode || false, // ADD PREVIEW MODE
               outputVariable:
                 searchBlock.outputVariable?.id &&
                 searchBlock.outputVariable.name &&

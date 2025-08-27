@@ -854,15 +854,33 @@ const CollapsibleBox = forwardRef<
             </div>
             {/* Add Upload Table button next to Output Editor title */}
             {props.title === "Output Editor" && props.onOpenTools && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={props.onOpenTools}
-                className="text-xs bg-gray-700 hover:bg-gray-600 border-gray-600 text-gray-300"
-              >
-                <Upload className="h-3 w-3 mr-1" />
-                Upload Table as Variable
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={props.onOpenTools}
+                  className="text-xs bg-gray-700 hover:bg-gray-600 border-gray-600 text-gray-300"
+                >
+                  <Upload className="h-3 w-3 mr-1" />
+                  Upload Table as Variable
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Navigate to the output editor page
+                    const currentUrl = window.location.href;
+                    const agentIdMatch = currentUrl.match(/agentId=([^&]+)/);
+                    if (agentIdMatch) {
+                      const agentId = agentIdMatch[1];
+                      window.location.href = `/output-editor/${agentId}`;
+                    }
+                  }}
+                  className="text-xs bg-blue-600 hover:bg-blue-700 border-blue-600 text-white"
+                >
+                  Open Full Editor
+                </Button>
+              </div>
             )}
           </div>
           <button

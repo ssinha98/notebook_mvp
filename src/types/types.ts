@@ -183,6 +183,7 @@ export interface SearchAgentBlock extends BaseBlock {
   trend?: string;
   region?: string;
   combineImage?: boolean;
+  previewMode?: boolean; // Add this line
   marketsTrend?:
     | "indexes"
     | "most-active"

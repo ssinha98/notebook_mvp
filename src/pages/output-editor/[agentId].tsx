@@ -12,7 +12,7 @@ import { useVariableStore } from "@/lib/variableStore";
 import { Block, Variable } from "@/types/types";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Upload } from "lucide-react";
 import AddVariableDialog from "@/components/custom_components/AddVariableDialog";
 import {
   Select,
@@ -26,6 +26,7 @@ import { api } from "@/tools/api";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 import SearchPreviewDialog from "@/components/custom_components/SearchPreviewDialog";
+import AddSourceDialog from "@/components/custom_components/AddSourceDialog";
 
 // Define types for navigation items
 type NavigationItem =
@@ -67,6 +68,7 @@ export default function OutputEditor() {
     undefined
   );
   const [isAddVariableDialogOpen, setIsAddVariableDialogOpen] = useState(false);
+  const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false);
   const [loadingBlocks, setLoadingBlocks] = useState<Set<string>>(new Set());
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
@@ -987,7 +989,10 @@ export default function OutputEditor() {
   };
 
   // Handle preview confirmation
-  const handlePreviewConfirm = async (selectedResults: { [rowId: string]: string[] }, targetVariableId: string) => {
+  const handlePreviewConfirm = async (
+    selectedResults: { [rowId: string]: string[] },
+    targetVariableId: string
+  ) => {
     const navigationItems = getNavigationItems();
     const currentItem = navigationItems[currentTableIndex];
 
@@ -1050,6 +1055,11 @@ export default function OutputEditor() {
     setIsPreviewDialogOpen(false);
     setPreviewData([]);
     toast.success("Search results confirmed and saved.");
+  };
+
+  // Add this handler function
+  const handleOpenTools = () => {
+    setIsAddSourceDialogOpen(true);
   };
 
   if (isLoading) {
@@ -1128,6 +1138,17 @@ export default function OutputEditor() {
               </Select>
             </div>
           </div>
+
+          {/* Add Upload Table as Variable button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenTools}
+            className="text-xs bg-gray-700 hover:bg-gray-600 border-gray-600 text-gray-300"
+          >
+            <Upload className="h-3 w-3 mr-1" />
+            Upload Table as Variable
+          </Button>
         </div>
 
         <main style={mainStyle}>
@@ -1340,8 +1361,15 @@ export default function OutputEditor() {
           onConfirm={handlePreviewConfirm}
           agentId={agentId as string}
         />
+
+        {/* Add the AddSourceDialog */}
+        <AddSourceDialog
+          open={isAddSourceDialogOpen}
+          onOpenChange={setIsAddSourceDialogOpen}
+          onAddSource={() => {}}
+          openToTableVariable={true}
+        />
       </div>
     </Layout>
   );
 }
- 

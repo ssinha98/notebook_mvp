@@ -447,7 +447,7 @@ const EditorBlock: React.FC<EditorBlockProps> = ({
 
       {/* Block Configuration Dialog */}
       <AlertDialog open={isViewDialogOpen} onOpenChange={handleDialogClose}>
-        <AlertDialogContent className="max-w-4xl max-h-[80vh] bg-gray-900 border-gray-600 overflow-hidden">
+        <AlertDialogContent className="max-w-4xl bg-gray-900 border-gray-600">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">
               {block.name || `Block ${block.blockNumber}`} Configuration
@@ -457,9 +457,7 @@ const EditorBlock: React.FC<EditorBlockProps> = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className="my-4 overflow-y-auto max-h-[60vh]">
-            {renderBlockComponent()}
-          </div>
+          <div className="my-4">{renderBlockComponent()}</div>
 
           <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between">
             <AlertDialogCancel className="bg-gray-700 text-white hover:bg-gray-600 border-gray-600">

@@ -32,6 +32,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { useVariableStore } from "./variableStore";
 // Add this import
 import { arrayMove } from "@dnd-kit/sortable";
+import { Lock } from "lucide-react"; // Add this import
 
 export const useAgentStore = create<AgentStore>()((set, get) => ({
   agents: [],
@@ -58,12 +59,13 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       const agents = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
+        viewOnlyUsers: doc.data().viewOnlyUsers || [], // Ensure viewOnlyUsers is always an array
       }));
       set({ agents: agents as Agent[] });
       // console.log("Agents loaded:", agents);
     } catch (error) {
       console.error("Error loading agents:", error);
-      throw error; // Let the SessionHandler component handle the error
+      throw error;
     }
   },
 
@@ -200,29 +202,37 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       const userId = auth.currentUser?.uid;
       if (!userId) throw new Error("No user logged in");
 
-      let folderName: string | undefined;
-      if (folderId) {
-        const folder = get().folders.find((f) => f.id === folderId);
-        folderName = folder?.name;
-      }
-
-      const newAgent: Agent = {
-        id: doc(collection(db, `users/${userId}/agents`)).id,
+      const agentId = crypto.randomUUID();
+      const agentData: Agent = {
+        id: agentId,
         name,
         userId,
         createdAt: new Date().toISOString(),
         blocks: [],
-        folderId: folderId || "", // Use empty string instead of undefined
-        folderName: folderName || "", // Use empty string instead of undefined
+        viewOnlyUsers: [], // Initialize empty view-only users array
+        admin: true, // Creator is admin by default
       };
 
-      await setDoc(doc(db, `users/${userId}/agents`, newAgent.id), newAgent);
+      if (folderId) {
+        agentData.folderId = folderId;
+        // Get folder name
+        const folder = get().folders.find((f) => f.id === folderId);
+        if (folder) {
+          agentData.folderName = folder.name;
+        }
+      }
+
+      const agentRef = doc(db, `users/${userId}/agents`, agentId);
+      await setDoc(agentRef, agentData);
+
       set((state) => ({
-        agents: [...state.agents, newAgent],
-        currentAgent: newAgent,
+        ...state,
+        agents: [...state.agents, agentData],
+        currentAgent: agentData,
       }));
     } catch (error) {
       console.error("Error creating agent:", error);
+      throw error;
     }
   },
 
@@ -523,6 +533,70 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
             logUndefinedFields(
               preparedBlock,
               `Prepared Make Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
+          case "salesforce": {
+            const salesforceBlock = block as any; // We'll need to import SalesforceBlock type
+            const preparedBlock = {
+              ...salesforceBlock,
+              id: salesforceBlock.id || `block-${salesforceBlock.blockNumber}`,
+              name:
+                salesforceBlock.name || `Block ${salesforceBlock.blockNumber}`,
+              blockNumber: salesforceBlock.blockNumber,
+              type: salesforceBlock.type,
+              prompt: salesforceBlock.prompt || "",
+              companyName: salesforceBlock.companyName || "",
+              agentId: get().currentAgent?.id || "",
+              systemPrompt: salesforceBlock.systemPrompt || "",
+              userPrompt: salesforceBlock.userPrompt || "",
+              saveAsCsv: salesforceBlock.saveAsCsv || false,
+              containsPrimaryInput:
+                salesforceBlock.containsPrimaryInput || false,
+              skip: salesforceBlock.skip || false,
+              outputVariable:
+                salesforceBlock.outputVariable?.id &&
+                salesforceBlock.outputVariable.name &&
+                salesforceBlock.outputVariable.type
+                  ? salesforceBlock.outputVariable
+                  : null,
+            };
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Salesforce Block #${block.blockNumber}`
+            );
+            return preparedBlock;
+          }
+
+          case "gong": {
+            const gongBlock = block as any; // We'll need to import GongBlock type
+            const preparedBlock = {
+              ...gongBlock,
+              id: gongBlock.id || `block-${gongBlock.blockNumber}`,
+              name: gongBlock.name || `Block ${gongBlock.blockNumber}`,
+              blockNumber: gongBlock.blockNumber,
+              type: gongBlock.type,
+              prompt: gongBlock.prompt || "",
+              callIds: gongBlock.callIds || "",
+              agentId: get().currentAgent?.id || "",
+              systemPrompt: gongBlock.systemPrompt || "",
+              userPrompt: gongBlock.userPrompt || "",
+              saveAsCsv: gongBlock.saveAsCsv || false,
+              containsPrimaryInput: gongBlock.containsPrimaryInput || false,
+              skip: gongBlock.skip || false,
+              outputVariable:
+                gongBlock.outputVariable?.id &&
+                gongBlock.outputVariable.name &&
+                gongBlock.outputVariable.type
+                  ? gongBlock.outputVariable
+                  : null,
+            };
+
+            logUndefinedFields(
+              preparedBlock,
+              `Prepared Gong Block #${block.blockNumber}`
             );
             return preparedBlock;
           }
@@ -1396,32 +1470,201 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
   updateCurrentAgent: (agent: Agent) => set({ currentAgent: agent }),
 
   addBlockToAgent: (blockData: Partial<Block> & { type: Block["type"] }) => {
-    set((state) => {
-      if (!state.currentAgent) return state;
+    const state = get();
+    if (!state.currentAgent) return;
 
-      const blocks = [...state.currentAgent.blocks];
-      const maxBlockNumber =
-        blocks.length > 0 ? Math.max(...blocks.map((b) => b.blockNumber)) : 0;
-      const newBlockNumber = maxBlockNumber + 1;
+    const blocks = [...state.currentAgent.blocks];
+    const newBlockNumber =
+      blocks.length > 0 ? Math.max(...blocks.map((b) => b.blockNumber)) + 1 : 1;
 
-      // Create complete block with defaults
-      const block = {
-        id: crypto.randomUUID(),
-        name: `Block ${newBlockNumber}`,
-        agentId: state.currentAgent.id,
-        systemPrompt: "",
-        userPrompt: "",
-        saveAsCsv: false,
-        blockNumber: newBlockNumber,
-        ...blockData, // Override with provided data
-      } as Block;
+    const block = {
+      id: crypto.randomUUID(),
+      name: `Block ${newBlockNumber}`,
+      agentId: state.currentAgent.id,
+      systemPrompt: "",
+      userPrompt: "",
+      saveAsCsv: false,
+      blockNumber: newBlockNumber,
+      ...blockData, // Override with provided data
+    } as Block;
 
-      blocks.push(block);
+    blocks.push(block);
 
-      return {
+    return {
+      ...state,
+      currentAgent: { ...state.currentAgent, blocks },
+    };
+  },
+
+  // New view-only user management functions
+  addViewOnlyUser: async (agentId: string, email: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      // Check if current user is admin
+      const isTeamAdmin = await get().isCurrentUserTeamAdmin();
+      if (!isTeamAdmin) throw new Error("Insufficient permissions");
+
+      const agentRef = doc(db, `users/${userId}/agents`, agentId);
+      const agentDoc = await getDoc(agentRef);
+
+      if (!agentDoc.exists()) {
+        throw new Error("Agent not found");
+      }
+
+      const agentData = agentDoc.data() as Agent;
+      const currentViewOnlyUsers = agentData.viewOnlyUsers || [];
+
+      // Check if email already exists
+      if (currentViewOnlyUsers.includes(email)) {
+        throw new Error("Email already has view-only access");
+      }
+
+      // Add email to view-only users
+      const updatedViewOnlyUsers = [...currentViewOnlyUsers, email];
+
+      await updateDoc(agentRef, {
+        viewOnlyUsers: updatedViewOnlyUsers,
+      });
+
+      // Update local state
+      set((state) => ({
         ...state,
-        currentAgent: { ...state.currentAgent, blocks },
-      };
-    });
+        agents: state.agents.map((agent) =>
+          agent.id === agentId
+            ? { ...agent, viewOnlyUsers: updatedViewOnlyUsers }
+            : agent
+        ),
+        currentAgent:
+          state.currentAgent?.id === agentId
+            ? { ...state.currentAgent, viewOnlyUsers: updatedViewOnlyUsers }
+            : state.currentAgent,
+      }));
+    } catch (error) {
+      console.error("Error adding view-only user:", error);
+      throw error;
+    }
+  },
+
+  removeViewOnlyUser: async (agentId: string, email: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      // Check if current user is admin
+      const isTeamAdmin = await get().isCurrentUserTeamAdmin();
+      if (!isTeamAdmin) throw new Error("Insufficient permissions");
+
+      const agentRef = doc(db, `users/${userId}/agents`, agentId);
+      const agentDoc = await getDoc(agentRef);
+
+      if (!agentDoc.exists()) {
+        throw new Error("Agent not found");
+      }
+
+      const agentData = agentDoc.data() as Agent;
+      const currentViewOnlyUsers = agentData.viewOnlyUsers || [];
+
+      // Remove email from view-only users
+      const updatedViewOnlyUsers = currentViewOnlyUsers.filter(
+        (e) => e !== email
+      );
+
+      await updateDoc(agentRef, {
+        viewOnlyUsers: updatedViewOnlyUsers,
+      });
+
+      // Update local state
+      set((state) => ({
+        ...state,
+        agents: state.agents.map((agent) =>
+          agent.id === agentId
+            ? { ...agent, viewOnlyUsers: updatedViewOnlyUsers }
+            : agent
+        ),
+        currentAgent:
+          state.currentAgent?.id === agentId
+            ? { ...state.currentAgent, viewOnlyUsers: updatedViewOnlyUsers }
+            : state.currentAgent,
+      }));
+    } catch (error) {
+      console.error("Error removing view-only user:", error);
+      throw error;
+    }
+  },
+
+  updateViewOnlyUsers: async (agentId: string, emails: string[]) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("No user logged in");
+
+      // Check if current user is admin
+      const isTeamAdmin = await get().isCurrentUserTeamAdmin();
+      if (!isTeamAdmin) throw new Error("Insufficient permissions");
+
+      const agentRef = doc(db, `users/${userId}/agents`, agentId);
+
+      await updateDoc(agentRef, {
+        viewOnlyUsers: emails,
+      });
+
+      // Update local state
+      set((state) => ({
+        ...state,
+        agents: state.agents.map((agent) =>
+          agent.id === agentId ? { ...agent, viewOnlyUsers: emails } : agent
+        ),
+        currentAgent:
+          state.currentAgent?.id === agentId
+            ? { ...state.currentAgent, viewOnlyUsers: emails }
+            : state.currentAgent,
+      }));
+    } catch (error) {
+      console.error("Error updating view-only users:", error);
+      throw error;
+    }
+  },
+
+  isUserViewOnly: (agentId: string, userEmail: string) => {
+    const state = get();
+    const agent = state.agents.find((a) => a.id === agentId);
+    if (!agent || !agent.viewOnlyUsers) return false;
+    return agent.viewOnlyUsers.includes(userEmail);
+  },
+
+  isCurrentUserAdmin: async () => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return false;
+
+      const userDoc = await getDoc(doc(db, "users", userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.admin === true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking admin status:", error);
+      return false;
+    }
+  },
+
+  // Add new function for teamAdmin check
+  isCurrentUserTeamAdmin: async () => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return false;
+
+      const userDoc = await getDoc(doc(db, "users", userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.teamAdmin === true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking team admin status:", error);
+      return false;
+    }
   },
 }));

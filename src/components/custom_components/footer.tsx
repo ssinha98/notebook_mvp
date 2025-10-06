@@ -549,6 +549,45 @@ export default function Footer({
         });
       },
     },
+    {
+      id: "gong",
+      icon: <div className="text-2xl"></div>,
+      label: "Gong",
+      tooltip: "Add a Gong integration block...",
+      onClick: () => {
+        addBlockToAgent({
+          type: "gong",
+          name: `Gong ${nextBlockNumber}`,
+          prompt: "",
+        });
+      },
+    },
+    {
+      id: "jira",
+      icon: <div className="text-2xl"></div>,
+      label: "Jira",
+      tooltip: "Add a Jira integration block...",
+      onClick: () => {
+        addBlockToAgent({
+          type: "jira",
+          name: `Jira ${nextBlockNumber}`,
+          prompt: "",
+        });
+      },
+    },
+    {
+      id: "salesforce",
+      icon: <div className="text-2xl">☁️</div>,
+      label: "Salesforce",
+      tooltip: "Add a Salesforce integration block...",
+      onClick: () => {
+        addBlockToAgent({
+          type: "salesforce",
+          name: `Salesforce ${nextBlockNumber}`,
+          prompt: "",
+        });
+      },
+    },
   ];
 
   const sendCheckInEmail = async () => {

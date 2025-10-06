@@ -21,6 +21,7 @@ interface Variable {
   updatedAt: string;
   agentId?: string;
   columns?: string[];
+  mainOutput?: boolean; // Add this line
 }
 
 interface VariableStore {
@@ -30,7 +31,8 @@ interface VariableStore {
     name: string,
     type: "input" | "intermediate" | "table",
     agentId: string,
-    initialValue?: string | TableRow[]
+    initialValue?: string | TableRow[],
+    mainOutput?: boolean
   ) => Promise<Variable>;
   updateVariable: (id: string, value: string | TableRow[]) => Promise<void>;
   deleteVariable: (id: string) => Promise<void>;
@@ -96,7 +98,8 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
     name: string,
     type: "input" | "intermediate" | "table",
     agentId: string,
-    initialValue = type === "table" ? [] : ""
+    initialValue = type === "table" ? [] : "",
+    mainOutput = false
   ) => {
     try {
       const userId = auth.currentUser?.uid;
@@ -111,6 +114,7 @@ export const useVariableStore = create<VariableStore>((set, get) => ({
         value: initialValue,
         updatedAt: new Date().toISOString(),
         agentId,
+        mainOutput,
       };
 
       await setDoc(variableRef, newVariable);

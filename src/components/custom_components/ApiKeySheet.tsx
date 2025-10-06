@@ -22,14 +22,9 @@ import { doc, getDoc, setDoc, getFirestore } from "firebase/firestore";
 interface ApiKeySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  apiCallCount: number;
 }
 
-const ApiKeySheet: React.FC<ApiKeySheetProps> = ({
-  open,
-  onOpenChange,
-  apiCallCount,
-}) => {
+const ApiKeySheet: React.FC<ApiKeySheetProps> = ({ open, onOpenChange }) => {
   const [apiKey, setApiKey] = useState<string>("");
   const [hasCustomKey, setHasCustomKey] = useState<boolean>(false);
   const [savedKey, setSavedKey] = useState<string>("");
@@ -174,13 +169,6 @@ const ApiKeySheet: React.FC<ApiKeySheetProps> = ({
         </div>
 
         <div className="absolute bottom-6 left-6 flex flex-col gap-2 w-full pr-12">
-          {!hasCustomKey && (
-            <p className="text-sm text-gray-400">
-              {apiCallCount >= 3
-                ? "You've reached the free tier limit. Please add your API key for unlimited usage."
-                : `You have ${Math.max(0, 3 - apiCallCount)} free runs left! Get unlimited runs by adding your own API key.`}
-            </p>
-          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             <X className="w-4 h-4 mr-2" />
             Close

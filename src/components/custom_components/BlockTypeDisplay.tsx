@@ -125,6 +125,27 @@ const BLOCK_TYPE_CONFIGS = {
       { emoji: "❌", text: "Error" },
     ],
   },
+  gong: {
+    displays: [
+      { emoji: "🎤", text: "Connecting to Gong..." },
+      { emoji: "��", text: "Analyzing calls" },
+      { emoji: "📊", text: "Processing insights" },
+    ],
+  },
+  jira: {
+    displays: [
+      { emoji: "🎫", text: "Connecting to Jira..." },
+      { emoji: "📋", text: "Fetching tickets" },
+      { emoji: "⚡", text: "Processing data" },
+    ],
+  },
+  salesforce: {
+    displays: [
+      { emoji: "☁️", text: "Connecting to Salesforce..." },
+      { emoji: "👥", text: "Syncing contacts" },
+      { emoji: "📊", text: "Analyzing CRM data" },
+    ],
+  },
 };
 
 interface BlockTypeDisplayProps {

@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -62,6 +63,7 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
   const [columnName, setColumnName] = useState("");
   const [selectedTableId, setSelectedTableId] = useState("");
   const [newColumnName, setNewColumnName] = useState("");
+  const [isMainOutput, setIsMainOutput] = useState(false); // Add this line
   const [isLoading, setIsLoading] = useState(false); // Add loading state
 
   // Get tables once when dialog opens
@@ -142,18 +144,35 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
           return;
         }
 
+        // Create variable with mainOutput flag
+        const variableData = {
+          name: newVariable.name,
+          type: newVariable.type,
+          agentId: currentAgentId,
+          initialValue: "",
+          mainOutput:
+            newVariable.type === "intermediate" ? isMainOutput : false, // Add this line
+        };
+
         const createdVariable = await useVariableStore
           .getState()
           .createVariable(
             newVariable.name,
             newVariable.type,
             currentAgentId,
-            ""
+            "",
+            isMainOutput // Just pass the checkbox value directly
           );
 
-        onAddVariable(createdVariable);
+        // Update the created variable with mainOutput flag
+        if (variableData.mainOutput) {
+          await useVariableStore
+            .getState()
+            .updateVariable(createdVariable.id, createdVariable.value);
+          // Note: We'll need to update the variable store to handle mainOutput flag
+        }
 
-        // Add this line to refresh the store
+        onAddVariable(createdVariable);
         await useVariableStore.getState().loadVariables(currentAgentId);
 
         // Add delay before closing
@@ -204,6 +223,7 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
     setColumnName("");
     setSelectedTableId("");
     setNewColumnName("");
+    setIsMainOutput(false); // Add this line
     setIsLoading(false); // Reset loading state
   };
 
@@ -349,17 +369,38 @@ const AddVariableDialog: React.FC<AddVariableDialogProps> = ({
                   </div>
                 </>
               ) : (
-                <div className="grid gap-2">
-                  <label htmlFor="name">Variable Name</label>
-                  <Input
-                    id="name"
-                    value={newVariable.name}
-                    onChange={(e) =>
-                      setNewVariable({ ...newVariable, name: e.target.value })
-                    }
-                    placeholder="Enter variable name"
-                  />
-                </div>
+                <>
+                  <div className="grid gap-2">
+                    <label htmlFor="name">Variable Name</label>
+                    <Input
+                      id="name"
+                      value={newVariable.name}
+                      onChange={(e) =>
+                        setNewVariable({ ...newVariable, name: e.target.value })
+                      }
+                      placeholder="Enter variable name"
+                    />
+                  </div>
+
+                  {/* Add Main Output checkbox for intermediate variables */}
+                  {newVariable.type === "intermediate" && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="mainOutput"
+                        checked={isMainOutput}
+                        onCheckedChange={(checked) =>
+                          setIsMainOutput(checked as boolean)
+                        }
+                      />
+                      <label
+                        htmlFor="mainOutput"
+                        className="text-sm text-gray-300 cursor-pointer"
+                      >
+                        Main output
+                      </label>
+                    </div>
+                  )}
+                </>
               )}
 
               <Button

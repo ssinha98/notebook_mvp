@@ -55,6 +55,9 @@ import DataVizAgent, {
 } from "@/components/custom_components/DataVizAgent";
 import ClickUpAgent from "@/components/custom_components/ClickUpAgent";
 import GoogleDriveAgent from "@/components/custom_components/GoogleDriveAgent";
+import GongAgent from "@/components/custom_components/GongAgent";
+import JiraAgent from "@/components/custom_components/JiraAgent";
+import SalesforceAgent from "@/components/custom_components/SalesforceAgent";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { toast } from "sonner";
 import EditableDataGrid from "../../components/custom_components/EditableDataGrid";
@@ -66,6 +69,13 @@ import FloatingAgentNav from "@/components/custom_components/FloatingAgentNav";
 import AddSourceDialog from "@/components/custom_components/AddSourceDialog";
 import { PrimaryInputDialog } from "@/components/custom_components/PrimaryInputDialog";
 import { useTaskStore } from "@/lib/taskStore";
+import { VariableInputDialog } from "@/components/custom_components/VariableInputDialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Block input requirements definition
 const BLOCK_INPUT_REQUIREMENTS: Record<string, string[]> = {
@@ -164,8 +174,6 @@ export default function Notebook() {
   // const [promptTypeSelect, setPromptTypeSelect] = useState<"system" | "user">(
   //   "system"
   // );
-
-  const [apiCallCount, setApiCallCount] = useState<number>(0);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const blockRefs = useRef<{ [key: number]: AgentBlockRef | DataVizAgentRef }>(
@@ -738,6 +746,71 @@ export default function Notebook() {
             </div>
           );
         }
+        case "gong":
+          return (
+            <GongAgent
+              ref={(ref) => {
+                if (ref) blockRefs.current[block.blockNumber] = ref;
+              }}
+              key={`gong-${block.blockNumber}`}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              initialOutputVariable={block.outputVariable}
+              // onCopyBlock={handleCopyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlockData(blockNumber, updates as Partial<Block>);
+                handleBlockEdit(index);
+              }}
+              initialPrompt={block.prompt}
+              isProcessing={
+                isProcessing && currentBlockIndex === block.blockNumber
+              }
+            />
+          );
+        case "jira":
+          return (
+            <JiraAgent
+              ref={(ref) => {
+                if (ref) blockRefs.current[block.blockNumber] = ref;
+              }}
+              key={`jira-${block.blockNumber}`}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              // onCopyBlock={handleCopyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlockData(blockNumber, updates as Partial<Block>);
+                handleBlockEdit(index);
+              }}
+              initialPrompt={block.prompt}
+              isProcessing={
+                isProcessing && currentBlockIndex === block.blockNumber
+              }
+              initialOutputVariable={block.outputVariable}
+              // MISSING: initialOutputVariable={block.outputVariable}
+            />
+          );
+        case "salesforce":
+          return (
+            <SalesforceAgent
+              ref={(ref) => {
+                if (ref) blockRefs.current[block.blockNumber] = ref;
+              }}
+              key={`salesforce-${block.blockNumber}`}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              // onCopyBlock={handleCopyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlockData(blockNumber, updates as Partial<Block>);
+                handleBlockEdit(index);
+              }}
+              initialPrompt={block.prompt}
+              initialCompanyName={block.companyName} // Add this line
+              initialOutputVariable={block.outputVariable}
+              isProcessing={
+                isProcessing && currentBlockIndex === block.blockNumber
+              }
+            />
+          );
         default:
           const _exhaustiveCheck: never = block;
           throw new Error(`Unhandled block type: ${(block as any).type}`);
@@ -807,14 +880,26 @@ export default function Notebook() {
     console.log("=== STARTING NEW RUN ===");
     console.log("Total blocks in agent:", currentAgent?.blocks?.length || 0);
 
-    // 1. Get all blocks that need primary input
+    // 1. Check for input variables first
+    const inputVariables = Object.values(
+      useVariableStore.getState().variables
+    ).filter(
+      (variable) =>
+        variable.type === "input" && variable.agentId === currentAgent?.id
+    );
+
+    if (inputVariables.length > 0) {
+      console.log("Input variables found, showing VariableInputDialog first");
+      const variableInputConfirmed = await showVariableInputDialog();
+      if (!variableInputConfirmed) {
+        console.log("VariableInputDialog cancelled - stopping execution");
+        return;
+      }
+    }
+
+    // 2. Then check for blocks that need primary input
     const primaryInputBlocks = getPrimaryInputBlocks();
     console.log("Blocks requiring primary input:", primaryInputBlocks.length);
-    primaryInputBlocks.forEach((block, index) => {
-      console.log(
-        `  ${index + 1}. Block ${block.blockNumber} (${block.type}): ${block.name || "unnamed"}`
-      );
-    });
 
     if (primaryInputBlocks.length > 0) {
       console.log(
@@ -822,55 +907,15 @@ export default function Notebook() {
         primaryInputBlocks.length,
         "blocks"
       );
-      // 2. Show primary input dialog sequence
       const updatedBlocks = await showPrimaryInputDialog(primaryInputBlocks);
-
       if (!updatedBlocks) {
-        console.log(
-          "PrimaryInputDialog cancelled by user - stopping execution"
-        );
+        console.log("PrimaryInputDialog cancelled - stopping execution");
         return;
       }
-
-      console.log("PrimaryInputDialog completed successfully");
-      console.log(
-        "Updated blocks from dialog:",
-        updatedBlocks.map((b) => ({
-          blockNumber: b.blockNumber,
-          type: b.type,
-          name: b.name,
-          skip: b.skip,
-          // query: b.query,
-          // url: b.url,
-        }))
-      );
-
-      // 3. Update blocks with new inputs
-      updatedBlocks.forEach((block) => {
-        console.log(
-          `Updating block ${block.blockNumber} (${block.type}) with new data`
-        );
-        if (block.type === "searchagent") {
-          updateBlockData(block.blockNumber, {
-            ...block,
-            query: block.query || "",
-            engine: block.engine || "search",
-            limit: block.limit || 5,
-          });
-        } else if (block.type === "webagent") {
-          updateBlockData(block.blockNumber, {
-            ...block,
-            url: block.url || "",
-          });
-        }
-      });
-    } else {
-      console.log(
-        "No blocks require primary input - proceeding directly to execution"
-      );
+      // Update blocks with new inputs...
     }
 
-    // 4. Run all blocks with updated configurations
+    // 3. Run all blocks
     console.log("Starting block execution...");
     setIsRunning(true);
     runBlocks(0);
@@ -895,23 +940,6 @@ export default function Notebook() {
       // app_version: "1.0.0",
       // }
       ();
-  }, []);
-
-  // Add this effect to fetch the initial count and update it periodically
-  React.useEffect(() => {
-    const fetchCount = async () => {
-      try {
-        const response = await api.get("/api/check-api-key");
-        setApiCallCount(response.count);
-      } catch (error) {
-        console.error("Error fetching API count:", error);
-      }
-    };
-
-    fetchCount();
-    // Update count every 30 seconds
-    const interval = setInterval(fetchCount, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -1344,6 +1372,30 @@ export default function Notebook() {
               success = await blockRef.processBlock();
               if (!success) {
                 console.error("Apollo agent block failed, stopping execution");
+                return;
+              }
+              break;
+            case "gong":
+              console.log("Processing Gong block", block.blockNumber);
+              success = await blockRef.processBlock();
+              if (!success) {
+                console.error("Gong block failed, stopping execution");
+                return;
+              }
+              break;
+            case "jira":
+              console.log("Processing Jira block", block.blockNumber);
+              success = await blockRef.processBlock();
+              if (!success) {
+                console.error("Jira block failed, stopping execution");
+                return;
+              }
+              break;
+            case "salesforce":
+              console.log("Processing Salesforce block", block.blockNumber);
+              success = await blockRef.processBlock();
+              if (!success) {
+                console.error("Salesforce block failed, stopping execution");
                 return;
               }
               break;
@@ -2132,6 +2184,48 @@ export default function Notebook() {
 
   const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false);
 
+  // Add this state near other useState declarations
+  const [isVariableInputDialogOpen, setIsVariableInputDialogOpen] =
+    useState(false);
+  const [variableInputResolver, setVariableInputResolver] =
+    useState<(value: boolean) => void>();
+
+  // Replace the showVariableInputDialog function
+  const showVariableInputDialog = async (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setVariableInputResolver(() => resolve);
+      setIsVariableInputDialogOpen(true);
+    });
+  };
+
+  // Add this handler
+  const handleVariableInputCancel = () => {
+    setIsVariableInputDialogOpen(false);
+    variableInputResolver?.(false);
+  };
+
+  const handleVariableInputComplete = () => {
+    setIsVariableInputDialogOpen(false);
+    variableInputResolver?.(true);
+  };
+
+  // Add view-only state
+  const [isViewOnly, setIsViewOnly] = useState(false);
+
+  // Add useEffect to check if current user is view-only
+  useEffect(() => {
+    const checkViewOnlyStatus = () => {
+      if (currentAgent && auth.currentUser?.email) {
+        const userEmail = auth.currentUser.email;
+        const viewOnlyUsers = currentAgent.viewOnlyUsers || [];
+        const isUserViewOnly = viewOnlyUsers.includes(userEmail);
+        setIsViewOnly(isUserViewOnly);
+      }
+    };
+
+    checkViewOnlyStatus();
+  }, [currentAgent]);
+
   return (
     <Layout>
       <div style={pageStyle}>
@@ -2259,6 +2353,7 @@ export default function Notebook() {
             onMinimize={() => setIsRunning(false)}
             currentBlock={currentBlock}
             isRunComplete={isRunComplete}
+            isViewOnly={isViewOnly} // Add this new prop
           >
             <div id="workflow-and-tools">
               {blocks.map((block, index) => renderBlock(block, index))}
@@ -2444,7 +2539,6 @@ export default function Notebook() {
         <ApiKeySheet
           open={isApiKeySheetOpen}
           onOpenChange={setIsApiKeySheetOpen}
-          apiCallCount={apiCallCount}
         />
         <ToolsSheet
           open={isToolsSheetOpen}
@@ -2492,6 +2586,13 @@ export default function Notebook() {
           }}
           onCancel={handleCancel}
           onRun={() => {}} // Empty function since we handle running in onComplete
+        />
+      )}
+
+      {isVariableInputDialogOpen && (
+        <VariableInputDialog
+          onComplete={handleVariableInputComplete}
+          onCancel={handleVariableInputCancel}
         />
       )}
     </Layout>

@@ -71,13 +71,6 @@ export const api = {
           credentials: "include",
         });
 
-        if (response.status === 403) {
-          // Handle free tier limit
-          throw new Error(
-            "Free tier limit reached. Please add your API key for unlimited usage."
-          );
-        }
-
         // Handle cancellation gracefully - return special response, don't throw error
         if (response.status === 499) {
           return {

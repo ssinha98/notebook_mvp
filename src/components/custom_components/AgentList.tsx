@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Folder,
   FolderPlus,
+  Users,
 } from "lucide-react";
 import { TbApi } from "react-icons/tb";
 import { MdAlternateEmail } from "react-icons/md";
@@ -72,6 +73,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentTemplateStore } from "@/lib/agentTemplateStore";
 import { auth } from "@/tools/firebase";
 import { Folder as FolderType } from "@/types/types";
+import { Lock } from "lucide-react";
 
 interface AgentsListProps {
   onAgentSelect: (agentId: string) => void;
@@ -95,6 +97,10 @@ export default function AgentsList({
     deleteFolder,
     moveAgentToFolder,
     currentAgent,
+    addViewOnlyUser,
+    removeViewOnlyUser,
+    updateViewOnlyUsers,
+    isCurrentUserTeamAdmin,
   } = useAgentStore();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newAgentName, setNewAgentName] = useState("");
@@ -118,10 +124,27 @@ export default function AgentsList({
     string | null
   >(null);
 
+  // Add new state for view-only users dialog
+  const [showViewOnlyUsersDialog, setShowViewOnlyUsersDialog] = useState(false);
+  const [selectedAgentForViewOnly, setSelectedAgentForViewOnly] = useState<
+    string | null
+  >(null);
+  const [newViewOnlyEmail, setNewViewOnlyEmail] = useState("");
+  const [isTeamAdmin, setIsTeamAdmin] = useState(false);
+
   useEffect(() => {
     loadAgents();
     loadFolders();
   }, [loadAgents, loadFolders]);
+
+  // Add new useEffect to check team admin status
+  useEffect(() => {
+    const checkTeamAdminStatus = async () => {
+      const teamAdminStatus = await isCurrentUserTeamAdmin();
+      setIsTeamAdmin(teamAdminStatus);
+    };
+    checkTeamAdminStatus();
+  }, [isCurrentUserTeamAdmin]);
 
   const handleCreateAgent = async () => {
     if (newAgentName.trim()) {
@@ -197,6 +220,35 @@ export default function AgentsList({
       }
     } catch (error) {
       console.error("Error deleting folder:", error);
+    }
+  };
+
+  // Add new handler functions for view-only users
+  const handleAddViewOnlyUser = async () => {
+    if (selectedAgentForViewOnly && newViewOnlyEmail.trim()) {
+      try {
+        await addViewOnlyUser(
+          selectedAgentForViewOnly,
+          newViewOnlyEmail.trim()
+        );
+        setNewViewOnlyEmail("");
+        // Refresh agents to show updated view-only users
+        loadAgents();
+      } catch (error) {
+        console.error("Error adding view-only user:", error);
+        alert("Error adding view-only user: " + (error as Error).message);
+      }
+    }
+  };
+
+  const handleRemoveViewOnlyUser = async (agentId: string, email: string) => {
+    try {
+      await removeViewOnlyUser(agentId, email);
+      // Refresh agents to show updated view-only users
+      loadAgents();
+    } catch (error) {
+      console.error("Error removing view-only user:", error);
+      alert("Error removing view-only user: " + (error as Error).message);
     }
   };
 
@@ -693,6 +745,95 @@ export default function AgentsList({
     </AlertDialog>
   );
 
+  const renderViewOnlyUsersDialog = () => (
+    <AlertDialog
+      open={showViewOnlyUsersDialog}
+      onOpenChange={setShowViewOnlyUsersDialog}
+    >
+      <AlertDialogContent className="bg-black">
+        <AlertDialogHeader>
+          <AlertDialogTitle>View Only Users</AlertDialogTitle>
+          <AlertDialogDescription>
+            Manage users who have view-only access to this agent.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="mt-4 space-y-4">
+          {/* Current view-only users */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-300 mb-2">
+              Current View-Only Users
+            </h4>
+            {selectedAgentForViewOnly && (
+              <div className="space-y-2">
+                {agents
+                  .find((a) => a.id === selectedAgentForViewOnly)
+                  ?.viewOnlyUsers?.map((email, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between bg-gray-800 p-2 rounded"
+                    >
+                      <span className="text-sm text-gray-300">{email}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleRemoveViewOnlyUser(
+                            selectedAgentForViewOnly,
+                            email
+                          )
+                        }
+                        className="text-red-400 hover:text-red-300 h-6 w-6 p-0"
+                      >
+                        <Trash className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )) || (
+                  <p className="text-sm text-gray-400">No view-only users</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Add new view-only user */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-300 mb-2">
+              Add New View-Only User
+            </h4>
+            <div className="flex gap-2">
+              <Input
+                value={newViewOnlyEmail}
+                onChange={(e) => setNewViewOnlyEmail(e.target.value)}
+                placeholder="Enter email address"
+                className="flex-1"
+                type="email"
+              />
+              <Button
+                onClick={handleAddViewOnlyUser}
+                disabled={!newViewOnlyEmail.trim()}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            onClick={() => {
+              setShowViewOnlyUsersDialog(false);
+              setSelectedAgentForViewOnly(null);
+              setNewViewOnlyEmail("");
+            }}
+          >
+            Close
+          </AlertDialogCancel>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   const filteredAgents = selectedFolderFilter
     ? agents.filter((agent) => agent.folderId === selectedFolderFilter)
     : agents;
@@ -703,16 +844,14 @@ export default function AgentsList({
         <h2 className="text-xl font-bold text-white">My Agents</h2>
         {renderCreateButton()}
       </div>
-
       {renderFolderList()}
-
       {renderNameDialog()}
       {renderCopyDialog()}
       {renderCopyExistingDialog()}
       {renderCopyTemplateDialog()}
       {renderNewFolderDialog()}
       {renderMoveToFolderDialog()}
-
+      {renderViewOnlyUsersDialog()} {/* Add this new dialog */}
       {filteredAgents.length === 0 ? (
         <div
           className="border rounded-lg overflow-hidden"
@@ -877,6 +1016,21 @@ export default function AgentsList({
                           <Folder className="h-4 w-4 mr-2" />
                           Move to Folder
                         </Button>
+                        {/* Add View Only Users option for team admins */}
+                        {isTeamAdmin && (
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start px-3 py-2 text-purple-500 hover:text-purple-400 hover:bg-black"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAgentForViewOnly(agent.id);
+                              setShowViewOnlyUsersDialog(true);
+                            }}
+                          >
+                            <Users className="h-4 w-4 mr-2" />
+                            View Only Users
+                          </Button>
+                        )}
                       </PopoverContent>
                     </Popover>
                   </TableCell>

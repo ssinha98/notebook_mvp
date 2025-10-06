@@ -12,7 +12,7 @@ import { useVariableStore } from "@/lib/variableStore";
 import { Block, Variable } from "@/types/types";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, Upload } from "lucide-react";
+import { ArrowLeft, Plus, Upload, Save, Send, X } from "lucide-react";
 import AddVariableDialog from "@/components/custom_components/AddVariableDialog";
 import {
   Select,
@@ -27,11 +27,26 @@ import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 import SearchPreviewDialog from "@/components/custom_components/SearchPreviewDialog";
 import AddSourceDialog from "@/components/custom_components/AddSourceDialog";
+import CustomEditor from "@/components/CustomEditor";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // Define types for navigation items
 type NavigationItem =
   | {
       type: "table";
+      variable: Variable;
+      displayName: string;
+    }
+  | {
+      type: "mainoutput"; // Add this back
       variable: Variable;
       displayName: string;
     }
@@ -57,6 +72,443 @@ const mainStyle: CSSProperties = {
   gap: "16px",
 };
 
+// Move MainOutputView outside the main component, before the OutputEditor function
+const MainOutputView = ({
+  variable,
+  content,
+  onContentChange,
+}: {
+  variable: Variable;
+  content: string;
+  onContentChange: (newContent: string) => void;
+}) => {
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [emailForm, setEmailForm] = useState({
+    to: "",
+    subject: "",
+    body: content,
+  });
+
+  // Get user's email
+  const userEmail = auth.currentUser?.email || "";
+
+  const handleSave = async () => {
+    try {
+      await useVariableStore.getState().updateVariable(variable.id, content);
+      toast.success("Content saved successfully");
+    } catch (error) {
+      console.error("Error saving content:", error);
+      toast.error("Failed to save content");
+    }
+  };
+
+  const handleSend = () => {
+    setEmailForm({
+      to: userEmail, // Default to user's email
+      subject: `Report: ${variable.name}`,
+      body: content,
+    });
+    setIsEmailDialogOpen(true);
+  };
+
+  const handleSendEmail = async () => {
+    try {
+      const response = await api.post("/api/send-email", {
+        request_id: crypto.randomUUID(),
+        email: emailForm.to,
+        subject: emailForm.subject,
+        body: emailForm.body,
+      });
+
+      if (response.success) {
+        toast.success("Email sent successfully");
+        setIsEmailDialogOpen(false);
+      } else {
+        throw new Error(response.error || "Failed to send email");
+      }
+    } catch (error) {
+      console.error("Error sending email:", error);
+      toast.error("Failed to send email");
+    }
+  };
+
+  return (
+    <div className="h-full w-full flex flex-col">
+      {/* Content Area - with fixed height to leave room for buttons */}
+      <div className="bg-gray-800 rounded-lg border border-gray-600 p-4 mb-4 flex-1 overflow-y-auto">
+        <div className="h-full">
+          <pre className="text-gray-300 whitespace-pre-wrap font-mono text-sm h-full">
+            {content || "No content yet. Click Edit to add content."}
+          </pre>
+        </div>
+      </div>
+
+      {/* Action Buttons - fixed height at bottom with proper layout */}
+      <div className="flex justify-center items-center h-12 gap-3">
+        {/* Send - in the middle */}
+        <Button
+          onClick={handleSend}
+          variant="secondary"
+          className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2"
+        >
+          <Send className="mr-2 h-4 w-4" />
+          Send
+        </Button>
+
+        {/* Save - all the way to the right */}
+        <Button
+          onClick={handleSave}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
+        >
+          <Save className="mr-2 h-4 w-4" />
+          Save
+        </Button>
+      </div>
+
+      {/* Email Dialog */}
+      <AlertDialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <AlertDialogContent className="max-w-2xl bg-black border-gray-600">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">
+              Send Email
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="mt-4 space-y-4">
+            <div>
+              <label className="text-sm text-gray-300 mb-2 block">To:</label>
+              <input
+                type="email"
+                value={emailForm.to}
+                onChange={(e) =>
+                  setEmailForm({ ...emailForm, to: e.target.value })
+                }
+                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="recipient@example.com"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-300 mb-2 block">
+                Subject:
+              </label>
+              <input
+                type="text"
+                value={emailForm.subject}
+                onChange={(e) =>
+                  setEmailForm({ ...emailForm, subject: e.target.value })
+                }
+                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Email subject"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-300 mb-2 block">Body:</label>
+              <textarea
+                value={emailForm.body}
+                onChange={(e) =>
+                  setEmailForm({ ...emailForm, body: e.target.value })
+                }
+                className="w-full h-32 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="Email body content"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              onClick={() => setIsEmailDialogOpen(false)}
+              variant="secondary"
+              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendEmail}
+              disabled={!emailForm.to || !emailForm.subject}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
+            >
+              <Send className="mr-2 h-4 w-4" />
+              Send Email
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+
+// Add this component before the main OutputEditor function
+const VariableCard = ({
+  variable,
+  onClick,
+}: {
+  variable: Variable;
+  onClick: () => void;
+}) => {
+  const getDisplayValue = () => {
+    if (typeof variable.value === "string") {
+      return variable.value.length > 50
+        ? variable.value.substring(0, 50) + "..."
+        : variable.value;
+    } else if (Array.isArray(variable.value)) {
+      return `${variable.value.length} rows`;
+    } else {
+      return String(variable.value || "No value");
+    }
+  };
+
+  return (
+    <Card
+      className="flex-shrink-0 cursor-pointer hover:bg-gray-800 transition-colors min-w-[120px] bg-black border-gray-600"
+      onClick={onClick}
+    >
+      <CardContent className="p-3">
+        <div className="text-sm font-medium text-blue-400">
+          @{variable.name}
+        </div>
+        <div className="text-xs text-white mt-1">{getDisplayValue()}</div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Update the ChatSidebar component
+const ChatSidebar = ({
+  variable,
+  content,
+}: {
+  variable: Variable;
+  content: string;
+}) => {
+  const [messages, setMessages] = useState<
+    Array<{
+      id: string;
+      role: "user" | "assistant";
+      content: string;
+      timestamp: Date;
+    }>
+  >([]);
+  const [inputMessage, setInputMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedVariable, setSelectedVariable] = useState<Variable | null>(
+    null
+  );
+
+  // Get all variables for this agent
+  const allVariables = Object.values(
+    useVariableStore.getState().variables
+  ).filter((v) => v.agentId === variable.agentId);
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim()) return;
+
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: "user" as const,
+      content: inputMessage.trim(),
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInputMessage("");
+    setIsLoading(true);
+
+    try {
+      // Get current user ID
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      // Call the new chat API endpoint
+      const response = await api.post("/api/ask_output", {
+        agentId: variable.agentId!,
+        question: inputMessage.trim(),
+        userId: userId,
+      });
+
+      if (response.success && response.response) {
+        const assistantMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant" as const,
+          content: response.response,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+      } else {
+        throw new Error(response.error || "Failed to get response");
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+
+      const errorMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant" as const,
+        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleVariableClick = (variable: Variable) => {
+    setSelectedVariable(variable);
+  };
+
+  const getFullVariableValue = (variable: Variable): string => {
+    if (typeof variable.value === "string") {
+      return variable.value;
+    } else if (Array.isArray(variable.value)) {
+      return JSON.stringify(variable.value, null, 2);
+    } else {
+      return String(variable.value || "No value");
+    }
+  };
+
+  return (
+    <div className="w-[40%] min-w-[300px] border-l border-gray-700 bg-gray-900 flex flex-col h-full">
+      {/* Chat Header */}
+      <div className="p-4 border-b border-gray-700">
+        <h3 className="text-white font-medium">Chat Assistant</h3>
+        <p className="text-gray-400 text-sm">Ask questions about your data</p>
+      </div>
+
+      {/* Variable Reference Alert */}
+      <div className="p-4 border-b border-gray-700">
+        <Alert>
+          <AlertDescription className="text-sm text-gray-300">
+            Tag specific variables with @variableName, to use that context in
+            your response
+          </AlertDescription>
+        </Alert>
+      </div>
+
+      {/* Variable Cards */}
+      <div className="p-4 border-b border-gray-700">
+        <div className="text-xs text-gray-400 mb-2">Available Variables:</div>
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {allVariables.map((v) => (
+            <VariableCard
+              key={v.id}
+              variable={v}
+              onClick={() => handleVariableClick(v)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 ? (
+          <div className="text-center text-gray-500 mt-8">
+            <div className="mb-2">💬</div>
+            <p className="text-sm">Start a conversation about your data</p>
+            <p className="text-xs text-gray-600 mt-1">
+              Ask questions about the {variable.name} variable or any related
+              data
+            </p>
+          </div>
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                  message.role === "user"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-700 text-gray-200"
+                }`}
+              >
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className="text-xs opacity-70 mt-1">
+                  {message.timestamp.toLocaleTimeString()}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-gray-700 text-gray-200 rounded-lg px-3 py-2">
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                <span className="text-sm">Thinking...</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input Area */}
+      <div className="p-4 border-t border-gray-700">
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask a question about your data..."
+            className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isLoading}
+          />
+          <Button
+            onClick={handleSendMessage}
+            disabled={!inputMessage.trim() || isLoading}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Variable Details Dialog */}
+      <AlertDialog
+        open={!!selectedVariable}
+        onOpenChange={() => setSelectedVariable(null)}
+      >
+        <AlertDialogContent className="max-w-2xl max-h-[80vh] bg-black border-gray-600">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">
+              @{selectedVariable?.name}
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="mt-4">
+            <div className="text-sm text-gray-300 mb-2">
+              Type: {selectedVariable?.type}
+            </div>
+            <div className="bg-gray-900 p-4 rounded-lg max-h-96 overflow-y-auto border border-gray-700">
+              <pre className="text-sm whitespace-pre-wrap text-white">
+                {selectedVariable ? getFullVariableValue(selectedVariable) : ""}
+              </pre>
+            </div>
+          </div>
+          <div className="flex justify-end mt-6">
+            <Button
+              onClick={() => setSelectedVariable(null)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
+            >
+              <X className="mr-2 h-4 w-4" />
+              Close
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+
 export default function OutputEditor() {
   const router = useRouter();
   const { agentId } = router.query;
@@ -72,6 +524,9 @@ export default function OutputEditor() {
   const [loadingBlocks, setLoadingBlocks] = useState<Set<string>>(new Set());
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+
+  // Add state for content editing
+  const [editingContent, setEditingContent] = useState("");
 
   // Load agent data
   useEffect(() => {
@@ -113,7 +568,7 @@ export default function OutputEditor() {
   // Get table variables from the store
   const { variables: storeVariables } = useVariableStore();
 
-  // Function to get navigation items (table variables + one group for input/intermediate)
+  // Function to get navigation items (table variables + one group for input/intermediate + individual mainOutput)
   const getNavigationItems = (): NavigationItem[] => {
     const allVariables = Object.values(storeVariables).filter(
       (variable) => variable.agentId === agentId
@@ -121,14 +576,16 @@ export default function OutputEditor() {
 
     const tableVariables = allVariables.filter((v) => v.type === "table");
     const inputIntermediateVariables = allVariables.filter(
-      (v) => v.type === "input" || v.type === "intermediate"
+      (v) => (v.type === "input" || v.type === "intermediate") && !v.mainOutput // Filter out mainOutput
+    );
+    const mainOutputVariables = allVariables.filter(
+      (v) => v.mainOutput === true
     );
 
     const navigationItems: NavigationItem[] = [];
 
     // Add table variables (each as separate item)
     tableVariables.forEach((tableVar) => {
-      // Get the number of rows for this table
       const rowCount = Array.isArray(tableVar.value)
         ? tableVar.value.length
         : 0;
@@ -141,7 +598,16 @@ export default function OutputEditor() {
       });
     });
 
-    // Add input/intermediate variables as one group (if any exist)
+    // Add mainOutput variables (each as separate item)
+    mainOutputVariables.forEach((mainOutputVar) => {
+      navigationItems.push({
+        type: "mainoutput",
+        variable: mainOutputVar,
+        displayName: `Example Output: ${mainOutputVar.name}`,
+      });
+    });
+
+    // Add input/intermediate variables as one group (if any exist and are not mainOutput)
     if (inputIntermediateVariables.length > 0) {
       navigationItems.push({
         type: "input_intermediate",
@@ -198,6 +664,18 @@ export default function OutputEditor() {
         return {
           columns: columns,
           value: tableData,
+        };
+      }
+
+      // Handle mainOutput variables (new case)
+      if (currentItem.type === "mainoutput") {
+        return {
+          type: "mainoutput",
+          variable: currentItem.variable,
+          content:
+            typeof currentItem.variable.value === "string"
+              ? currentItem.variable.value
+              : "",
         };
       }
     }
@@ -1183,158 +1661,155 @@ export default function OutputEditor() {
                 </div>
               )}
 
-              {/* EditableDataGrid */}
-              <EditableDataGrid
-                firebaseData={getFirebaseDataFromVariables()}
-                tableWidth="100%"
-                tableHeight="100%"
-                currentTableId={(() => {
-                  if (
-                    navigationItems.length > 0 &&
-                    currentTableIndex < navigationItems.length
-                  ) {
-                    const currentItem = navigationItems[currentTableIndex];
-                    return currentItem.type === "table"
-                      ? currentItem.variable.id
-                      : undefined;
-                  }
-                  return undefined;
-                })()}
-                currentAgentId={agentId as string}
-                onAddVariable={handleAddVariable}
-                onDataChange={(updatedData) => {
-                  const navigationItems = getNavigationItems();
-                  if (
-                    navigationItems.length > 0 &&
-                    currentTableIndex < navigationItems.length
-                  ) {
-                    const currentItem = navigationItems[currentTableIndex];
+              {/* Conditional Content Rendering */}
+              {(() => {
+                const data = getFirebaseDataFromVariables();
 
-                    // Handle table variables (existing behavior)
-                    if (currentItem.type === "table") {
-                      useVariableStore
-                        .getState()
-                        .updateVariable(currentItem.variable.id, updatedData);
-                    }
+                if ("type" in data && data.type === "mainoutput") {
+                  return (
+                    <div className="h-full w-full">
+                      <MainOutputView
+                        variable={data.variable}
+                        content={data.content}
+                        onContentChange={(newContent) => {
+                          useVariableStore
+                            .getState()
+                            .updateVariable(data.variable.id, newContent);
+                        }}
+                      />
+                    </div>
+                  );
+                }
 
-                    // Handle input/intermediate variables group
-                    else if (currentItem.type === "input_intermediate") {
-                      // Update each input/intermediate variable with its new value
-                      if (updatedData.length > 0) {
-                        const newValues = updatedData[0];
+                return (
+                  <EditableDataGrid
+                    firebaseData={data as any}
+                    tableWidth="100%"
+                    tableHeight="100%"
+                    currentTableId={(() => {
+                      if (
+                        navigationItems.length > 0 &&
+                        currentTableIndex < navigationItems.length
+                      ) {
+                        const currentItem = navigationItems[currentTableIndex];
+                        return currentItem.type === "table"
+                          ? currentItem.variable.id
+                          : undefined;
+                      }
+                      return undefined;
+                    })()}
+                    currentAgentId={agentId as string}
+                    onAddVariable={handleAddVariable}
+                    onDataChange={(updatedData) => {
+                      const navigationItems = getNavigationItems();
+                      if (
+                        navigationItems.length > 0 &&
+                        currentTableIndex < navigationItems.length
+                      ) {
+                        const currentItem = navigationItems[currentTableIndex];
 
-                        // Update each variable with its new value
-                        currentItem.variables.forEach((variable) => {
-                          if (newValues[variable.name] !== undefined) {
+                        // Handle table variables (existing behavior)
+                        if (currentItem.type === "table") {
+                          useVariableStore
+                            .getState()
+                            .updateVariable(
+                              currentItem.variable.id,
+                              updatedData
+                            );
+                        }
+
+                        // Handle input/intermediate variables group
+                        else if (currentItem.type === "input_intermediate") {
+                          // Update each input/intermediate variable with its new value
+                          if (updatedData.length > 0) {
+                            const newValues = updatedData[0];
+
+                            // Update each variable with its new value
+                            currentItem.variables.forEach((variable) => {
+                              if (newValues[variable.name] !== undefined) {
+                                useVariableStore
+                                  .getState()
+                                  .updateVariable(
+                                    variable.id,
+                                    newValues[variable.name]
+                                  );
+                              }
+                            });
+                          }
+                        }
+                      }
+                    }}
+                    onSelectionChange={(
+                      selectedRows,
+                      selectedData,
+                      selectedColumn
+                    ) => {
+                      setSelection(selectedData);
+                      setSelectedColumn(selectedColumn);
+                    }}
+                    onColumnsChange={(newColumns) => {
+                      const navigationItems = getNavigationItems();
+                      if (
+                        navigationItems.length > 0 &&
+                        currentTableIndex < navigationItems.length
+                      ) {
+                        const currentItem = navigationItems[currentTableIndex];
+
+                        // Only handle column changes for table variables
+                        if (currentItem.type === "table") {
+                          const currentColumns =
+                            currentItem.variable.columns || [];
+
+                          // Find new columns that need to be added
+                          const columnsToAdd = newColumns.filter(
+                            (col) => !currentColumns.includes(col)
+                          );
+
+                          // Find columns that need to be removed
+                          const columnsToRemove = currentColumns.filter(
+                            (col) => !newColumns.includes(col)
+                          );
+
+                          // Add each new column to the table
+                          columnsToAdd.forEach((columnName) => {
                             useVariableStore
                               .getState()
-                              .updateVariable(
-                                variable.id,
-                                newValues[variable.name]
+                              .addColumnToTable(
+                                currentItem.variable.id,
+                                columnName
                               );
-                          }
-                        });
+                          });
+
+                          // Remove each deleted column from the table
+                          columnsToRemove.forEach((columnName) => {
+                            useVariableStore
+                              .getState()
+                              .removeColumnFromTable(
+                                currentItem.variable.id,
+                                columnName
+                              );
+                          });
+                        }
                       }
-                    }
-                  }
-                }}
-                onSelectionChange={(
-                  selectedRows,
-                  selectedData,
-                  selectedColumn
-                ) => {
-                  setSelection(selectedData);
-                  setSelectedColumn(selectedColumn);
-                }}
-                onColumnsChange={(newColumns) => {
-                  const navigationItems = getNavigationItems();
-                  if (
-                    navigationItems.length > 0 &&
-                    currentTableIndex < navigationItems.length
-                  ) {
-                    const currentItem = navigationItems[currentTableIndex];
-
-                    // Only handle column changes for table variables
-                    if (currentItem.type === "table") {
-                      const currentColumns = currentItem.variable.columns || [];
-
-                      // Find new columns that need to be added
-                      const columnsToAdd = newColumns.filter(
-                        (col) => !currentColumns.includes(col)
-                      );
-
-                      // Find columns that need to be removed
-                      const columnsToRemove = currentColumns.filter(
-                        (col) => !newColumns.includes(col)
-                      );
-
-                      // Add each new column to the table
-                      columnsToAdd.forEach((columnName) => {
-                        useVariableStore
-                          .getState()
-                          .addColumnToTable(
-                            currentItem.variable.id,
-                            columnName
-                          );
-                      });
-
-                      // Remove each deleted column from the table
-                      columnsToRemove.forEach((columnName) => {
-                        useVariableStore
-                          .getState()
-                          .removeColumnFromTable(
-                            currentItem.variable.id,
-                            columnName
-                          );
-                      });
-                    }
-                  }
-                }}
-              />
+                    }}
+                  />
+                );
+              })()}
             </div>
 
-            {/* Blocks Sidebar */}
-            <div className="w-[300px] min-w-[300px] border-l border-gray-700 bg-gray-900 p-4">
-              <h3 className="text-lg font-semibold text-white mb-4">
-                Agent Tools
-              </h3>
-              <div className="h-[calc(100vh-300px)] overflow-y-auto space-y-2">
-                {blocks.map((block, index) => {
-                  // Get row count for the current variable being displayed
-                  const navigationItems = getNavigationItems();
-                  const currentItem = navigationItems[currentTableIndex];
-                  let rowCount = 0;
-
-                  if (currentItem?.type === "table") {
-                    rowCount = Array.isArray(currentItem.variable.value)
-                      ? currentItem.variable.value.length
-                      : 0;
-                  }
-
-                  return (
-                    <EditorBlock
-                      key={block.id}
-                      block={block}
-                      hasSelection={selection.length > 0}
-                      rowCount={rowCount}
-                      onRun={handleBlockRun}
-                      onOpen={(block) => {
-                        console.log(
-                          `Opening block ${block.blockNumber} for editing`
-                        );
-                        // TODO: Implement block configuration dialog
-                      }}
-                      isLoading={loadingBlocks.has(block.id)}
-                    />
-                  );
-                })}
-                {blocks.length === 0 && (
-                  <div className="text-gray-400 text-sm text-center py-4">
-                    No blocks found
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Chat Sidebar - only show for mainOutput */}
+            {(() => {
+              const data = getFirebaseDataFromVariables();
+              if ("type" in data && data.type === "mainoutput") {
+                return (
+                  <ChatSidebar
+                    variable={data.variable}
+                    content={data.content}
+                  />
+                );
+              }
+              return null;
+            })()}
           </div>
         </main>
 

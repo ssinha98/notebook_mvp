@@ -24,6 +24,7 @@ import { useAgentStore } from "@/lib/agentStore";
 // Add router to the imports
 import { useRouter } from "next/router";
 import { toast } from "sonner";
+import { VariableInputDialog } from "./VariableInputDialog";
 
 interface PrimaryInputDialogProps {
   blocks: Block[];

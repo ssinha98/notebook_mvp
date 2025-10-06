@@ -6,6 +6,7 @@ export interface Variable {
   description?: string;
   agentId?: string;
   columnName?: string;
+  mainOutput?: boolean; // Add this line
   rows?: TableRow[];
   // Table-specific fields
   columns?: string[]; // List of column names for table variables
@@ -104,7 +105,11 @@ export type BlockType =
   | "clickupagent"
   | "googledriveagent"
   | "apolloagent"
-  | "tabletransform";
+  | "tabletransform"
+  | "gong"
+  | "jira"
+  | "salesforce"
+  | "variableinput"; // Add this line
 
 /* OLD Block interface
 export interface Block {
@@ -290,7 +295,10 @@ export type Block =
   | ClickUpAgentBlock
   | GoogleDriveAgentBlock
   | ApolloAgentBlock
-  | TableTransformBlock;
+  | TableTransformBlock
+  | GongBlock
+  | JiraBlock
+  | SalesforceBlock;
 
 export interface Agent {
   id: string;
@@ -311,6 +319,8 @@ export interface Agent {
   };
   folderId?: string;
   folderName?: string;
+  viewOnlyUsers?: string[]; // Array of email addresses with view-only access
+  admin?: boolean; // Whether the current user is an admin for this agent
 }
 
 export interface Folder {
@@ -357,6 +367,14 @@ export interface AgentStore {
   addBlockToAgent: (
     blockData: Partial<Block> & { type: Block["type"] }
   ) => void;
+
+  // New view-only user management methods:
+  addViewOnlyUser: (agentId: string, email: string) => Promise<void>;
+  removeViewOnlyUser: (agentId: string, email: string) => Promise<void>;
+  updateViewOnlyUsers: (agentId: string, emails: string[]) => Promise<void>;
+  isUserViewOnly: (agentId: string, userEmail: string) => boolean;
+  isCurrentUserAdmin: () => Promise<boolean>;
+  isCurrentUserTeamAdmin: () => Promise<boolean>; // Add this line
 }
 
 export interface FileDocument {
@@ -519,4 +537,26 @@ export interface TableTransformBlock extends BaseBlock {
       }>;
     };
   };
+}
+
+// Add new block interfaces after TableTransformBlock
+export interface GongBlock extends BaseBlock {
+  type: "gong";
+  prompt: string;
+  endpoint: string;
+  callIds?: string; // Add this line
+}
+
+export interface JiraBlock extends BaseBlock {
+  type: "jira";
+  prompt?: string;
+  searchQuery?: string;
+  endpoint?: string;
+}
+
+export interface SalesforceBlock extends BaseBlock {
+  type: "salesforce";
+  prompt?: string;
+  companyName?: string;
+  endpoint?: string;
 }

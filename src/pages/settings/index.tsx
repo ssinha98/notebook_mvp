@@ -8,6 +8,7 @@ import { useRouter } from "next/router";
 import { doc, getDoc, setDoc, getFirestore } from "firebase/firestore";
 import { api } from "@/tools/api";
 import { Input } from "@/components/ui/input";
+import { useAgentStore } from "@/lib/agentStore";
 
 export default function Settings() {
   const [user, setUser] = useState(auth.currentUser);
@@ -23,6 +24,25 @@ export default function Settings() {
   const [apolloApiKey, setApolloApiKey] = useState<string>("");
   const [hasCustomApolloKey, setHasCustomApolloKey] = useState<boolean>(false);
   const [savedApolloKey, setSavedApolloKey] = useState<string>("");
+  
+  // Add new API key state variables
+  const [gongApiKey, setGongApiKey] = useState<string>("");
+  const [hasCustomGongKey, setHasCustomGongKey] = useState<boolean>(false);
+  const [savedGongKey, setSavedGongKey] = useState<string>("");
+  
+  const [salesforceApiKey, setSalesforceApiKey] = useState<string>("");
+  const [hasCustomSalesforceKey, setHasCustomSalesforceKey] = useState<boolean>(false);
+  const [savedSalesforceKey, setSavedSalesforceKey] = useState<string>("");
+  
+  const [jiraApiKey, setJiraApiKey] = useState<string>("");
+  const [hasCustomJiraKey, setHasCustomJiraKey] = useState<boolean>(false);
+  const [savedJiraKey, setSavedJiraKey] = useState<string>("");
+  
+  // Add team admin state
+  const [isTeamAdmin, setIsTeamAdmin] = useState<boolean>(false);
+  const [isLoadingTeamAdmin, setIsLoadingTeamAdmin] = useState<boolean>(true);
+  
+  const { isCurrentUserTeamAdmin } = useAgentStore();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -30,6 +50,22 @@ export default function Settings() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Check team admin status
+  useEffect(() => {
+    const checkTeamAdminStatus = async () => {
+      try {
+        const teamAdminStatus = await isCurrentUserTeamAdmin();
+        setIsTeamAdmin(teamAdminStatus);
+      } catch (error) {
+        console.error("Error checking team admin status:", error);
+        setIsTeamAdmin(false);
+      } finally {
+        setIsLoadingTeamAdmin(false);
+      }
+    };
+    checkTeamAdminStatus();
+  }, [isCurrentUserTeamAdmin]);
 
   // Fetch API key on component mount
   useEffect(() => {
@@ -106,6 +142,78 @@ export default function Settings() {
     };
 
     fetchApolloKeyFromFirebase();
+  }, []);
+
+  // Add new useEffect for Gong API key
+  useEffect(() => {
+    const fetchGongKeyFromFirebase = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+
+      try {
+        const docSnap = await getDoc(userDoc);
+        if (docSnap.exists() && docSnap.data().Gong_API_Key) {
+          const firebaseKey = docSnap.data().Gong_API_Key;
+          setHasCustomGongKey(true);
+          setSavedGongKey(firebaseKey);
+        }
+      } catch (error) {
+        console.error("Error fetching Gong API key from Firebase:", error);
+      }
+    };
+
+    fetchGongKeyFromFirebase();
+  }, []);
+
+  // Add new useEffect for Salesforce API key
+  useEffect(() => {
+    const fetchSalesforceKeyFromFirebase = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+
+      try {
+        const docSnap = await getDoc(userDoc);
+        if (docSnap.exists() && docSnap.data().Salesforce_API_Key) {
+          const firebaseKey = docSnap.data().Salesforce_API_Key;
+          setHasCustomSalesforceKey(true);
+          setSavedSalesforceKey(firebaseKey);
+        }
+      } catch (error) {
+        console.error("Error fetching Salesforce API key from Firebase:", error);
+      }
+    };
+
+    fetchSalesforceKeyFromFirebase();
+  }, []);
+
+  // Add new useEffect for Jira API key
+  useEffect(() => {
+    const fetchJiraKeyFromFirebase = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+
+      try {
+        const docSnap = await getDoc(userDoc);
+        if (docSnap.exists() && docSnap.data().Jira_API_Key) {
+          const firebaseKey = docSnap.data().Jira_API_Key;
+          setHasCustomJiraKey(true);
+          setSavedJiraKey(firebaseKey);
+        }
+      } catch (error) {
+        console.error("Error fetching Jira API key from Firebase:", error);
+      }
+    };
+
+    fetchJiraKeyFromFirebase();
   }, []);
 
   const handleSubmitApiKey = async () => {
@@ -247,6 +355,129 @@ export default function Settings() {
     }
   };
 
+  // Add Gong API key handlers
+  const handleSubmitGongKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("Please log in to save your Gong API key");
+      return;
+    }
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(userDoc, { Gong_API_Key: gongApiKey }, { merge: true });
+
+      setHasCustomGongKey(true);
+      setSavedGongKey(gongApiKey);
+      setGongApiKey("");
+      alert("Gong API key saved successfully!");
+    } catch (error) {
+      console.error("Error saving Gong API key:", error);
+      alert("Failed to save Gong API key");
+    }
+  };
+
+  const handleRemoveGongKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(userDoc, { Gong_API_Key: null }, { merge: true });
+
+      setHasCustomGongKey(false);
+      setSavedGongKey("");
+      alert("Gong API key removed successfully!");
+    } catch (error) {
+      console.error("Error removing Gong API key:", error);
+      alert("Failed to remove Gong API key");
+    }
+  };
+
+  // Add Salesforce API key handlers
+  const handleSubmitSalesforceKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("Please log in to save your Salesforce API key");
+      return;
+    }
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(userDoc, { Salesforce_API_Key: salesforceApiKey }, { merge: true });
+
+      setHasCustomSalesforceKey(true);
+      setSavedSalesforceKey(salesforceApiKey);
+      setSalesforceApiKey("");
+      alert("Salesforce API key saved successfully!");
+    } catch (error) {
+      console.error("Error saving Salesforce API key:", error);
+      alert("Failed to save Salesforce API key");
+    }
+  };
+
+  const handleRemoveSalesforceKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(userDoc, { Salesforce_API_Key: null }, { merge: true });
+
+      setHasCustomSalesforceKey(false);
+      setSavedSalesforceKey("");
+      alert("Salesforce API key removed successfully!");
+    } catch (error) {
+      console.error("Error removing Salesforce API key:", error);
+      alert("Failed to remove Salesforce API key");
+    }
+  };
+
+  // Add Jira API key handlers
+  const handleSubmitJiraKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("Please log in to save your Jira API key");
+      return;
+    }
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(userDoc, { Jira_API_Key: jiraApiKey }, { merge: true });
+
+      setHasCustomJiraKey(true);
+      setSavedJiraKey(jiraApiKey);
+      setJiraApiKey("");
+      alert("Jira API key saved successfully!");
+    } catch (error) {
+      console.error("Error saving Jira API key:", error);
+      alert("Failed to save Jira API key");
+    }
+  };
+
+  const handleRemoveJiraKey = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(userDoc, { Jira_API_Key: null }, { merge: true });
+
+      setHasCustomJiraKey(false);
+      setSavedJiraKey("");
+      alert("Jira API key removed successfully!");
+    } catch (error) {
+      console.error("Error removing Jira API key:", error);
+      alert("Failed to remove Jira API key");
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await auth.signOut();
@@ -255,6 +486,41 @@ export default function Settings() {
       console.error("Error signing out:", error);
     }
   };
+
+  const renderApiKeySection = (title: string, keyName: string, hasKey: boolean, savedKey: string, inputValue: string, setInputValue: (value: string) => void, onSubmit: () => void, onRemove: () => void, helpUrl: string, helpText: string) => (
+    <div className="border-t border-zinc-800 pt-4 mt-4">
+      <div className="text-white mb-2">{title}</div>
+      {hasKey ? (
+        <div className="flex items-center justify-between bg-zinc-800 p-3 rounded">
+          <span className="text-white">
+            Custom API Key: {savedKey.slice(0, 8)}...
+          </span>
+          <Button variant="destructive" onClick={onRemove}>
+            Remove Key
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <Input
+            type="password"
+            placeholder={`Enter your ${keyName} API key`}
+            className="w-full bg-zinc-800 border-zinc-700 text-white"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+          />
+          <Button onClick={onSubmit}>Save API Key</Button>
+          <a
+            href={helpUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block border border-zinc-700 rounded-lg p-3 text-gray-400 hover:text-gray-300 text-sm transition-colors"
+          >
+            {helpText} →
+          </a>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <Layout>
@@ -285,108 +551,94 @@ export default function Settings() {
           <CardHeader>
             <h2 className="text-xl font-semibold text-white">API Keys</h2>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-white mb-2">OpenAI API Key</div>
-            {hasCustomKey ? (
-              <div className="flex items-center justify-between bg-zinc-800 p-3 rounded">
-                <span className="text-white">
-                  Custom API Key: {savedKey.slice(0, 8)}...
-                </span>
-                <Button variant="destructive" onClick={handleRemoveKey}>
-                  Remove Key
-                </Button>
+          <CardContent>
+            {isLoadingTeamAdmin ? (
+              <div className="text-gray-400">Loading...</div>
+            ) : isTeamAdmin ? (
+              <div className="max-h-96 overflow-y-auto space-y-4 pr-2">
+                {renderApiKeySection(
+                  "OpenAI API Key",
+                  "OpenAI",
+                  hasCustomKey,
+                  savedKey,
+                  apiKey,
+                  setApiKey,
+                  handleSubmitApiKey,
+                  handleRemoveKey,
+                  "https://platform.openai.com/api-keys",
+                  "How to grab an OpenAI key"
+                )}
+
+                {renderApiKeySection(
+                  "FireCrawl API Key",
+                  "FireCrawl",
+                  hasCustomFirecrawlKey,
+                  savedFirecrawlKey,
+                  firecrawlApiKey,
+                  setFirecrawlApiKey,
+                  handleSubmitFirecrawlKey,
+                  handleRemoveFirecrawlKey,
+                  "https://www.firecrawl.dev/signin/signup",
+                  "How to grab a FireCrawl key"
+                )}
+
+                {renderApiKeySection(
+                  "Apollo API Key",
+                  "Apollo",
+                  hasCustomApolloKey,
+                  savedApolloKey,
+                  apolloApiKey,
+                  setApolloApiKey,
+                  handleSubmitApolloKey,
+                  handleRemoveApolloKey,
+                  "https://developer.apollo.io/keys/",
+                  "How to grab an Apollo key"
+                )}
+
+                {renderApiKeySection(
+                  "Gong API Key",
+                  "Gong",
+                  hasCustomGongKey,
+                  savedGongKey,
+                  gongApiKey,
+                  setGongApiKey,
+                  handleSubmitGongKey,
+                  handleRemoveGongKey,
+                  "https://developers.gong.io/",
+                  "How to grab a Gong key"
+                )}
+
+                {renderApiKeySection(
+                  "Salesforce API Key",
+                  "Salesforce",
+                  hasCustomSalesforceKey,
+                  savedSalesforceKey,
+                  salesforceApiKey,
+                  setSalesforceApiKey,
+                  handleSubmitSalesforceKey,
+                  handleRemoveSalesforceKey,
+                  "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/",
+                  "How to grab a Salesforce key"
+                )}
+
+                {renderApiKeySection(
+                  "Jira API Key",
+                  "Jira",
+                  hasCustomJiraKey,
+                  savedJiraKey,
+                  jiraApiKey,
+                  setJiraApiKey,
+                  handleSubmitJiraKey,
+                  handleRemoveJiraKey,
+                  "https://developer.atlassian.com/cloud/jira/platform/basic-auth-for-rest-apis/",
+                  "How to grab a Jira key"
+                )}
               </div>
             ) : (
-              <div className="space-y-4">
-                <Input
-                  type="password"
-                  placeholder="Enter your OpenAI API key"
-                  className="w-full bg-zinc-800 border-zinc-700 text-white"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
-                <Button onClick={handleSubmitApiKey}>Save API Key</Button>
-                <a
-                  href="https://platform.openai.com/api-keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block border border-zinc-700 rounded-lg p-3 text-gray-400 hover:text-gray-300 text-sm transition-colors"
-                >
-                  How to grab an OpenAI key →
-                </a>
+              <div className="text-gray-400 text-center py-8">
+                Admin hasn't given you access to API keys
               </div>
             )}
-
-            <div className="border-t border-zinc-800 pt-4 mt-4">
-              <div className="text-white mb-2">FireCrawl API Key</div>
-              {hasCustomFirecrawlKey ? (
-                <div className="flex items-center justify-between bg-zinc-800 p-3 rounded">
-                  <span className="text-white">
-                    Custom API Key: {savedFirecrawlKey.slice(0, 8)}...
-                  </span>
-                  <Button
-                    variant="destructive"
-                    onClick={handleRemoveFirecrawlKey}
-                  >
-                    Remove Key
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <Input
-                    type="password"
-                    placeholder="Enter your FireCrawl API key"
-                    className="w-full bg-zinc-800 border-zinc-700 text-white"
-                    value={firecrawlApiKey}
-                    onChange={(e) => setFirecrawlApiKey(e.target.value)}
-                  />
-                  <Button onClick={handleSubmitFirecrawlKey}>
-                    Save API Key
-                  </Button>
-                  <a
-                    href="https://www.firecrawl.dev/signin/signup"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block border border-zinc-700 rounded-lg p-3 text-gray-400 hover:text-gray-300 text-sm transition-colors"
-                  >
-                    How to grab a FireCrawl key →
-                  </a>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-zinc-800 pt-4 mt-4">
-              <div className="text-white mb-2">Apollo API Key</div>
-              {hasCustomApolloKey ? (
-                <div className="flex items-center justify-between bg-zinc-800 p-3 rounded">
-                  <span className="text-white">
-                    Custom API Key: {savedApolloKey.slice(0, 8)}...
-                  </span>
-                  <Button variant="destructive" onClick={handleRemoveApolloKey}>
-                    Remove Key
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <Input
-                    type="password"
-                    placeholder="Enter your Apollo API key"
-                    className="w-full bg-zinc-800 border-zinc-700 text-white"
-                    value={apolloApiKey}
-                    onChange={(e) => setApolloApiKey(e.target.value)}
-                  />
-                  <Button onClick={handleSubmitApolloKey}>Save API Key</Button>
-                  <a
-                    href="https://developer.apollo.io/keys/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block border border-zinc-700 rounded-lg p-3 text-gray-400 hover:text-gray-300 text-sm transition-colors"
-                  >
-                    How to grab an Apollo key →
-                  </a>
-                </div>
-              )}
-            </div>
           </CardContent>
         </Card>
 

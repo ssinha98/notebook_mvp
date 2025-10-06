@@ -1,4 +1,4 @@
-import React, { useState, CSSProperties, forwardRef } from "react";
+import React, { useState, useEffect, CSSProperties, forwardRef } from "react";
 import {
   ExpandAltOutlined,
   ShrinkOutlined,
@@ -36,6 +36,9 @@ import PipedriveAgent from "./PipedriveAgent";
 import DataVizAgent, { DataVizAgentRef } from "./DataVizAgent";
 import ClickUpAgent from "./ClickUpAgent";
 import GoogleDriveAgent from "./GoogleDriveAgent";
+import GongAgent from "./GongAgent";
+import JiraAgent from "./JiraAgent";
+import SalesforceAgent from "./SalesforceAgent";
 import { useVariableStore } from "@/lib/variableStore";
 import {
   DndContext,
@@ -60,6 +63,8 @@ import TableTransformBlock, {
 } from "./TableTransformBlock";
 import { TableTransformBlock as TableTransformBlockType } from "@/types/types";
 import { useAgentStore } from "@/lib/agentStore";
+import { Lock } from "lucide-react";
+import { toast } from "sonner"; // Add this import
 
 interface CollapsibleBoxProps {
   title: string;
@@ -104,6 +109,7 @@ interface CollapsibleBoxProps {
   blockElementRefs?: React.MutableRefObject<{
     [blockId: string]: HTMLDivElement | null;
   }>;
+  isViewOnly?: boolean; // Add this new prop
 }
 
 const CollapsibleBox = forwardRef<
@@ -118,7 +124,15 @@ const CollapsibleBox = forwardRef<
     [key: number]: boolean;
   }>({});
   const [hasRated, setHasRated] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false); // Default expanded
+  // Start minimized if user is view-only, otherwise expanded
+  const [isMinimized, setIsMinimized] = useState(props.isViewOnly || false);
+
+  // Add useEffect to handle isViewOnly prop changes
+  useEffect(() => {
+    if (props.isViewOnly) {
+      setIsMinimized(true);
+    }
+  }, [props.isViewOnly]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -152,6 +166,9 @@ const CollapsibleBox = forwardRef<
       | "pipedriveagent"
       | "datavizagent"
       | "clickupagent"
+      | "gong"
+      | "jira"
+      | "salesforce"
   ) => {
     const baseBlock = {
       blockNumber: nextBlockNumber,
@@ -173,6 +190,20 @@ const CollapsibleBox = forwardRef<
         variables: [],
       }),
       ...(blockType === "make" && { webhookUrl: "", parameters: [] }),
+      ...(blockType === "gong" && {
+        prompt: "",
+        endpoint: "/api/gong",
+      }),
+      ...(blockType === "jira" && {
+        prompt: "search_for_issue",
+        searchQuery: "",
+        endpoint: "/api/jira",
+      }),
+      ...(blockType === "salesforce" && {
+        prompt: "search_company_by_name",
+        companyName: "",
+        endpoint: "/api/salesforce",
+      }),
     } as Block;
 
     if (!currentAgent) return;
@@ -815,6 +846,78 @@ const CollapsibleBox = forwardRef<
             />
           </div>
         );
+      case "gong":
+        return (
+          <GongAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={`gong-${block.blockNumber}`}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={deleteBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates as Partial<Block>);
+            }}
+            initialPrompt={block.prompt}
+            initialCallIds={block.callIds}
+            initialOutputVariable={block.outputVariable}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+          />
+        );
+      case "jira":
+        return (
+          <div
+            ref={(el) => {
+              if (props.blockElementRefs) {
+                props.blockElementRefs.current[block.id] = el;
+              }
+            }}
+          >
+            <JiraAgent
+              ref={(ref) => {
+                if (ref && props.blockRefs) {
+                  props.blockRefs.current[block.blockNumber] = ref;
+                }
+              }}
+              key={`jira-${block.blockNumber}`}
+              blockNumber={block.blockNumber}
+              onDeleteBlock={deleteBlock}
+              onCopyBlock={copyBlock}
+              onUpdateBlock={(blockNumber, updates) => {
+                updateBlockData(blockNumber, updates as Partial<Block>);
+              }}
+              initialOutputVariable={block.outputVariable}
+              initialPrompt={block.prompt}
+              isProcessing={processingBlocks[block.blockNumber] || false}
+            />
+          </div>
+        );
+      case "salesforce":
+        return (
+          <SalesforceAgent
+            ref={(ref) => {
+              if (ref && props.blockRefs) {
+                props.blockRefs.current[block.blockNumber] = ref;
+              }
+            }}
+            key={`salesforce-${block.blockNumber}`}
+            blockNumber={block.blockNumber}
+            onDeleteBlock={(blockNumber) => {
+              deleteBlock(blockNumber);
+              props.onDeleteBlock?.(blockNumber);
+            }}
+            onCopyBlock={copyBlock}
+            onUpdateBlock={(blockNumber, updates) => {
+              updateBlockData(blockNumber, updates as Partial<Block>);
+            }}
+            initialPrompt={block.prompt}
+            initialCompanyName={block.companyName}
+            initialOutputVariable={block.outputVariable}
+            isProcessing={processingBlocks[block.blockNumber] || false}
+          />
+        );
       default:
         return null;
     }
@@ -837,9 +940,9 @@ const CollapsibleBox = forwardRef<
       <div
         style={{
           ...boxStyle,
-          width: "100%", // Always 100% width since we're always in edit mode
-          // COMMENTED OUT: width: props.isRunning && !props.isEditMode ? "50%" : "100%",
+          width: "100%",
           transition: "width 0.3s ease-in-out",
+          position: "relative",
         }}
       >
         <div className="font-bold text-lg mb-2 flex items-center justify-between">
@@ -884,7 +987,16 @@ const CollapsibleBox = forwardRef<
             )}
           </div>
           <button
-            onClick={() => setIsMinimized(!isMinimized)}
+            onClick={() => {
+              // If view-only, prevent any toggle and show toast
+              if (props.isViewOnly) {
+                toast.error(
+                  "Your admin has made you view only. Tap 'Run' to use this agent."
+                );
+                return;
+              }
+              setIsMinimized(!isMinimized);
+            }}
             className="text-gray-400 hover:text-white transition-colors"
           >
             {isMinimized ? <ExpandAltOutlined /> : <MinusOutlined />}
@@ -896,7 +1008,6 @@ const CollapsibleBox = forwardRef<
               <>
                 <div style={blockContainerStyle}>
                   {/* ALWAYS SHOW EDIT MODE - COMMENTED OUT VIEW MODE CONDITION */}
-                  {/* {props.isEditMode ? ( */}
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -913,18 +1024,6 @@ const CollapsibleBox = forwardRef<
                       ))}
                     </SortableContext>
                   </DndContext>
-                  {/* ) : ( */}
-                  {/* COMMENTED OUT VIEW MODE - SINGLE BLOCK DISPLAY */}
-                  {/* <>
-                    {blocks.length > 0 && renderBlock(blocks[0])}
-                    {blocks.length > 1 && (
-                      <div className="text-gray-400 text-sm mt-4 italic">
-                        and {blocks.length - 1} more block
-                        {blocks.length > 2 ? "s" : ""}
-                      </div>
-                    )}
-                  </> */}
-                  {/* )} */}
                 </div>
               </>
             ) : (

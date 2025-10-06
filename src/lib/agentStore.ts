@@ -1490,10 +1490,12 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
     blocks.push(block);
 
-    return {
+    set((state) => ({
       ...state,
-      currentAgent: { ...state.currentAgent, blocks },
-    };
+      currentAgent: state.currentAgent
+        ? { ...state.currentAgent, blocks }
+        : null,
+    }));
   },
 
   // New view-only user management functions
@@ -1532,7 +1534,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       set((state) => ({
         ...state,
         agents: state.agents.map((agent) =>
-          agent.id === agentId
+        agent.id === agentId
             ? { ...agent, viewOnlyUsers: updatedViewOnlyUsers }
             : agent
         ),

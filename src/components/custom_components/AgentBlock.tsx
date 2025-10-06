@@ -197,16 +197,24 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   // Update useEffect to re-run when fileNicknames changes
   useEffect(() => {
     const fetchFiles = async () => {
+      if (!user) return;
+      
       const db = getFirestore();
-      const filesSnapshot = await getDocs(collection(db, "files"));
-      filesSnapshot.forEach((doc) => {
-        const data = doc.data();
-        addFileNickname(data.nickname, data.full_name, data.download_link);
-      });
+      try {
+        const filesSnapshot = await getDocs(
+          collection(db, "users", user.uid, "files")
+        );
+        filesSnapshot.forEach((doc) => {
+          const data = doc.data();
+          addFileNickname(data.nickname, data.full_name, data.download_link);
+        });
+      } catch (error) {
+        console.error("Error fetching files:", error);
+      }
     };
 
     fetchFiles();
-  }, [addFileNickname, fileNicknames]); // Add fileNicknames as dependency
+  }, [user, addFileNickname]); // Remove fileNicknames dependency to avoid infinite loop
 
   useEffect(() => {
     if (user) {

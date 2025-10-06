@@ -198,7 +198,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   useEffect(() => {
     const fetchFiles = async () => {
       if (!user) return;
-      
+
       const db = getFirestore();
       try {
         const filesSnapshot = await getDocs(

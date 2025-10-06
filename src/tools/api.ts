@@ -62,6 +62,8 @@ export const api = {
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
+        console.log(`Making API call to: ${API_URL}${endpoint} (attempt ${attempt})`);
+        
         const response = await fetch(`${API_URL}${endpoint}`, {
           method: "POST",
           headers: {
@@ -82,15 +84,27 @@ export const api = {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+          
+          // Enhanced error logging with endpoint information
+          console.error(`API Error Details:`, {
+            endpoint: `${API_URL}${endpoint}`,
+            status: response.status,
+            statusText: response.statusText,
+            error: errorMessage,
+            attempt: attempt,
+            requestId: requestId
+          });
+          
           throw new Error(
-            errorData.error || `HTTP error! status: ${response.status}`
+            `API call to ${endpoint} failed: ${errorMessage} (Status: ${response.status})`
           );
         }
 
         return await response.json();
       } catch (error) {
         lastError = error;
-        console.warn(`Attempt ${attempt} failed:`, error);
+        console.warn(`API call attempt ${attempt} failed for ${endpoint}:`, error);
 
         // Handle fetch errors that might be due to cancellation (AbortError)
         if ((error as Error)?.name === "AbortError") {
@@ -102,15 +116,22 @@ export const api = {
         }
 
         if (attempt < MAX_RETRIES) {
-          console.log(`Retrying in ${RETRY_DELAY}ms...`);
+          console.log(`Retrying ${endpoint} in ${RETRY_DELAY}ms...`);
           await sleep(RETRY_DELAY * attempt); // Exponential backoff
         }
       }
     }
 
-    throw new Error(
-      `Failed after ${MAX_RETRIES} attempts. Last error: ${(lastError as Error)?.message || "Unknown error"}`
-    );
+    // Enhanced final error message with endpoint details
+    const finalError = `API call to ${endpoint} failed after ${MAX_RETRIES} attempts. Last error: ${(lastError as Error)?.message || "Unknown error"}`;
+    console.error(`Final API Error:`, {
+      endpoint: `${API_URL}${endpoint}`,
+      attempts: MAX_RETRIES,
+      lastError: (lastError as Error)?.message,
+      requestId: requestId
+    });
+    
+    throw new Error(finalError);
   },
 
   async uploadFile(

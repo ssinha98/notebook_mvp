@@ -76,7 +76,7 @@ export function VariableInputDialog({
 
     try {
       await updateVariable(variableId, value);
-      toast.success(`Variable "${variable.name}" saved successfully!`);
+      toast.success(`"${variable.name}" saved as "${value}"`);
     } catch (error) {
       console.error("Error saving variable:", error);
       toast.error(`Failed to save variable "${variable.name}"`);
@@ -95,6 +95,7 @@ export function VariableInputDialog({
         const value = variableValues[variable.id] || "";
         try {
           await updateVariable(variable.id, value);
+          toast.success(`"${variable.name}" saved as "${value}"`);
           successCount++;
         } catch (error) {
           console.error(`Error saving variable ${variable.name}:`, error);
@@ -106,6 +107,41 @@ export function VariableInputDialog({
         toast.success(`All ${successCount} variables saved successfully!`);
       } else {
         toast.warning(`${successCount} variables saved, ${errorCount} failed`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleContinue = async () => {
+    setIsLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      // Save all variables before continuing
+      for (const variable of inputVariables) {
+        const value = variableValues[variable.id] || "";
+        try {
+          await updateVariable(variable.id, value);
+          toast.success(`"${variable.name}" saved as "${value}"`);
+          successCount++;
+        } catch (error) {
+          console.error(`Error saving variable ${variable.name}:`, error);
+          errorCount++;
+        }
+      }
+
+      // Show summary toast message
+      if (errorCount === 0) {
+        toast.success(`All ${successCount} variables saved successfully!`);
+      } else {
+        toast.warning(`${successCount} variables saved, ${errorCount} failed`);
+      }
+
+      // Only call onComplete if at least some variables were saved successfully
+      if (successCount > 0) {
+        onComplete();
       }
     } finally {
       setIsLoading(false);
@@ -212,8 +248,15 @@ export function VariableInputDialog({
                 "Save All Variables"
               )}
             </Button>
-            <Button onClick={onComplete} disabled={isLoading}>
-              Continue
+            <Button onClick={handleContinue} disabled={isLoading}>
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Saving & Continuing...
+                </div>
+              ) : (
+                "Continue"
+              )}
             </Button>
           </div>
         </AlertDialogFooter>

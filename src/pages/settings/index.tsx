@@ -24,24 +24,25 @@ export default function Settings() {
   const [apolloApiKey, setApolloApiKey] = useState<string>("");
   const [hasCustomApolloKey, setHasCustomApolloKey] = useState<boolean>(false);
   const [savedApolloKey, setSavedApolloKey] = useState<string>("");
-  
+
   // Add new API key state variables
   const [gongApiKey, setGongApiKey] = useState<string>("");
   const [hasCustomGongKey, setHasCustomGongKey] = useState<boolean>(false);
   const [savedGongKey, setSavedGongKey] = useState<string>("");
-  
+
   const [salesforceApiKey, setSalesforceApiKey] = useState<string>("");
-  const [hasCustomSalesforceKey, setHasCustomSalesforceKey] = useState<boolean>(false);
+  const [hasCustomSalesforceKey, setHasCustomSalesforceKey] =
+    useState<boolean>(false);
   const [savedSalesforceKey, setSavedSalesforceKey] = useState<string>("");
-  
+
   const [jiraApiKey, setJiraApiKey] = useState<string>("");
   const [hasCustomJiraKey, setHasCustomJiraKey] = useState<boolean>(false);
   const [savedJiraKey, setSavedJiraKey] = useState<string>("");
-  
+
   // Add team admin state
   const [isTeamAdmin, setIsTeamAdmin] = useState<boolean>(false);
   const [isLoadingTeamAdmin, setIsLoadingTeamAdmin] = useState<boolean>(true);
-  
+
   const { isCurrentUserTeamAdmin } = useAgentStore();
 
   useEffect(() => {
@@ -84,9 +85,9 @@ export default function Settings() {
           setSavedKey(firebaseKey);
 
           // Also update the backend with the Firebase key
-          await api.post("/api/set-api-key", {
-            api_key: firebaseKey,
-          });
+          // await api.post("/api/set-api-key", {
+          //   api_key: firebaseKey,
+          // });
         }
       } catch (error) {
         console.error("Error fetching API key from Firebase:", error);
@@ -185,7 +186,10 @@ export default function Settings() {
           setSavedSalesforceKey(firebaseKey);
         }
       } catch (error) {
-        console.error("Error fetching Salesforce API key from Firebase:", error);
+        console.error(
+          "Error fetching Salesforce API key from Firebase:",
+          error
+        );
       }
     };
 
@@ -407,7 +411,11 @@ export default function Settings() {
     try {
       const db = getFirestore();
       const userDoc = doc(db, "users", currentUser.uid);
-      await setDoc(userDoc, { Salesforce_API_Key: salesforceApiKey }, { merge: true });
+      await setDoc(
+        userDoc,
+        { Salesforce_API_Key: salesforceApiKey },
+        { merge: true }
+      );
 
       setHasCustomSalesforceKey(true);
       setSavedSalesforceKey(salesforceApiKey);
@@ -487,7 +495,18 @@ export default function Settings() {
     }
   };
 
-  const renderApiKeySection = (title: string, keyName: string, hasKey: boolean, savedKey: string, inputValue: string, setInputValue: (value: string) => void, onSubmit: () => void, onRemove: () => void, helpUrl: string, helpText: string) => (
+  const renderApiKeySection = (
+    title: string,
+    keyName: string,
+    hasKey: boolean,
+    savedKey: string,
+    inputValue: string,
+    setInputValue: (value: string) => void,
+    onSubmit: () => void,
+    onRemove: () => void,
+    helpUrl: string,
+    helpText: string
+  ) => (
     <div className="border-t border-zinc-800 pt-4 mt-4">
       <div className="text-white mb-2">{title}</div>
       {hasKey ? (

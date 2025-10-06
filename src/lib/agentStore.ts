@@ -1534,7 +1534,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
       set((state) => ({
         ...state,
         agents: state.agents.map((agent) =>
-        agent.id === agentId
+          agent.id === agentId
             ? { ...agent, viewOnlyUsers: updatedViewOnlyUsers }
             : agent
         ),

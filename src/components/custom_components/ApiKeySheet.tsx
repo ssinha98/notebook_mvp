@@ -45,9 +45,9 @@ const ApiKeySheet: React.FC<ApiKeySheetProps> = ({ open, onOpenChange }) => {
           setSavedKey(firebaseKey);
 
           // Also update the backend with the Firebase key
-          await api.post("/api/set-api-key", {
-            api_key: firebaseKey,
-          });
+          // await api.post("/api/set-api-key", {
+          //   api_key: firebaseKey,
+          // });
         }
       } catch (error) {
         console.error("Error fetching API key from Firebase:", error);

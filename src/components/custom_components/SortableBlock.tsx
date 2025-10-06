@@ -2,13 +2,15 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Block } from "@/types/types";
+import { toast } from "sonner";
 
 interface SortableBlockProps {
   block: Block;
   children: React.ReactNode;
+  isViewOnly?: boolean;
 }
 
-const SortableBlock: React.FC<SortableBlockProps> = ({ block, children }) => {
+const SortableBlock: React.FC<SortableBlockProps> = ({ block, children, isViewOnly = false }) => {
   const {
     attributes,
     listeners,
@@ -39,6 +41,17 @@ const SortableBlock: React.FC<SortableBlockProps> = ({ block, children }) => {
       {...attributes}
       className={`relative ${isSkipped ? "border-l-4 border-l-gray-400 bg-gray-50 dark:bg-gray-800" : ""}`}
     >
+      {/* View-only overlay for this block */}
+      {isViewOnly && (
+        <div
+          className="absolute inset-0 z-50 bg-transparent"
+          onClick={() => {
+            toast.error("You're in view-only mode. You can only run the agent and input variables.");
+          }}
+          style={{ pointerEvents: 'auto' }}
+        />
+      )}
+
       {/* Drag handle - only this part captures drag events */}
       <div
         {...listeners}

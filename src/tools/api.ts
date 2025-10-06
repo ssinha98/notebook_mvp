@@ -62,8 +62,10 @@ export const api = {
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        console.log(`Making API call to: ${API_URL}${endpoint} (attempt ${attempt})`);
-        
+        console.log(
+          `Making API call to: ${API_URL}${endpoint} (attempt ${attempt})`
+        );
+
         const response = await fetch(`${API_URL}${endpoint}`, {
           method: "POST",
           headers: {
@@ -84,8 +86,9 @@ export const api = {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
-          
+          const errorMessage =
+            errorData.error || `HTTP error! status: ${response.status}`;
+
           // Enhanced error logging with endpoint information
           console.error(`API Error Details:`, {
             endpoint: `${API_URL}${endpoint}`,
@@ -93,9 +96,9 @@ export const api = {
             statusText: response.statusText,
             error: errorMessage,
             attempt: attempt,
-            requestId: requestId
+            requestId: requestId,
           });
-          
+
           throw new Error(
             `API call to ${endpoint} failed: ${errorMessage} (Status: ${response.status})`
           );
@@ -104,7 +107,10 @@ export const api = {
         return await response.json();
       } catch (error) {
         lastError = error;
-        console.warn(`API call attempt ${attempt} failed for ${endpoint}:`, error);
+        console.warn(
+          `API call attempt ${attempt} failed for ${endpoint}:`,
+          error
+        );
 
         // Handle fetch errors that might be due to cancellation (AbortError)
         if ((error as Error)?.name === "AbortError") {
@@ -128,9 +134,9 @@ export const api = {
       endpoint: `${API_URL}${endpoint}`,
       attempts: MAX_RETRIES,
       lastError: (lastError as Error)?.message,
-      requestId: requestId
+      requestId: requestId,
     });
-    
+
     throw new Error(finalError);
   },
 

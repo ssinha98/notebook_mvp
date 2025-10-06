@@ -47,9 +47,9 @@ import InstagramAgent from "@/components/custom_components/InstagramAgent";
 import RateAgentRun from "@/components/custom_components/RateAgentRun";
 import DeepResearchAgent from "@/components/custom_components/DeepResearchAgent";
 import PipedriveAgent from "@/components/custom_components/PipedriveAgent";
-import { Info } from "lucide-react";
+// import { Info, ChevronDown, Lock } from "lucide-react";
 import InputVariablesSheet from "@/components/custom_components/InputVariablesSheet";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Info, Lock } from "lucide-react";
 import DataVizAgent, {
   DataVizAgentRef,
 } from "@/components/custom_components/DataVizAgent";
@@ -1418,8 +1418,22 @@ export default function Notebook() {
             const columnName = blockData.outputVariable.columnName;
             const tableVar = useVariableStore.getState().variables[tableId];
 
-            if (tableVar?.type === "table" && "getOutput" in blockRef) {
-              const output = blockRef.getOutput();
+            if (tableVar?.type === "table") {
+              // Try to get output from block ref first, fallback to stored modelResponse
+              let output = null;
+              try {
+                if (blockRef && "getOutput" in blockRef) {
+                  output = blockRef.getOutput();
+                }
+              } catch (error) {
+                console.log(`Block ref getOutput failed for block ${block.blockNumber}, using stored data`);
+              }
+              
+              // If block ref failed or returned null/undefined, use stored modelResponse
+              if (!output && blockData.modelResponse) {
+                output = blockData.modelResponse;
+                console.log(`Using stored modelResponse for block ${block.blockNumber}:`, output);
+              }
 
               // If the output is a string, always create a new row (append)
               if (typeof output === "string" && output.trim()) {
@@ -1438,12 +1452,29 @@ export default function Notebook() {
                 }
               }
             }
-          } else if (blockData?.outputVariable && "getOutput" in blockRef) {
+          } else if (blockData?.outputVariable) {
             // Handle regular variable output
-            const output = blockRef.getOutput();
-            await useVariableStore
-              .getState()
-              .updateVariable(blockData.outputVariable.id, output);
+            // Try to get output from block ref first, fallback to stored modelResponse
+            let output = null;
+            try {
+              if (blockRef && "getOutput" in blockRef) {
+                output = blockRef.getOutput();
+              }
+            } catch (error) {
+              console.log(`Block ref getOutput failed for block ${block.blockNumber}, using stored data`);
+            }
+            
+            // If block ref failed or returned null/undefined, use stored modelResponse
+            if (!output && blockData.modelResponse) {
+              output = blockData.modelResponse;
+              console.log(`Using stored modelResponse for block ${block.blockNumber}:`, output);
+            }
+
+            if (output) {
+              await useVariableStore
+                .getState()
+                .updateVariable(blockData.outputVariable.id, output);
+            }
           }
         } catch (error) {
           console.error(
@@ -1489,6 +1520,17 @@ export default function Notebook() {
         } catch (error) {
           console.error("Error sending completion email:", error);
           // Don't throw - email failure shouldn't break the UI
+        }
+
+        // 🆕 ADD THIS: Navigate to output editor after completion
+        try {
+          if (currentAgent?.id) {
+            console.log("Agent run completed, navigating to output editor...");
+            router.push(`/output-editor/${currentAgent.id}`);
+          }
+        } catch (error) {
+          console.error("Error navigating to output editor:", error);
+          // Don't throw - navigation failure shouldn't break the UI
         }
       }
     }
@@ -2217,8 +2259,19 @@ export default function Notebook() {
     const checkViewOnlyStatus = () => {
       if (currentAgent && auth.currentUser?.email) {
         const userEmail = auth.currentUser.email;
-        const viewOnlyUsers = currentAgent.viewOnlyUsers || [];
+        const viewOnlyUsers =
+          currentAgent.viewOnlyUsers || currentAgent.view_only || [];
         const isUserViewOnly = viewOnlyUsers.includes(userEmail);
+
+        // Add debug logging
+        // console.log("=== VIEW ONLY DEBUG ===");
+        // console.log("User email:", userEmail);
+        // console.log("viewOnlyUsers:", currentAgent.viewOnlyUsers);
+        // console.log("view_only:", currentAgent.view_only);
+        // console.log("Final viewOnlyUsers array:", viewOnlyUsers);
+        // console.log("Is user view only:", isUserViewOnly);
+        // console.log("=== END DEBUG ===");
+
         setIsViewOnly(isUserViewOnly);
       }
     };
@@ -2229,6 +2282,14 @@ export default function Notebook() {
   return (
     <Layout>
       <div style={pageStyle}>
+        {/* View Only indicator in bottom right */}
+        {isViewOnly && (
+          <div className="fixed bottom-4 right-4 z-50 bg-blue-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2">
+            <Lock className="h-4 w-4" />
+            <span className="text-sm font-medium">View Only</span>
+          </div>
+        )}
+
         {!isLoading && agentId ? (
           <AgentHeader
             isEditMode={isEditMode}

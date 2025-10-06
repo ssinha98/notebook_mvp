@@ -320,6 +320,7 @@ export interface Agent {
   folderId?: string;
   folderName?: string;
   viewOnlyUsers?: string[]; // Array of email addresses with view-only access
+  view_only?: string[]; // Add this line
   admin?: boolean; // Whether the current user is an admin for this agent
 }
 

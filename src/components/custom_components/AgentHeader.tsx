@@ -22,6 +22,8 @@ import { toast } from "sonner";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { useVariableStore } from "@/lib/variableStore";
 import { useAgentTemplateStore } from "@/lib/agentTemplateStore";
+import { Lock } from "lucide-react";
+import { auth } from "@/tools/firebase";
 
 interface AgentHeaderProps {
   isEditMode: boolean;
@@ -49,6 +51,7 @@ export default function AgentHeader({
   const [targetUserId, setTargetUserId] = useState("");
   // Add new state for template checkbox
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  const [isViewOnly, setIsViewOnly] = useState(false);
 
   const {
     currentAgent,
@@ -103,6 +106,20 @@ export default function AgentHeader({
     if (currentAgent) {
       setNewName(currentAgent.name);
     }
+  }, [currentAgent]);
+
+  useEffect(() => {
+    const checkViewOnlyStatus = () => {
+      if (currentAgent && auth.currentUser?.email) {
+        const userEmail = auth.currentUser.email;
+        const viewOnlyUsers =
+          currentAgent.viewOnlyUsers || currentAgent.view_only || [];
+        const isUserViewOnly = viewOnlyUsers.includes(userEmail);
+        setIsViewOnly(isUserViewOnly);
+      }
+    };
+
+    checkViewOnlyStatus();
   }, [currentAgent]);
 
   const handleNameUpdate = async () => {
@@ -288,6 +305,14 @@ export default function AgentHeader({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+        )}
+
+        {/* View Only indicator */}
+        {isViewOnly && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg">
+            <Lock className="h-4 w-4" />
+            <span className="text-sm font-medium">View Only Mode</span>
+          </div>
         )}
 
         {/* Auto-save indicator */}

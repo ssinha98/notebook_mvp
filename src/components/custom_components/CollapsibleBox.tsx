@@ -125,14 +125,7 @@ const CollapsibleBox = forwardRef<
   }>({});
   const [hasRated, setHasRated] = useState(false);
   // Start minimized if user is view-only, otherwise expanded
-  const [isMinimized, setIsMinimized] = useState(props.isViewOnly || false);
-
-  // Add useEffect to handle isViewOnly prop changes
-  useEffect(() => {
-    if (props.isViewOnly) {
-      setIsMinimized(true);
-    }
-  }, [props.isViewOnly]);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -988,13 +981,6 @@ const CollapsibleBox = forwardRef<
           </div>
           <button
             onClick={() => {
-              // If view-only, prevent any toggle and show toast
-              if (props.isViewOnly) {
-                toast.error(
-                  "Your admin has made you view only. Tap 'Run' to use this agent."
-                );
-                return;
-              }
               setIsMinimized(!isMinimized);
             }}
             className="text-gray-400 hover:text-white transition-colors"
@@ -1018,7 +1004,7 @@ const CollapsibleBox = forwardRef<
                       strategy={verticalListSortingStrategy}
                     >
                       {blocks.map((block) => (
-                        <SortableBlock key={block.id} block={block}>
+                        <SortableBlock key={block.id} block={block} isViewOnly={props.isViewOnly}>
                           {renderBlock(block)}
                         </SortableBlock>
                       ))}

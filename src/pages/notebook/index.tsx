@@ -1197,6 +1197,19 @@ export default function Notebook() {
           continue; // Skip to next block
         }
 
+        if (block.containsPrimaryInput) {
+          console.log(
+            `⏭️ SKIPPING block ${block.blockNumber} (${block.type}) - using primary input flow`
+          );
+          console.log(`   Block details:`, {
+            name: block.name,
+            type: block.type,
+            blockNumber: block.blockNumber,
+            containsPrimaryInput: block.containsPrimaryInput,
+          });
+          continue; // Skip to next block
+        }
+
         console.log(`✅ EXECUTING block ${block.blockNumber} (${block.type})`);
 
         try {
@@ -1426,13 +1439,18 @@ export default function Notebook() {
                   output = blockRef.getOutput();
                 }
               } catch (error) {
-                console.log(`Block ref getOutput failed for block ${block.blockNumber}, using stored data`);
+                console.log(
+                  `Block ref getOutput failed for block ${block.blockNumber}, using stored data`
+                );
               }
-              
+
               // If block ref failed or returned null/undefined, use stored modelResponse
               if (!output && blockData.modelResponse) {
                 output = blockData.modelResponse;
-                console.log(`Using stored modelResponse for block ${block.blockNumber}:`, output);
+                console.log(
+                  `Using stored modelResponse for block ${block.blockNumber}:`,
+                  output
+                );
               }
 
               // If the output is a string, always create a new row (append)
@@ -1461,13 +1479,18 @@ export default function Notebook() {
                 output = blockRef.getOutput();
               }
             } catch (error) {
-              console.log(`Block ref getOutput failed for block ${block.blockNumber}, using stored data`);
+              console.log(
+                `Block ref getOutput failed for block ${block.blockNumber}, using stored data`
+              );
             }
-            
+
             // If block ref failed or returned null/undefined, use stored modelResponse
             if (!output && blockData.modelResponse) {
               output = blockData.modelResponse;
-              console.log(`Using stored modelResponse for block ${block.blockNumber}:`, output);
+              console.log(
+                `Using stored modelResponse for block ${block.blockNumber}:`,
+                output
+              );
             }
 
             if (output) {

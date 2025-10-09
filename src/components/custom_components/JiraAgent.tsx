@@ -35,20 +35,21 @@ import { useAgentStore } from "@/lib/agentStore";
 import { useSourceStore } from "@/lib/store";
 import BlockNameEditor from "./BlockNameEditor";
 import { BlockButton } from "./BlockButton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { auth } from "@/tools/firebase";
 
 // Define the available Jira operations
-const JIRA_OPERATIONS = [
+const JIRA_SEARCH_TYPES = [
   {
-    value: "search_for_issue",
-    label: "Search for an issue",
-    description: "Search for issues in Jira",
-    disabled: false,
+    value: "query",
+    label: "Query",
+    description: "Search using natural language",
   },
   {
-    value: "get_all_issues",
-    label: "Get all issues",
-    description: "Retrieve all issues from Jira",
-    disabled: false,
+    value: "jql",
+    label: "JQL",
+    description: "Search using Jira Query Language",
   },
 ];
 
@@ -84,8 +85,8 @@ const JiraAgent = forwardRef<JiraAgentRef, JiraAgentProps>(
     },
     ref
   ) => {
-    const [selectedOperation, setSelectedOperation] = useState(
-      initialPrompt || "search_for_issue"
+    const [selectedSearchType, setSelectedSearchType] = useState(
+      initialPrompt || "query"
     );
     const [searchQuery, setSearchQuery] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -157,8 +158,8 @@ const JiraAgent = forwardRef<JiraAgentRef, JiraAgentProps>(
       }
     };
 
-    const handleOperationSelect = (value: string) => {
-      setSelectedOperation(value);
+    const handleSearchTypeSelect = (value: string) => {
+      setSelectedSearchType(value);
     };
 
     const handleSearchQueryChange = (value: string) => {
@@ -168,9 +169,9 @@ const JiraAgent = forwardRef<JiraAgentRef, JiraAgentProps>(
     // Save selected operation and search query with debounce
     React.useEffect(() => {
       const timeoutId = setTimeout(() => {
-        if (selectedOperation !== initialPrompt) {
+        if (selectedSearchType !== initialPrompt) {
           onUpdateBlock(blockNumber, {
-            prompt: selectedOperation,
+            prompt: selectedSearchType,
             searchQuery: searchQuery,
           });
         }
@@ -178,53 +179,50 @@ const JiraAgent = forwardRef<JiraAgentRef, JiraAgentProps>(
 
       return () => clearTimeout(timeoutId);
     }, [
-      selectedOperation,
+      selectedSearchType,
       searchQuery,
       blockNumber,
       onUpdateBlock,
       initialPrompt,
     ]);
 
+    // Update the processBlock function to use the new API endpoint and response format:
     const processBlock = async () => {
       try {
         setError("");
-        // setResult("");
         setIsLoading(true);
 
-        if (!selectedOperation) {
-          setError("Please select an operation");
+        if (!selectedSearchType) {
+          setError("Please select a search type");
           return false;
         }
 
-        // Remove the search query requirement - make it optional
-        // if (!searchQuery.trim()) {
-        //   setError("Please enter a search query");
-        //   return false;
-        // }
+        if (!searchQuery.trim()) {
+          setError("Please enter a search query");
+          return false;
+        }
 
-        console.log("Processing Jira operation:", selectedOperation);
+        console.log("Processing Jira search:", selectedSearchType);
         console.log("Search query:", searchQuery);
 
-        // Make API call to Jira endpoint - handle both search and get all cases
-        const endpoint =
-          selectedOperation === "get_all_issues"
-            ? "/jira/search"
-            : `/jira/search?company=${encodeURIComponent(searchQuery)}`;
+        // Get user ID for the API call
+        const userId = auth.currentUser?.uid;
+        if (!userId) {
+          setError("No user ID available");
+          return false;
+        }
 
-        console.log("Making API call to:", `${API_URL}${endpoint}`);
-        console.log("Full endpoint:", endpoint);
-        console.log("Selected operation:", selectedOperation);
-        console.log("Search query:", searchQuery);
+        // Make API call to Jira endpoint using POST with new format
+        const response = await api.post("/jira/search", {
+          user_id: userId,
+          search_input: searchQuery,
+        });
 
-        const response = await api.get(endpoint);
-
-        // Debug: Log the full response structure
         console.log("Full API response:", response);
-        console.log("Response issues:", response.issues);
 
-        if (response.success) {
-          // Extract only the issues list from the response
-          const issues = response.issues || [];
+        if (response.status === 'success' && response.data) {
+          // Extract the issues list from the response
+          const issues = response.data || [];
           console.log("Extracted issues:", issues);
           console.log("Issues length:", issues.length);
 
@@ -291,6 +289,27 @@ const JiraAgent = forwardRef<JiraAgentRef, JiraAgentProps>(
                 beta
               </Badge>
             </div>
+
+            {/* Add Primary Input Checkbox */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`primary-input-${blockNumber}`}
+                checked={currentBlock?.containsPrimaryInput || false}
+                onCheckedChange={(checked) => {
+                  onUpdateBlock(blockNumber, {
+                    containsPrimaryInput: checked as boolean,
+                  });
+                }}
+                className="border-gray-600 bg-gray-700"
+              />
+              <label
+                htmlFor={`primary-input-${blockNumber}`}
+                className="text-sm text-gray-400"
+              >
+                Contains Primary Input
+              </label>
+            </div>
+
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -352,51 +371,59 @@ const JiraAgent = forwardRef<JiraAgentRef, JiraAgentProps>(
         <div className="p-4 space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">
-              Jira Operation
+              Search Type
             </label>
-            <Select
-              value={selectedOperation}
-              onValueChange={handleOperationSelect}
+            <Tabs
+              value={selectedSearchType}
+              onValueChange={handleSearchTypeSelect}
+              className="w-full"
             >
-              <SelectTrigger className="bg-gray-800 border-gray-700 text-gray-100">
-                <SelectValue placeholder="Select an operation" />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700">
-                {JIRA_OPERATIONS.map((operation) => (
-                  <SelectItem
-                    key={operation.value}
-                    value={operation.value}
-                    disabled={operation.disabled}
-                    className="text-gray-100 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div>
-                      <div className="font-medium">{operation.label}</div>
-                      {operation.description && (
-                        <div className="text-sm text-gray-400">
-                          {operation.description}
-                        </div>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <TabsList className="grid w-full grid-cols-2 bg-gray-800 border border-gray-700">
+                <TabsTrigger
+                  value="query"
+                  className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:border-blue-500 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span>🔍</span>
+                    <span>Query</span>
+                  </div>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="jql"
+                  className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:border-blue-500 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span>⚙️</span>
+                    <span>JQL</span>
+                  </div>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
-          {/* Search input for issue search */}
-          {selectedOperation === "search_for_issue" && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">
-                Search Query
-              </label>
-              <Input
-                placeholder="Enter what to search for"
-                value={searchQuery}
-                onChange={(e) => handleSearchQueryChange(e.target.value)}
-                className="bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-400"
-              />
-            </div>
-          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">
+              {selectedSearchType === "jql" ? "JQL Query" : "Search Query"}
+            </label>
+            <Input
+              placeholder={
+                selectedSearchType === "jql"
+                  ? "Enter JQL query (e.g., project = 'PROJ' AND status = 'Open')"
+                  : "Enter what to search for"
+              }
+              value={searchQuery}
+              onChange={(e) => handleSearchQueryChange(e.target.value)}
+              className="bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            {selectedSearchType === "jql" && (
+              <div className="text-xs text-gray-400 mt-1">
+                💡 JQL (Jira Query Language) allows advanced filtering. Example:{" "}
+                <code className="bg-gray-800 px-1 rounded">
+                  project = "PROJ" AND status = "Open"
+                </code>
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-2 text-gray-300">
             <span>Set output as:</span>

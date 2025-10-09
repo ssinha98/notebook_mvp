@@ -1,5 +1,5 @@
 // src/components/custom_components/PrimaryInputDialog.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -12,15 +12,18 @@ import { SearchAgentPrimaryInput } from "./SearchAgentPrimaryInput";
 import { WebAgentPrimaryInput } from "./WebAgentPrimaryInput";
 import { AgentBlockPrimaryInput } from "./AgentBlockPrimaryInput";
 import { DeepResearchAgentPrimaryInput } from "./DeepResearchAgentPrimaryInput";
+import { JiraAgentPrimaryInput } from "./JiraAgentPrimaryInput";
 import {
   Block,
   SearchAgentBlock,
   WebAgentBlock,
   AgentBlock,
   DeepResearchAgentBlock,
+  JiraBlock,
 } from "@/types/types";
 import { useSourceStore } from "@/lib/store";
 import { useAgentStore } from "@/lib/agentStore";
+import { useVariableStore } from "@/lib/variableStore";
 // Add router to the imports
 import { useRouter } from "next/router";
 import { toast } from "sonner";
@@ -123,6 +126,8 @@ export function PrimaryInputDialog({
     }
   };
 
+  const jiraPrimaryInputRef = useRef<{ saveSelectedTicketsToVariable: () => Promise<void> }>(null);
+
   const handleConfirmAndRun = async () => {
     console.log("=== PrimaryInputDialog CONFIRMING ===");
     console.log("handleConfirmAndRun called");
@@ -141,6 +146,15 @@ export function PrimaryInputDialog({
     setIsLoading(true);
 
     try {
+      // Save selected tickets for Jira blocks before updating other blocks
+      if (updatedBlocks[currentIndex].type === "jira") {
+        console.log("Saving selected Jira tickets to variable...");
+        if (jiraPrimaryInputRef.current?.saveSelectedTicketsToVariable) {
+          await jiraPrimaryInputRef.current.saveSelectedTicketsToVariable();
+          console.log("Jira tickets saved successfully");
+        }
+      }
+
       // First, update each block in the agent store
       updatedBlocks.forEach((block) => {
         console.log(
@@ -238,6 +252,12 @@ export function PrimaryInputDialog({
           ) : updatedBlocks[currentIndex].type === "deepresearchagent" ? (
             <DeepResearchAgentPrimaryInput
               block={updatedBlocks[currentIndex] as DeepResearchAgentBlock}
+              onUpdate={(blockData) => handleUpdate(currentIndex, blockData)}
+            />
+          ) : updatedBlocks[currentIndex].type === "jira" ? (
+            <JiraAgentPrimaryInput
+              ref={jiraPrimaryInputRef}
+              block={updatedBlocks[currentIndex] as JiraBlock}
               onUpdate={(blockData) => handleUpdate(currentIndex, blockData)}
             />
           ) : null}

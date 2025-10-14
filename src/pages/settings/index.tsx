@@ -35,9 +35,9 @@ export default function Settings() {
     useState<boolean>(false);
   const [savedSalesforceKey, setSavedSalesforceKey] = useState<string>("");
 
-  const [jiraApiKey, setJiraApiKey] = useState<string>("");
-  const [hasCustomJiraKey, setHasCustomJiraKey] = useState<boolean>(false);
-  const [savedJiraKey, setSavedJiraKey] = useState<string>("");
+  // Add Jira connection state
+  const [jiraAccessToken, setJiraAccessToken] = useState<string | null>(null);
+  const [hasJiraConnection, setHasJiraConnection] = useState<boolean>(false);
 
   // Add team admin state
   const [isTeamAdmin, setIsTeamAdmin] = useState<boolean>(false);
@@ -95,6 +95,30 @@ export default function Settings() {
     };
 
     fetchApiKeyFromFirebase();
+  }, []);
+
+  // Add useEffect for Jira connection status
+  useEffect(() => {
+    const fetchJiraConnection = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+
+      try {
+        const docSnap = await getDoc(userDoc);
+        if (docSnap.exists()) {
+          const jiraToken = docSnap.data().jira_access_token;
+          setJiraAccessToken(jiraToken);
+          setHasJiraConnection(!!jiraToken);
+        }
+      } catch (error) {
+        console.error("Error fetching Jira connection status:", error);
+      }
+    };
+
+    fetchJiraConnection();
   }, []);
 
   // Add new useEffect for FireCrawl API key
@@ -194,30 +218,6 @@ export default function Settings() {
     };
 
     fetchSalesforceKeyFromFirebase();
-  }, []);
-
-  // Add new useEffect for Jira API key
-  useEffect(() => {
-    const fetchJiraKeyFromFirebase = async () => {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
-
-      const db = getFirestore();
-      const userDoc = doc(db, "users", currentUser.uid);
-
-      try {
-        const docSnap = await getDoc(userDoc);
-        if (docSnap.exists() && docSnap.data().Jira_API_Key) {
-          const firebaseKey = docSnap.data().Jira_API_Key;
-          setHasCustomJiraKey(true);
-          setSavedJiraKey(firebaseKey);
-        }
-      } catch (error) {
-        console.error("Error fetching Jira API key from Firebase:", error);
-      }
-    };
-
-    fetchJiraKeyFromFirebase();
   }, []);
 
   const handleSubmitApiKey = async () => {
@@ -445,53 +445,29 @@ export default function Settings() {
     }
   };
 
-  // Add Jira API key handlers
-  const handleSubmitJiraKey = async () => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      alert("Please log in to save your Jira API key");
-      return;
-    }
-
-    try {
-      const db = getFirestore();
-      const userDoc = doc(db, "users", currentUser.uid);
-      await setDoc(userDoc, { Jira_API_Key: jiraApiKey }, { merge: true });
-
-      setHasCustomJiraKey(true);
-      setSavedJiraKey(jiraApiKey);
-      setJiraApiKey("");
-      alert("Jira API key saved successfully!");
-    } catch (error) {
-      console.error("Error saving Jira API key:", error);
-      alert("Failed to save Jira API key");
-    }
-  };
-
-  const handleRemoveJiraKey = async () => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
-
-    try {
-      const db = getFirestore();
-      const userDoc = doc(db, "users", currentUser.uid);
-      await setDoc(userDoc, { Jira_API_Key: null }, { merge: true });
-
-      setHasCustomJiraKey(false);
-      setSavedJiraKey("");
-      alert("Jira API key removed successfully!");
-    } catch (error) {
-      console.error("Error removing Jira API key:", error);
-      alert("Failed to remove Jira API key");
-    }
-  };
-
   const handleSignOut = async () => {
     try {
       await auth.signOut();
       router.push("/login");
     } catch (error) {
       console.error("Error signing out:", error);
+    }
+  };
+
+  const handleJiraConnection = () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("Please log in to connect to Jira");
+      return;
+    }
+
+    if (hasJiraConnection) {
+      // Navigate to manage Jira connection
+      router.push("/settings/jiracallback");
+    } else {
+      // Open Jira connect URL in new tab
+      const jiraConnectUrl = `https://test-render-q8l2.onrender.com/auth/jira/connect?uid=${currentUser.uid}`;
+      window.open(jiraConnectUrl, "_blank");
     }
   };
 
@@ -568,7 +544,9 @@ export default function Settings() {
 
         <Card className="mb-6 bg-zinc-900 border-zinc-800">
           <CardHeader>
-            <h2 className="text-xl font-semibold text-white">API Keys</h2>
+            <h2 className="text-xl font-semibold text-white">
+              API Keys and Integrations
+            </h2>
           </CardHeader>
           <CardContent>
             {isLoadingTeamAdmin ? (
@@ -639,25 +617,44 @@ export default function Settings() {
                   "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/",
                   "How to grab a Salesforce key"
                 )}
-
-                {renderApiKeySection(
-                  "Jira API Key",
-                  "Jira",
-                  hasCustomJiraKey,
-                  savedJiraKey,
-                  jiraApiKey,
-                  setJiraApiKey,
-                  handleSubmitJiraKey,
-                  handleRemoveJiraKey,
-                  "https://developer.atlassian.com/cloud/jira/platform/basic-auth-for-rest-apis/",
-                  "How to grab a Jira key"
-                )}
               </div>
             ) : (
               <div className="text-gray-400 text-center py-8">
                 Admin hasn't given you access to API keys
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Jira Integration Section */}
+        <Card className="mb-6 bg-zinc-900 border-zinc-800">
+          <CardHeader>
+            <h2 className="text-xl font-semibold text-white">
+              Jira Integration
+            </h2>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-gray-400">
+                Connect your Jira workspace to enable Jira agents and workflows.
+              </p>
+
+              <Button
+                onClick={handleJiraConnection}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {hasJiraConnection
+                  ? "Manage Jira Connection"
+                  : "Connect to Jira"}
+              </Button>
+
+              {hasJiraConnection && (
+                <div className="flex items-center gap-2 text-green-400">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-sm">Connected to Jira workspace</span>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 

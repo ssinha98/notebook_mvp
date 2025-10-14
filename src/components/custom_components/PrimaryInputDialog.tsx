@@ -126,7 +126,9 @@ export function PrimaryInputDialog({
     }
   };
 
-  const jiraPrimaryInputRef = useRef<{ saveSelectedTicketsToVariable: () => Promise<void> }>(null);
+  const jiraPrimaryInputRef = useRef<{
+    saveSelectedTicketsToVariable: () => Promise<void>;
+  }>(null);
 
   const handleConfirmAndRun = async () => {
     console.log("=== PrimaryInputDialog CONFIRMING ===");
@@ -207,14 +209,14 @@ export function PrimaryInputDialog({
         }
       }}
     >
-      <AlertDialogContent className="sm:max-w-[600px] bg-black border border-gray-800">
+      <AlertDialogContent className="sm:max-w-[600px] max-h-[85vh] w-[95vw] sm:w-auto bg-black border border-gray-800 flex flex-col">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-white">
             Configure Primary Inputs
           </AlertDialogTitle>
         </AlertDialogHeader>
 
-        <div className="py-6">
+        <div className="py-4 sm:py-6 overflow-y-auto flex-1 min-h-0">
           {/* Block Name - moved here and styled */}
           <div className="mb-3 left-aligned">
             <h2 className="text-xl font-bold text-white">
@@ -263,7 +265,7 @@ export function PrimaryInputDialog({
           ) : null}
         </div>
 
-        <AlertDialogFooter className="flex justify-between gap-2">
+        <AlertDialogFooter className="flex justify-between gap-2 py-3 sm:py-4 flex-shrink-0">
           <div className="flex gap-2">
             <Button
               variant="destructive"

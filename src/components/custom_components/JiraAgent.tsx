@@ -215,12 +215,13 @@ const JiraAgent = forwardRef<JiraAgentRef, JiraAgentProps>(
         // Make API call to Jira endpoint using POST with new format
         const response = await api.post("/jira/search", {
           user_id: userId,
+          search_type: selectedSearchType,
           search_input: searchQuery,
         });
 
         console.log("Full API response:", response);
 
-        if (response.status === 'success' && response.data) {
+        if (response.status === "success" && response.data) {
           // Extract the issues list from the response
           const issues = response.data || [];
           console.log("Extracted issues:", issues);

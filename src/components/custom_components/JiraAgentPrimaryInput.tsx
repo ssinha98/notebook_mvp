@@ -74,6 +74,7 @@ function JiraPrimaryInputSearch({
 
       const response = await api.post("/jira/search", {
         user_id: userId,
+        search_type: searchType,
         search_input: searchQuery,
       });
 
@@ -148,8 +149,8 @@ function JiraPrimaryInputSearch({
             )}
           </div>
         </AccordionTrigger>
-        <AccordionContent className="px-4 pb-4">
-          <div className="space-y-4">
+        <AccordionContent className="px-3 sm:px-4 pb-3 sm:pb-4">
+          <div className="space-y-3">
             {/* Search Type Tabs */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-300">
@@ -244,7 +245,7 @@ function JiraPrimaryInputSearch({
                     </div>
                   </div>
 
-                  <div className="max-h-64 overflow-y-auto space-y-2">
+                  <div className="space-y-2 max-h-64 sm:max-h-80 overflow-y-auto">
                     {searchResults.map((ticket: any) => (
                       <Card
                         key={ticket.id}
@@ -459,7 +460,7 @@ export const JiraAgentPrimaryInput = forwardRef<
   }));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 h-full overflow-y-auto">
       {/* Skip Block Checkbox */}
       <div className="flex items-center space-x-2">
         <Checkbox

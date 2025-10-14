@@ -66,12 +66,6 @@ function JiraPrimaryInputSearch({
         return;
       }
 
-      console.log("Making Jira search request:", {
-        user_id: userId,
-        search_input: searchQuery,
-        search_type: searchType,
-      });
-
       const response = await api.post("/jira/search", {
         user_id: userId,
         search_type: searchType,

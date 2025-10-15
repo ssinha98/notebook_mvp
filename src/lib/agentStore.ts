@@ -619,6 +619,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         userId,
         createdAt: currentAgent.createdAt || new Date().toISOString(),
         blocks: preparedBlocks as Block[], // Explicitly cast to Block[]
+        // Preserve agent_type if it exists
+        ...(currentAgent.agent_type && { agent_type: currentAgent.agent_type }),
       };
 
       // Final check for any undefined values
@@ -1222,6 +1224,10 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         userId: targetUserId,
         createdAt: new Date().toISOString(),
         blocks: blocksWithCorrectAgentId as Block[], // No need to update variable references!
+        // Preserve agent_type if it exists
+        ...(get().currentAgent?.agent_type && {
+          agent_type: get().currentAgent!.agent_type,
+        }),
       };
 
       // Final check for any undefined values
@@ -1321,6 +1327,10 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
         // Preserve folder assignment
         folderId: agentToCopy.folderId || "",
         folderName: agentToCopy.folderName || "",
+        // Preserve agent_type if it exists
+        ...(agentToCopy.agent_type && {
+          agent_type: agentToCopy.agent_type,
+        }),
         // Only copy properties that are not undefined
         ...(agentToCopy.agent_rating_thumbs_up !== undefined && {
           agent_rating_thumbs_up: agentToCopy.agent_rating_thumbs_up,

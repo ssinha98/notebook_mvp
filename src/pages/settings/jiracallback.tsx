@@ -9,7 +9,7 @@ import { useRouter } from "next/router";
 import { doc, getDoc, setDoc, getFirestore } from "firebase/firestore";
 import { api } from "@/tools/api";
 import { toast } from "sonner";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, X } from "lucide-react";
 
 interface JiraWorkspace {
   cloudId: string;
@@ -35,6 +35,12 @@ export default function JiraCallback() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Admin email management state
+  const [adminEmail, setAdminEmail] = useState<string>("");
+  const [adminEmails, setAdminEmails] = useState<string[]>([]);
+  const [isSavingAdmin, setIsSavingAdmin] = useState(false);
+  const [isTeamAdmin, setIsTeamAdmin] = useState<boolean>(false);
+
   useEffect(() => {
     const fetchWorkspacesAndUserData = async () => {
       try {
@@ -55,11 +61,15 @@ export default function JiraCallback() {
         let currentJiraCloudId = null;
         let currentClientId = "";
         let currentClientSecret = "";
+        let currentAdminEmails: string[] = [];
+        let currentTeamAdmin = false;
         if (userDocSnap.exists()) {
           const userData = userDocSnap.data();
           currentJiraCloudId = userData.jira_cloud_id;
           currentClientId = userData.jira_client_id || "";
           currentClientSecret = userData.jira_client_secret || "";
+          currentAdminEmails = userData.list_of_admins || [];
+          currentTeamAdmin = userData.teamAdmin || false;
         }
 
         // Fetch workspaces from API
@@ -72,6 +82,8 @@ export default function JiraCallback() {
           setSelectedWorkspace(currentJiraCloudId);
           setClientId(currentClientId);
           setClientSecret(currentClientSecret);
+          setAdminEmails(currentAdminEmails);
+          setIsTeamAdmin(currentTeamAdmin);
         } else {
           setError("Failed to load workspaces from API");
         }
@@ -185,6 +197,78 @@ export default function JiraCallback() {
 
   const handleBackToSettings = () => {
     router.push("/settings");
+  };
+
+  const handleAddAdminEmail = async () => {
+    if (!adminEmail.trim()) {
+      toast.error("Please enter an email address");
+      return;
+    }
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      toast.error("No user logged in");
+      return;
+    }
+
+    try {
+      setIsSavingAdmin(true);
+
+      const newAdminEmails = [...adminEmails, adminEmail.trim()];
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(
+        userDoc,
+        {
+          list_of_admins: newAdminEmails,
+        },
+        { merge: true }
+      );
+
+      setAdminEmails(newAdminEmails);
+      setAdminEmail("");
+      toast.success("Admin email added successfully");
+    } catch (error) {
+      console.error("Error adding admin email:", error);
+      toast.error("Failed to add admin email");
+    } finally {
+      setIsSavingAdmin(false);
+    }
+  };
+
+  const handleRemoveAdminEmail = async (emailToRemove: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      toast.error("No user logged in");
+      return;
+    }
+
+    try {
+      setIsSavingAdmin(true);
+
+      const newAdminEmails = adminEmails.filter(
+        (email) => email !== emailToRemove
+      );
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(
+        userDoc,
+        {
+          list_of_admins: newAdminEmails,
+        },
+        { merge: true }
+      );
+
+      setAdminEmails(newAdminEmails);
+      toast.success("Admin email removed successfully");
+    } catch (error) {
+      console.error("Error removing admin email:", error);
+      toast.error("Failed to remove admin email");
+    } finally {
+      setIsSavingAdmin(false);
+    }
   };
 
   if (isLoading) {
@@ -403,6 +487,74 @@ export default function JiraCallback() {
             </Card>
           )}
         </div>
+
+        {/* Control API key access section - only show for team admins */}
+        {isTeamAdmin && (
+          <div className="max-w-2xl mt-8">
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardContent className="p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">
+                  Control API key access
+                </h2>
+                <p className="text-gray-400 text-sm mb-4">
+                  Control who can authorize into Jira, and make edits to the
+                  integration or any related agents
+                </p>
+
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      placeholder="Enter admin email address"
+                      className="flex-1 bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          handleAddAdminEmail();
+                        }
+                      }}
+                    />
+                    <Button
+                      onClick={handleAddAdminEmail}
+                      disabled={isSavingAdmin || !adminEmail.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    >
+                      {isSavingAdmin ? "Adding..." : "Add"}
+                    </Button>
+                  </div>
+
+                  {adminEmails.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium text-gray-300">
+                        Admin Emails:
+                      </h3>
+                      <div className="space-y-2">
+                        {adminEmails.map((email, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between bg-gray-800 p-3 rounded-lg"
+                          >
+                            <span className="text-gray-100">{email}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveAdminEmail(email)}
+                              disabled={isSavingAdmin}
+                              className="text-red-400 hover:text-red-300 hover:bg-red-900/20 p-1 h-auto"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </Layout>
   );

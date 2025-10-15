@@ -39,6 +39,14 @@ export default function Settings() {
   const [jiraAccessToken, setJiraAccessToken] = useState<string | null>(null);
   const [hasJiraConnection, setHasJiraConnection] = useState<boolean>(false);
 
+  // Add Jira client credentials state
+  const [jiraClientId, setJiraClientId] = useState<string>("");
+  const [jiraClientSecret, setJiraClientSecret] = useState<string>("");
+  const [showJiraCredentialsForm, setShowJiraCredentialsForm] =
+    useState<boolean>(false);
+  const [isSavingJiraCredentials, setIsSavingJiraCredentials] =
+    useState<boolean>(false);
+
   // Add team admin state
   const [isTeamAdmin, setIsTeamAdmin] = useState<boolean>(false);
   const [isLoadingTeamAdmin, setIsLoadingTeamAdmin] = useState<boolean>(true);
@@ -119,6 +127,31 @@ export default function Settings() {
     };
 
     fetchJiraConnection();
+  }, []);
+
+  // Add useEffect for Jira client credentials
+  useEffect(() => {
+    const fetchJiraClientCredentials = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+
+      try {
+        const docSnap = await getDoc(userDoc);
+        if (docSnap.exists()) {
+          const jiraClientId = docSnap.data().jira_client_id || "";
+          const jiraClientSecret = docSnap.data().jira_client_secret || "";
+          setJiraClientId(jiraClientId);
+          setJiraClientSecret(jiraClientSecret);
+        }
+      } catch (error) {
+        console.error("Error fetching Jira client credentials:", error);
+      }
+    };
+
+    fetchJiraClientCredentials();
   }, []);
 
   // Add new useEffect for FireCrawl API key
@@ -454,6 +487,62 @@ export default function Settings() {
     }
   };
 
+  const handleSaveJiraCredentials = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("Please log in to save Jira credentials");
+      return;
+    }
+
+    if (!jiraClientId.trim() || !jiraClientSecret.trim()) {
+      alert("Please enter both Client ID and Client Secret");
+      return;
+    }
+
+    try {
+      setIsSavingJiraCredentials(true);
+
+      const db = getFirestore();
+      const userDoc = doc(db, "users", currentUser.uid);
+      await setDoc(
+        userDoc,
+        {
+          jira_client_id: jiraClientId,
+          jira_client_secret: jiraClientSecret,
+        },
+        { merge: true }
+      );
+
+      setShowJiraCredentialsForm(false);
+      alert("Jira credentials saved successfully!");
+    } catch (error) {
+      console.error("Error saving Jira credentials:", error);
+      alert("Failed to save Jira credentials");
+    } finally {
+      setIsSavingJiraCredentials(false);
+    }
+  };
+
+  const handleJiraOAuth = () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("Please log in to connect to Jira");
+      return;
+    }
+
+    // Open Jira connect URL in new tab
+    const jiraConnectUrl = `https://test-render-q8l2.onrender.com/auth/jira/connect?uid=${currentUser.uid}`;
+    window.open(jiraConnectUrl, "_blank");
+  };
+
+  const handleManageJiraConnection = () => {
+    if (!jiraClientId.trim() || !jiraClientSecret.trim()) {
+      setShowJiraCredentialsForm(true);
+    } else {
+      router.push("/settings/jiracallback");
+    }
+  };
+
   const handleJiraConnection = () => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
@@ -462,12 +551,13 @@ export default function Settings() {
     }
 
     if (hasJiraConnection) {
-      // Navigate to manage Jira connection
-      router.push("/settings/jiracallback");
+      handleManageJiraConnection();
     } else {
-      // Open Jira connect URL in new tab
-      const jiraConnectUrl = `https://test-render-q8l2.onrender.com/auth/jira/connect?uid=${currentUser.uid}`;
-      window.open(jiraConnectUrl, "_blank");
+      if (!jiraClientId.trim() || !jiraClientSecret.trim()) {
+        setShowJiraCredentialsForm(true);
+      } else {
+        handleJiraOAuth();
+      }
     }
   };
 
@@ -638,6 +728,81 @@ export default function Settings() {
               <p className="text-gray-400">
                 Connect your Jira workspace to enable Jira agents and workflows.
               </p>
+
+              {/* Jira Client Credentials Form */}
+              {showJiraCredentialsForm && (
+                <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-800">
+                  <h3 className="text-lg font-medium text-white mb-4">
+                    Jira Client Credentials
+                  </h3>
+                  <p className="text-gray-400 text-sm mb-4">
+                    Enter your Jira app's Client ID and Client Secret to enable
+                    API access. You can find these values by navigating to{" "}
+                    <a
+                      href="https://developer.atlassian.com/console/myapps/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 underline"
+                    >
+                      https://developer.atlassian.com/console/myapps/
+                    </a>
+                    , going to Settings, scrolling down and finding the Client
+                    ID and Secret values.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Client ID
+                      </label>
+                      <Input
+                        type="text"
+                        value={jiraClientId}
+                        onChange={(e) => setJiraClientId(e.target.value)}
+                        placeholder="Enter your Jira app Client ID"
+                        className="w-full bg-zinc-800 border-zinc-700 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Client Secret
+                      </label>
+                      <Input
+                        type="password"
+                        value={jiraClientSecret}
+                        onChange={(e) => setJiraClientSecret(e.target.value)}
+                        placeholder="Enter your Jira app Client Secret"
+                        className="w-full bg-zinc-800 border-zinc-700 text-white"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSaveJiraCredentials}
+                        disabled={
+                          isSavingJiraCredentials ||
+                          !jiraClientId.trim() ||
+                          !jiraClientSecret.trim()
+                        }
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        {isSavingJiraCredentials
+                          ? "Saving..."
+                          : "Save Credentials"}
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowJiraCredentialsForm(false)}
+                        className="border-zinc-600 text-gray-300 hover:bg-zinc-700"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <Button
                 onClick={handleJiraConnection}

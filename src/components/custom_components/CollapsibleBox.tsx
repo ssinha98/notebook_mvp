@@ -1004,7 +1004,11 @@ const CollapsibleBox = forwardRef<
                       strategy={verticalListSortingStrategy}
                     >
                       {blocks.map((block) => (
-                        <SortableBlock key={block.id} block={block} isViewOnly={props.isViewOnly}>
+                        <SortableBlock
+                          key={block.id}
+                          block={block}
+                          isViewOnly={props.isViewOnly}
+                        >
                           {renderBlock(block)}
                         </SortableBlock>
                       ))}

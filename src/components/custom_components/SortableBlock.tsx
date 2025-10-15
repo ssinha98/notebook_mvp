@@ -10,7 +10,11 @@ interface SortableBlockProps {
   isViewOnly?: boolean;
 }
 
-const SortableBlock: React.FC<SortableBlockProps> = ({ block, children, isViewOnly = false }) => {
+const SortableBlock: React.FC<SortableBlockProps> = ({
+  block,
+  children,
+  isViewOnly = false,
+}) => {
   const {
     attributes,
     listeners,
@@ -46,9 +50,11 @@ const SortableBlock: React.FC<SortableBlockProps> = ({ block, children, isViewOn
         <div
           className="absolute inset-0 z-50 bg-transparent"
           onClick={() => {
-            toast.error("You're in view-only mode. You can only run the agent and input variables.");
+            toast.error(
+              "You're in view-only mode. You can only run the agent and input variables."
+            );
           }}
-          style={{ pointerEvents: 'auto' }}
+          style={{ pointerEvents: "auto" }}
         />
       )}
 

@@ -322,6 +322,7 @@ export interface Agent {
   viewOnlyUsers?: string[]; // Array of email addresses with view-only access
   view_only?: string[]; // Add this line
   admin?: boolean; // Whether the current user is an admin for this agent
+  agent_type?: string; // Add this new field for chat_data agents
 }
 
 export interface Folder {

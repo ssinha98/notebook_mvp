@@ -28,6 +28,7 @@ import { auth } from "@/tools/firebase";
 interface AgentHeaderProps {
   isEditMode: boolean;
   onEditModeChange: (value: boolean) => void;
+  sourcesButton?: React.ReactNode;
 }
 
 interface Agent {
@@ -40,6 +41,7 @@ interface Agent {
 export default function AgentHeader({
   isEditMode,
   onEditModeChange,
+  sourcesButton,
 }: AgentHeaderProps) {
   const [isSaving, setIsSaving] = useState(false);
   // REMOVED: const [hasChanges, setHasChanges] = useState(false);
@@ -306,6 +308,9 @@ export default function AgentHeader({
             </AlertDialogContent>
           </AlertDialog>
         )}
+
+        {/* Sources button for chat_data agents */}
+        {sourcesButton}
 
         {/* View Only indicator */}
         {isViewOnly && (

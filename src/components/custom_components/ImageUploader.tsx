@@ -57,7 +57,9 @@ export function ImageUploader({
             newImages.push(base64Image);
           } catch (error) {
             console.error("Error converting image:", error);
-            alert(`Error processing ${file.name}: ${error.message}`);
+            alert(
+              `Error processing ${file.name}: ${error instanceof Error ? error.message : String(error)}`
+            );
           }
         }
       }

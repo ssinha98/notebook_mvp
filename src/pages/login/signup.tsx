@@ -55,8 +55,8 @@ const SignUp = () => {
         );
         await createUserDocument(userCredential.user.uid, email);
         handleSuccessfulAuth();
-      } catch (error: any) {
-        setError(error.message);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : String(error));
       }
     } else {
       setError("Passwords do not match");
@@ -68,8 +68,8 @@ const SignUp = () => {
       const result = await signInWithPopup(auth, googleProvider);
       await createUserDocument(result.user.uid, result.user.email!);
       handleSuccessfulAuth();
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
     }
   };
 

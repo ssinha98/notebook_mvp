@@ -1450,12 +1450,14 @@ const SearchAgent = forwardRef<SearchAgentRef, SearchAgentProps>(
 
         setModelResponse(JSON.stringify(response, null, 2));
         return true;
-      } catch (error: any) {
+      } catch (error) {
         console.error("Search error:", error);
-        if (error.message?.includes("cancelled")) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes("cancelled")) {
           console.log("Search was cancelled by user");
         } else {
-          toast.error("Search failed: " + error.message);
+          toast.error("Search failed: " + errorMessage);
         }
         return false;
       } finally {

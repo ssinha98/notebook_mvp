@@ -621,12 +621,12 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       console.error("Error message:", error?.message);
       console.error("Error stack:", error?.stack);
 
-      if (error.message?.includes("cancelled")) {
+      if (error instanceof Error && error.message.includes("cancelled")) {
         console.log("Web scraping was cancelled by user");
       } else {
-        toast.error(
-          "Web scraping failed: " + (error?.message || "Unknown error")
-        );
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        toast.error("Web scraping failed: " + errorMessage);
+      }
       }
       return false;
     } finally {

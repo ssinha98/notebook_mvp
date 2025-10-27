@@ -624,9 +624,9 @@ const WebAgent = forwardRef<WebAgentRef, WebAgentProps>((props, ref) => {
       if (error instanceof Error && error.message.includes("cancelled")) {
         console.log("Web scraping was cancelled by user");
       } else {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
         toast.error("Web scraping failed: " + errorMessage);
-      }
       }
       return false;
     } finally {

@@ -90,7 +90,8 @@ interface CollapsibleBoxProps {
       columnName?: string;
     } | null,
     containsPrimaryInput?: boolean,
-    skip?: boolean
+    skip?: boolean,
+    images?: { type: "base64"; data: string; mime_type: string }[]
   ) => void;
   blockRefs?: React.MutableRefObject<{
     [key: number]:
@@ -197,6 +198,39 @@ const CollapsibleBox = forwardRef<
         companyName: "",
         endpoint: "/api/salesforce",
       }),
+      ...(blockType === "agent" && {
+        imageMode: false, // Default to false, can be set to true for image analysis
+        images: [],
+      }),
+    } as Block;
+
+    if (!currentAgent) return;
+
+    useAgentStore.getState().updateCurrentAgent({
+      ...currentAgent,
+      blocks: [...currentAgent.blocks, block],
+    });
+  };
+
+  // Add new function to handle image analysis agents
+  const addNewImageAnalysisAgent = () => {
+    const baseBlock = {
+      blockNumber: nextBlockNumber,
+      systemPrompt:
+        "You are a helpful assistant that analyzes images. Describe what you see in the provided images.",
+      userPrompt: "What do you see in these images?",
+      id: crypto.randomUUID(),
+      name: `Image Analysis ${nextBlockNumber}`,
+      saveAsCsv: false,
+      agentId: props.agentId as string,
+      status: "tbd" as "tbd" | "approved",
+    };
+
+    const block = {
+      ...baseBlock,
+      type: "agent" as const,
+      imageMode: true,
+      images: [],
     } as Block;
 
     if (!currentAgent) return;
@@ -390,7 +424,8 @@ const CollapsibleBox = forwardRef<
                 sourceInfo,
                 outputVariable,
                 containsPrimaryInput,
-                skip
+                skip,
+                images
               ) => {
                 updateBlockData(block.blockNumber, {
                   ...block,
@@ -401,6 +436,8 @@ const CollapsibleBox = forwardRef<
                   outputVariable,
                   containsPrimaryInput,
                   skip,
+                  images,
+                  imageMode: images && images.length > 0,
                   type: "agent",
                   agentId: props.agentId || "",
                 });
@@ -428,6 +465,8 @@ const CollapsibleBox = forwardRef<
               initialSystemPrompt={block.systemPrompt || ""}
               initialUserPrompt={block.userPrompt || ""}
               initialSaveAsCsv={block.saveAsCsv || false}
+              imageMode={block.imageMode}
+              initialImages={block.images}
             />
           </div>
         );

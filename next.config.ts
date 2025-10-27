@@ -15,6 +15,13 @@ const nextConfig: NextConfig = {
   images: {
     domains: ["upload.wikimedia.org", "cdn-icons-png.flaticon.com"],
   },
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      canvas: false,
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

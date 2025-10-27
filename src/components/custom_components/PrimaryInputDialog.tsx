@@ -34,6 +34,7 @@ interface PrimaryInputDialogProps {
   onComplete: (updatedBlocks: Block[]) => void;
   onCancel: () => void;
   onRun: () => void;
+  onExecuteBlock: (blockNumber: number) => Promise<void>;
 }
 
 export function PrimaryInputDialog({
@@ -41,6 +42,7 @@ export function PrimaryInputDialog({
   onComplete,
   onCancel,
   onRun,
+  onExecuteBlock,
 }: PrimaryInputDialogProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [updatedBlocks, setUpdatedBlocks] = useState<Block[]>(blocks);
@@ -62,7 +64,15 @@ export function PrimaryInputDialog({
 
   // FIXED: Actually update the local state
   const handleUpdate = (blockIndex: number, blockData: Partial<Block>) => {
-    // console.log("handleUpdate", blockIndex, blockData);
+    console.log("🔍 PrimaryInputDialog handleUpdate called:", {
+      blockIndex,
+      blockData,
+      blockType: blockData.type || updatedBlocks[blockIndex]?.type,
+      hasImages: !!(
+        (blockData as any).images && (blockData as any).images.length > 0
+      ),
+      imagesLength: (blockData as any).images?.length || 0,
+    });
 
     // Update the local state so the UI reflects changes immediately
     setUpdatedBlocks((prev) => {
@@ -71,6 +81,15 @@ export function PrimaryInputDialog({
         ...newBlocks[blockIndex],
         ...blockData,
       } as Block;
+      console.log("🔍 PrimaryInputDialog updated block:", {
+        blockNumber: newBlocks[blockIndex].blockNumber,
+        type: newBlocks[blockIndex].type,
+        hasImages: !!(
+          (newBlocks[blockIndex] as any).images &&
+          (newBlocks[blockIndex] as any).images.length > 0
+        ),
+        imagesLength: (newBlocks[blockIndex] as any).images?.length || 0,
+      });
       return newBlocks;
     });
   };
@@ -186,6 +205,35 @@ export function PrimaryInputDialog({
       await new Promise((resolve) => setTimeout(resolve, 3000));
       console.log("Firebase update delay completed");
 
+      // Execute each block that was configured in the primary input dialog
+      console.log("=== EXECUTING PRIMARY INPUT BLOCKS ===");
+      for (const block of updatedBlocks) {
+        if (block.skip) {
+          console.log(
+            `⏭️ SKIPPING block ${block.blockNumber} (${block.type}) - skip flag is true`
+          );
+          continue;
+        }
+
+        console.log(
+          `✅ EXECUTING primary input block ${block.blockNumber} (${block.type})`
+        );
+
+        try {
+          console.log(`Processing primary input block ${block.blockNumber}...`);
+          await onExecuteBlock(block.blockNumber);
+          console.log(
+            `Primary input block ${block.blockNumber} completed successfully`
+          );
+        } catch (error) {
+          console.error(
+            `❌ Error executing primary input block ${block.blockNumber}:`,
+            error
+          );
+        }
+      }
+      console.log("=== PRIMARY INPUT BLOCKS EXECUTION COMPLETED ===");
+
       // Complete and close - let the parent handle running
       console.log("Calling onComplete with updated blocks");
       onComplete(updatedBlocks);
@@ -250,6 +298,7 @@ export function PrimaryInputDialog({
             <AgentBlockPrimaryInput
               block={updatedBlocks[currentIndex] as AgentBlock}
               onUpdate={(blockData) => handleUpdate(currentIndex, blockData)}
+              onRunBlock={onExecuteBlock}
             />
           ) : updatedBlocks[currentIndex].type === "deepresearchagent" ? (
             <DeepResearchAgentPrimaryInput

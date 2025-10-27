@@ -68,6 +68,7 @@ import { PreviewRow } from "@/types/types";
 import FloatingAgentNav from "@/components/custom_components/FloatingAgentNav";
 import AddSourceDialog from "@/components/custom_components/AddSourceDialog";
 import { PrimaryInputDialog } from "@/components/custom_components/PrimaryInputDialog";
+import dynamic from "next/dynamic";
 import { useTaskStore } from "@/lib/taskStore";
 import { VariableInputDialog } from "@/components/custom_components/VariableInputDialog";
 import {
@@ -78,6 +79,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/tools/firebase";
+import ReactMarkdown from "react-markdown";
+// Add this import at the top with your other Firebase imports
+import { getStorage, ref, getDownloadURL } from "firebase/storage";
+
+// ✅ Dynamically load the viewer, disabling SSR
+const PDFCanvasViewer = dynamic(() => import("@/components/PDFCanvasViewer"), {
+  ssr: false,
+});
 
 // Block input requirements definition
 const BLOCK_INPUT_REQUIREMENTS: Record<string, string[]> = {
@@ -117,6 +126,17 @@ const getRequiredFieldsForBlock = (block: Block): string[] => {
     }
 
     // Otherwise, use the base query requirement
+    return baseRequirements;
+  }
+
+  // Special handling for agent blocks with images
+  if (block.type === "agent") {
+    const agentBlock = block as any;
+    // If the block has images, it doesn't need userPrompt
+    if (agentBlock.images && agentBlock.images.length > 0) {
+      return []; // No required fields if images are present
+    }
+    // Otherwise, require userPrompt
     return baseRequirements;
   }
 
@@ -164,6 +184,54 @@ interface PrimaryInputDialogState {
   currentBlockIndex: number;
   updatedBlocks: Block[];
 }
+
+// Replace your getFirebaseDownloadUrl function with this async version
+const getFirebaseDownloadUrl = async (gsPath: string): Promise<string> => {
+  if (!gsPath.startsWith("gs://")) return gsPath;
+
+  try {
+    const storage = getStorage();
+    const withoutPrefix = gsPath.replace("gs://", "");
+    const [bucket, ...pathParts] = withoutPrefix.split("/");
+    const filePath = pathParts.join("/");
+
+    console.log("=== Firebase SDK Debug ===");
+    console.log("File path:", filePath);
+    console.log("Current user UID:", auth.currentUser?.uid);
+
+    const fileRef = ref(storage, filePath);
+    const downloadUrl = await getDownloadURL(fileRef);
+
+    console.log("Download URL:", downloadUrl);
+    console.log("========================");
+
+    return downloadUrl;
+  } catch (error) {
+    console.error("Error getting download URL:", error);
+    throw error; // Re-throw so you can handle it in the calling code
+  }
+};
+
+// Hardcoded public URL - you can easily change this
+// const PUBLIC_FILE_URL =
+//   "https://www.dropbox.com/scl/fi/b75bjy72emugfavvccnco/kb_full.pdf?rlkey=ubwu4gjpxnlyrottd5n4civm2&st=u3tang03&raw=1";
+
+// Function to convert Dropbox URL to direct download format
+const getDirectFileUrl = (url: string): string => {
+  // If it's already a direct URL, return as-is
+  if (url.includes("?raw=1") || url.includes("?dl=1")) {
+    return url;
+  }
+
+  // Convert Dropbox share URL to direct download
+  if (url.includes("dropbox.com/s/")) {
+    // Replace ?dl=0 with ?raw=1 for iframe viewing
+    return url.replace("?dl=0", "?raw=1");
+  }
+
+  // For other URLs, return as-is
+  return url;
+};
 
 export default function Notebook() {
   const [isApiKeySheetOpen, setIsApiKeySheetOpen] = useState(false);
@@ -217,10 +285,26 @@ export default function Notebook() {
       columnName?: string;
     } | null,
     containsPrimaryInput?: boolean,
-    skip?: boolean // Add this parameter
+    skip?: boolean, // Add this parameter
+    images?: { type: "base64"; data: string; mime_type: string }[] // Add this parameter
   ) => {
+    console.log("🔍 handleSavePrompts called with:", {
+      blockNumber,
+      systemPrompt: systemPrompt.substring(0, 50) + "...",
+      userPrompt: userPrompt.substring(0, 50) + "...",
+      saveAsCsv,
+      outputVariable,
+      outputVariableId: outputVariable?.id,
+      outputVariableName: outputVariable?.name,
+      outputVariableType: outputVariable?.type,
+      outputVariableColumnName: outputVariable?.columnName,
+      images,
+      imagesLength: images?.length || 0,
+      imageMode: images && images.length > 0,
+    });
+
     // Update the block in the store
-    updateBlockData(blockNumber, {
+    const blockUpdates = {
       systemPrompt,
       userPrompt,
       saveAsCsv,
@@ -228,7 +312,19 @@ export default function Notebook() {
       outputVariable,
       containsPrimaryInput,
       skip, // Add this field
+      images, // Add this line
+      imageMode: images && images.length > 0, // Add this line
+    };
+
+    console.log("🔍 updateBlockData called with:", {
+      blockNumber,
+      blockUpdates,
+      outputVariableInUpdates: blockUpdates.outputVariable,
     });
+
+    updateBlockData(blockNumber, blockUpdates);
+
+    console.log("🔍 updateBlockData called successfully");
 
     // Also update prompts if needed
     addPrompt(blockNumber, "system", systemPrompt);
@@ -394,6 +490,8 @@ export default function Notebook() {
               onOpenTools={() => setIsToolsSheetOpen(true)}
               onSavePrompts={handleSavePrompts}
               isProcessing={isProcessing}
+              imageMode={block.imageMode}
+              initialImages={block.images}
               onProcessingChange={setIsProcessing}
               initialSystemPrompt={block.systemPrompt}
               initialUserPrompt={block.userPrompt}
@@ -914,13 +1012,17 @@ export default function Notebook() {
         console.log("PrimaryInputDialog cancelled - stopping execution");
         return;
       }
-      // Update blocks with new inputs...
+      // Update blocks with new inputs from primary input dialog
+      console.log(
+        "Primary input dialog completed, updated blocks:",
+        updatedBlocks.length
+      );
     }
 
     // 3. Run all blocks
     console.log("Starting block execution...");
     setIsRunning(true);
-    runBlocks(0);
+    await runBlocks(0);
   };
 
   React.useEffect(() => {
@@ -1164,6 +1266,12 @@ export default function Notebook() {
     }
     setIsProcessing(true);
 
+    let allBlocksCompleted = false; // Track if all blocks completed successfully
+    console.log(
+      "🔍 Starting runBlocks - allBlocksCompleted initialized to:",
+      allBlocksCompleted
+    );
+
     try {
       for (let i = startIndex; i < blockList.length; i++) {
         const block = blockList[i];
@@ -1200,16 +1308,29 @@ export default function Notebook() {
         }
 
         if (block.containsPrimaryInput) {
-          console.log(
-            `⏭️ SKIPPING block ${block.blockNumber} (${block.type}) - using primary input flow`
-          );
-          console.log(`   Block details:`, {
-            name: block.name,
-            type: block.type,
-            blockNumber: block.blockNumber,
-            containsPrimaryInput: block.containsPrimaryInput,
-          });
-          continue; // Skip to next block
+          // Special case: Agent blocks with primary input should still be executed
+          if (block.type === "agent") {
+            console.log(
+              `✅ EXECUTING agent block ${block.blockNumber} (${block.type}) - agent blocks with primary input are still executed`
+            );
+            console.log(`   Block details:`, {
+              name: block.name,
+              type: block.type,
+              blockNumber: block.blockNumber,
+              containsPrimaryInput: block.containsPrimaryInput,
+            });
+          } else {
+            console.log(
+              `⏭️ SKIPPING block ${block.blockNumber} (${block.type}) - using primary input flow`
+            );
+            console.log(`   Block details:`, {
+              name: block.name,
+              type: block.type,
+              blockNumber: block.blockNumber,
+              containsPrimaryInput: block.containsPrimaryInput,
+            });
+            continue; // Skip to next block
+          }
         }
 
         console.log(`✅ EXECUTING block ${block.blockNumber} (${block.type})`);
@@ -1510,6 +1631,11 @@ export default function Notebook() {
         }
       }
 
+      // Mark that all blocks completed successfully
+      allBlocksCompleted = true;
+      console.log(
+        "🔍 Setting allBlocksCompleted to true - all blocks finished successfully"
+      );
       console.log("=== BLOCK EXECUTION COMPLETED ===");
     } finally {
       if (!isRunPaused) {
@@ -1547,15 +1673,27 @@ export default function Notebook() {
           // Don't throw - email failure shouldn't break the UI
         }
 
-        // 🆕 ADD THIS: Navigate to output editor after completion
-        try {
-          if (currentAgent?.id) {
-            console.log("Agent run completed, navigating to output editor...");
-            router.push(`/output-editor/${currentAgent.id}`);
+        // 🆕 ADD THIS: Navigate to output editor ONLY if all blocks completed successfully
+        console.log(
+          "🔍 Finally block - allBlocksCompleted:",
+          allBlocksCompleted
+        );
+        if (allBlocksCompleted) {
+          try {
+            if (currentAgent?.id) {
+              console.log(
+                "All blocks completed successfully, navigating to output editor..."
+              );
+              router.push(`/output-editor/${currentAgent.id}`);
+            }
+          } catch (error) {
+            console.error("Error navigating to output editor:", error);
+            // Don't throw - navigation failure shouldn't break the UI
           }
-        } catch (error) {
-          console.error("Error navigating to output editor:", error);
-          // Don't throw - navigation failure shouldn't break the UI
+        } else {
+          console.log(
+            "Block execution did not complete successfully, staying on notebook page"
+          );
         }
       }
     }
@@ -2250,6 +2388,36 @@ export default function Notebook() {
   };
 
   const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false);
+  const [selectedSourceType, setSelectedSourceType] = useState<
+    "website" | "pdf" | "csv"
+  >("website");
+
+  // Add state for website form inputs
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [websiteNickname, setWebsiteNickname] = useState("");
+  const [isAddingWebsite, setIsAddingWebsite] = useState(false);
+
+  // Add state for PDF upload
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfFileName, setPdfFileName] = useState("");
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+
+  // Add state for source switching and markdown content
+  const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
+  const [markdownContent, setMarkdownContent] = useState<{
+    [key: string]: string;
+  }>({});
+  const [isLoadingMarkdown, setIsLoadingMarkdown] = useState<{
+    [key: string]: boolean;
+  }>({});
+
+  // Add state for signed URLs per source
+  const [sourceSignedUrls, setSourceSignedUrls] = useState<{
+    [key: string]: string;
+  }>({});
+  const [isLoadingSourceSignedUrl, setIsLoadingSourceSignedUrl] = useState<{
+    [key: string]: boolean;
+  }>({});
 
   // Add this state near other useState declarations
   const [isVariableInputDialogOpen, setIsVariableInputDialogOpen] =
@@ -2307,13 +2475,6 @@ export default function Notebook() {
   // Add this near the top of the component, after the existing state declarations (around line 290)
   const isChatDataAgent = currentAgent?.agent_type === "chat_data";
 
-  // Add useEffect to fetch URLs when chat_data agent loads
-  useEffect(() => {
-    if (isChatDataAgent && currentAgent?.id) {
-      fetchUrlsFromSources();
-    }
-  }, [isChatDataAgent, currentAgent?.id]);
-
   // Add chat-specific state variables
   const [chatMessages, setChatMessages] = useState<
     Array<{
@@ -2321,31 +2482,101 @@ export default function Notebook() {
       role: "user" | "assistant";
       content: string;
       timestamp: Date;
+      citations?: Array<{
+        chunk_id: number;
+        file_name: string;
+        score: number;
+        user_id: string;
+        quote: string;
+      }>;
     }>
   >([]);
+
+  // Add highlighting state
+  const [highlightText, setHighlightText] = useState<string>("");
+
+  // Add useEffect to fetch file data when chat_data agent loads
+  useEffect(() => {
+    if (isChatDataAgent && currentAgent?.id) {
+      fetchFileData();
+      fetchSources(); // Also fetch sources for the viewer
+    }
+  }, [isChatDataAgent, currentAgent?.id]);
+
+  // Add useEffect to scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatMessages]);
+
+  // Add function to fetch file data
+  const fetchFileData = async () => {
+    if (!currentAgent?.id || !auth.currentUser?.uid) return;
+
+    setIsLoadingFile(true);
+    try {
+      const userId = auth.currentUser.uid;
+      const agentId = currentAgent.id;
+
+      // Query files subcollection to find file with this agent ID
+      const filesRef = collection(db, `users/${userId}/files`);
+      const filesSnapshot = await getDocs(filesRef);
+
+      filesSnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (
+          data.agents &&
+          Array.isArray(data.agents) &&
+          data.agents.includes(agentId)
+        ) {
+          setFileData({ id: doc.id, ...data });
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching file data:", error);
+    } finally {
+      setIsLoadingFile(false);
+    }
+  };
   const [chatInput, setChatInput] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // Add URL and content viewer state variables
-  const [urls, setUrls] = useState<string[]>([]);
-  const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
-  const [viewMode, setViewMode] = useState<"urls" | "markdown">("urls");
-  const [markdownContent, setMarkdownContent] = useState<
-    Record<string, string>
-  >({});
-  const [isLoadingUrls, setIsLoadingUrls] = useState(false);
-  const [isLoadingMarkdown, setIsLoadingMarkdown] = useState<
-    Record<string, boolean>
-  >({});
+  // Add file viewer state variables
+  const [fileData, setFileData] = useState<any>(null);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
+
+  // Add citation dialog state
+  const [isCitationDialogOpen, setIsCitationDialogOpen] = useState(false);
+  const [selectedCitation, setSelectedCitation] = useState<string>("");
+
+  // Add ref for chat messages container
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
 
   // Add state for sources dialog
   const [isSourcesDialogOpen, setIsSourcesDialogOpen] = useState(false);
-  const [sources, setSources] = useState<Array<{ id: string; url: string }>>(
-    []
-  );
+  const [sources, setSources] = useState<
+    Array<{
+      id: string;
+      url: string;
+      type?: string;
+      originalUrl?: string;
+      filePath?: string;
+    }>
+  >([]);
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [isAddingSource, setIsAddingSource] = useState(false);
   const [showAddSourceInput, setShowAddSourceInput] = useState(false);
+
+  // Add useEffect to fetch content for sources when sources change
+  useEffect(() => {
+    if (sources.length > 0) {
+      const currentSource = sources[currentSourceIndex];
+      if (currentSource?.type === "website" && currentSource.originalUrl) {
+        fetchMarkdownForSource(currentSource.id, currentSource.originalUrl);
+      } else if (currentSource?.type === "pdf" && currentSource.filePath) {
+        fetchSignedUrlForSource(currentSource.id, currentSource.filePath);
+      }
+    }
+  }, [sources, currentSourceIndex]);
 
   // Add function to handle sending chat messages
   const handleSendMessage = async () => {
@@ -2363,24 +2594,90 @@ export default function Notebook() {
     setChatInput("");
     setIsSendingMessage(true);
 
+    // Clear previous highlighting when starting new query
+    setHighlightText("");
+
     try {
-      // Call the RAG query endpoint
-      const response = await api.post("/query-rag", {
-        user_id: auth.currentUser?.uid as string,
-        agent_id: currentAgent?.id as string,
+      // Get the current source's file_name for the RAG query
+      const userId = auth.currentUser?.uid as string;
+      const currentSource = sources[currentSourceIndex];
+
+      if (!currentSource) {
+        throw new Error("No source selected");
+      }
+
+      // Use the url field which contains the display name (file_name or nickname)
+      const fileName = currentSource.url;
+
+      // Choose endpoint based on source type
+      const endpoint =
+        currentSource.type === "website"
+          ? "/query-rag-website"
+          : "/query-rag-big";
+
+      // Call the appropriate RAG query endpoint
+      const response = await api.post(endpoint, {
+        user_id: userId,
+        file_name: fileName,
         question: currentInput,
-        request_id: `query_rag_${Date.now()}`,
+        top_k: 5,
+        request_id: `query_rag_${currentSource.type}_${Date.now()}`,
+        // Add agent_id for website queries
+        ...(currentSource.type === "website" &&
+          currentAgent && { agent_id: currentAgent.id }),
       });
 
-      if (response.success && response.answer) {
+      console.log("RAG API response:", response);
+      console.log("Response ok:", response.ok);
+      console.log("Response answer:", response.answer);
+
+      if ((response.ok || response.success) && response.answer) {
         const assistantMessage = {
           id: crypto.randomUUID(),
           role: "assistant" as const,
           content: response.answer,
           timestamp: new Date(),
+          citations: response.citations || [],
         };
         setChatMessages((prev) => [...prev, assistantMessage]);
+
+        // Extract text from citations for highlighting
+        if (response.citations && response.citations.length > 0) {
+          const citationText = response.citations[0].quote;
+          if (citationText) {
+            setHighlightText(citationText);
+          }
+
+          // Auto-switch to the source that matches the first citation's file_name
+          const firstCitation = response.citations[0];
+          if (firstCitation.file_name) {
+            const matchingSourceIndex = sources.findIndex(
+              (source) => source.url === firstCitation.file_name
+            );
+
+            if (
+              matchingSourceIndex !== -1 &&
+              matchingSourceIndex !== currentSourceIndex
+            ) {
+              console.log(
+                `🔄 Auto-switching to source: ${firstCitation.file_name}`
+              );
+              setCurrentSourceIndex(matchingSourceIndex);
+
+              // Fetch content for the new source
+              const newSource = sources[matchingSourceIndex];
+              if (newSource.type === "website" && newSource.originalUrl) {
+                fetchMarkdownForSource(newSource.id, newSource.originalUrl);
+              } else if (newSource.type === "pdf" && newSource.filePath) {
+                fetchSignedUrlForSource(newSource.id, newSource.filePath);
+              }
+            }
+          }
+        }
       } else {
+        console.error("RAG API failed:", response);
+        console.error("Response structure:", JSON.stringify(response, null, 2));
+
         // Fallback response if API fails
         const assistantMessage = {
           id: crypto.randomUUID(),
@@ -2415,109 +2712,78 @@ export default function Notebook() {
     }
   };
 
-  // Add function to fetch URLs from Firebase sources subcollection
-  const fetchUrlsFromSources = async () => {
-    if (!currentAgent?.id || !auth.currentUser?.uid) return;
+  // Add function to handle citation clicks
+  const handleCitationClick = (quote: string) => {
+    setSelectedCitation(quote);
+    setIsCitationDialogOpen(true);
+  };
 
-    setIsLoadingUrls(true);
-    try {
-      const userId = auth.currentUser.uid;
-      const agentId = currentAgent.id;
-
-      console.log("Fetching URLs from sources subcollection:", {
-        userId,
-        agentId,
-      });
-
-      // Query the sources subcollection
-      const sourcesRef = collection(
-        db,
-        `users/${userId}/agents/${agentId}/sources`
-      );
-      const sourcesSnapshot = await getDocs(sourcesRef);
-
-      const fetchedUrls: string[] = [];
-      sourcesSnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.url && typeof data.url === "string") {
-          fetchedUrls.push(data.url);
-        }
-      });
-
-      console.log("Fetched URLs from sources:", fetchedUrls);
-      setUrls(fetchedUrls);
-
-      // Reset current URL index if it's out of bounds
-      if (fetchedUrls.length > 0 && currentUrlIndex >= fetchedUrls.length) {
-        setCurrentUrlIndex(0);
-      }
-    } catch (error) {
-      console.error("Error fetching URLs from sources:", error);
-      toast.error("Failed to load URLs from sources");
-    } finally {
-      setIsLoadingUrls(false);
+  // Add function to scroll to bottom of chat
+  const scrollToBottom = () => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
     }
   };
 
   // Add function to fetch markdown from your endpoint
-  const fetchMarkdownForUrl = async (url: string) => {
-    if (markdownContent[url] || isLoadingMarkdown[url]) {
-      return; // Already loaded or loading
-    }
+  // const fetchMarkdownForUrl = async (url: string) => {
+  //   if (markdownContent[url] || isLoadingMarkdown[url]) {
+  //     return; // Already loaded or loading
+  //   }
 
-    setIsLoadingMarkdown((prev) => ({ ...prev, [url]: true }));
+  //   setIsLoadingMarkdown((prev) => ({ ...prev, [url]: true }));
 
-    try {
-      const response = await api.post("/get-markdown", {
-        user_id: auth.currentUser?.uid as string,
-        agent_id: currentAgent?.id as string,
-        url: url,
-        request_id: `markdown_req_${Date.now()}`,
-      });
+  //   try {
+  //     const response = await api.post("/get-markdown", {
+  //       user_id: auth.currentUser?.uid as string,
+  //       agent_id: currentAgent?.id as string,
+  //       url: url,
+  //       request_id: `markdown_req_${Date.now()}`,
+  //     });
 
-      if (response.success && response.markdown) {
-        setMarkdownContent((prev) => ({
-          ...prev,
-          [url]: response.markdown,
-        }));
-      }
-    } catch (error) {
-      console.error("Error fetching markdown for URL:", url, error);
-      // Set empty markdown so we don't try to fetch again
-      setMarkdownContent((prev) => ({
-        ...prev,
-        [url]: "",
-      }));
-    } finally {
-      setIsLoadingMarkdown((prev) => ({ ...prev, [url]: false }));
-    }
-  };
+  //     if (response.success && response.markdown) {
+  //       setMarkdownContent((prev) => ({
+  //         ...prev,
+  //         [url]: response.markdown,
+  //       }));
+  //     }
+  //   } catch (error) {
+  //     console.error("Error fetching markdown for URL:", url, error);
+  //     // Set empty markdown so we don't try to fetch again
+  //     setMarkdownContent((prev) => ({
+  //       ...prev,
+  //       [url]: "",
+  //     }));
+  //   } finally {
+  //     setIsLoadingMarkdown((prev) => ({ ...prev, [url]: false }));
+  //   }
+  // };
 
-  // Update the URL navigation to fetch markdown when URL changes
-  const goToNextUrl = () => {
-    const newIndex = (currentUrlIndex + 1) % urls.length;
-    setCurrentUrlIndex(newIndex);
-    // Fetch markdown for the new URL
-    if (urls[newIndex]) {
-      fetchMarkdownForUrl(urls[newIndex]);
-    }
-  };
+  // // Update the URL navigation to fetch markdown when URL changes
+  // const goToNextUrl = () => {
+  //   const newIndex = (currentUrlIndex + 1) % urls.length;
+  //   setCurrentUrlIndex(newIndex);
+  //   // Fetch markdown for the new URL
+  //   if (urls[newIndex]) {
+  //     fetchMarkdownForUrl(urls[newIndex]);
+  //   }
+  // };
 
-  const goToPreviousUrl = () => {
-    const newIndex = (currentUrlIndex - 1 + urls.length) % urls.length;
-    setCurrentUrlIndex(newIndex);
-    // Fetch markdown for the new URL
-    if (urls[newIndex]) {
-      fetchMarkdownForUrl(urls[newIndex]);
-    }
-  };
+  // const goToPreviousUrl = () => {
+  //   const newIndex = (currentUrlIndex - 1 + urls.length) % urls.length;
+  //   setCurrentUrlIndex(newIndex);
+  //   // Fetch markdown for the new URL
+  //   if (urls[newIndex]) {
+  //     fetchMarkdownForUrl(urls[newIndex]);
+  //   }
+  // };
 
-  // Fetch markdown for current URL when URLs are loaded
-  useEffect(() => {
-    if (urls.length > 0 && urls[currentUrlIndex]) {
-      fetchMarkdownForUrl(urls[currentUrlIndex]);
-    }
-  }, [urls, currentUrlIndex]);
+  // // Fetch markdown for current URL when URLs are loaded
+  // useEffect(() => {
+  //   if (urls.length > 0 && urls[currentUrlIndex]) {
+  //     fetchMarkdownForUrl(urls[currentUrlIndex]);
+  //   }
+  // }, [urls, currentUrlIndex]);
 
   // Add function to fetch sources for the dialog
   const fetchSources = async () => {
@@ -2527,21 +2793,34 @@ export default function Notebook() {
       const userId = auth.currentUser.uid;
       const agentId = currentAgent.id;
 
-      const sourcesRef = collection(
-        db,
-        `users/${userId}/agents/${agentId}/sources`
-      );
-      const sourcesSnapshot = await getDocs(sourcesRef);
+      // Query files subcollection instead of sources
+      const filesRef = collection(db, `users/${userId}/files`);
+      const filesSnapshot = await getDocs(filesRef);
 
-      const fetchedSources: Array<{ id: string; url: string }> = [];
-      sourcesSnapshot.forEach((doc) => {
+      const fetchedSources: Array<{
+        id: string;
+        url: string;
+        type?: string;
+        originalUrl?: string;
+        filePath?: string;
+      }> = [];
+      filesSnapshot.forEach((doc) => {
         const data = doc.data();
-        // Use the original URL that was inputted, not the processed one
-        const sourceUrl = data.original_url || data.url || data.source_url;
-        if (sourceUrl && typeof sourceUrl === "string") {
+
+        // Check if current agent ID is in the agents array
+        if (
+          data.agents &&
+          Array.isArray(data.agents) &&
+          data.agents.includes(agentId)
+        ) {
+          // Use nickname if available, otherwise fall back to file_name, or "Unnamed File"
+          const displayName = data.nickname || data.file_name || "Unnamed File";
           fetchedSources.push({
             id: doc.id,
-            url: sourceUrl,
+            url: displayName, // Display nickname or file_name
+            type: data.type || "pdf", // Default to pdf for existing files
+            originalUrl: data.original_url || data.url, // For website sources
+            filePath: data.storage_path, // For file sources
           });
         }
       });
@@ -2553,7 +2832,296 @@ export default function Notebook() {
     }
   };
 
-  // Add function to add new source
+  // Add file handling functions
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setPdfFile(file);
+      setPdfFileName(file.name);
+    }
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (file) {
+      setPdfFile(file);
+      setPdfFileName(file.name);
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+  };
+
+  // Add functions to navigate between sources
+  const goToNextSource = () => {
+    if (sources.length > 0) {
+      const newIndex = (currentSourceIndex + 1) % sources.length;
+      setCurrentSourceIndex(newIndex);
+
+      // Fetch content based on source type
+      const source = sources[newIndex];
+      if (source.type === "website" && source.originalUrl) {
+        fetchMarkdownForSource(source.id, source.originalUrl);
+      } else if (source.type === "pdf" && source.filePath) {
+        fetchSignedUrlForSource(source.id, source.filePath);
+      }
+    }
+  };
+
+  const goToPreviousSource = () => {
+    if (sources.length > 0) {
+      const newIndex =
+        (currentSourceIndex - 1 + sources.length) % sources.length;
+      setCurrentSourceIndex(newIndex);
+
+      // Fetch content based on source type
+      const source = sources[newIndex];
+      if (source.type === "website" && source.originalUrl) {
+        fetchMarkdownForSource(source.id, source.originalUrl);
+      } else if (source.type === "pdf" && source.filePath) {
+        fetchSignedUrlForSource(source.id, source.filePath);
+      }
+    }
+  };
+
+  // Add function to fetch signed URL for PDF sources
+  const fetchSignedUrlForSource = async (
+    sourceId: string,
+    filePath: string
+  ) => {
+    if (sourceSignedUrls[sourceId] || isLoadingSourceSignedUrl[sourceId]) {
+      return; // Already loaded or loading
+    }
+
+    setIsLoadingSourceSignedUrl((prev) => ({ ...prev, [sourceId]: true }));
+
+    try {
+      const response = await api.post("/get_signed_url", {
+        path: filePath,
+      });
+
+      console.log(`🔍 Signed URL for source ${sourceId}:`, response);
+
+      if (response.success && response.url) {
+        setSourceSignedUrls((prev) => ({
+          ...prev,
+          [sourceId]: response.url,
+        }));
+      } else {
+        console.error(
+          `Failed to get signed URL for source ${sourceId}:`,
+          response
+        );
+      }
+    } catch (error) {
+      console.error(`Error fetching signed URL for source ${sourceId}:`, error);
+    } finally {
+      setIsLoadingSourceSignedUrl((prev) => ({ ...prev, [sourceId]: false }));
+    }
+  };
+
+  // Add function to fetch markdown for website sources
+  const fetchMarkdownForSource = async (sourceId: string, url: string) => {
+    if (markdownContent[sourceId] || isLoadingMarkdown[sourceId]) {
+      return; // Already loaded or loading
+    }
+
+    setIsLoadingMarkdown((prev) => ({ ...prev, [sourceId]: true }));
+
+    try {
+      const response = await api.post("/get-markdown", {
+        user_id: auth.currentUser?.uid as string,
+        agent_id: currentAgent?.id as string,
+        url: url,
+        request_id: `markdown_req_${Date.now()}`,
+      });
+
+      console.log("Markdown API response:", response);
+
+      if (response.success && response.markdown) {
+        setMarkdownContent((prev) => ({
+          ...prev,
+          [sourceId]: response.markdown,
+        }));
+      } else {
+        console.error("Failed to fetch markdown:", response);
+        setMarkdownContent((prev) => ({
+          ...prev,
+          [sourceId]: "Failed to load markdown content",
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching markdown for source:", sourceId, error);
+      setMarkdownContent((prev) => ({
+        ...prev,
+        [sourceId]: "Error loading markdown content",
+      }));
+    } finally {
+      setIsLoadingMarkdown((prev) => ({ ...prev, [sourceId]: false }));
+    }
+  };
+
+  // Add function to handle PDF upload
+  const handleAddPdf = async () => {
+    if (!pdfFile || !pdfFileName.trim() || isUploadingPdf) return;
+
+    // Validate required fields
+    if (!auth.currentUser?.uid) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    if (!currentAgent?.id) {
+      toast.error("No agent selected");
+      return;
+    }
+
+    setIsUploadingPdf(true);
+    try {
+      const formData = new FormData();
+      formData.append("user_id", auth.currentUser.uid);
+      formData.append("agent_id", currentAgent.id);
+      formData.append("request_id", `pdf_req_${Date.now()}`);
+      formData.append("pdf", pdfFile);
+
+      console.log("Uploading PDF with form data:", {
+        user_id: auth.currentUser.uid,
+        agent_id: currentAgent.id,
+        request_id: `pdf_req_${Date.now()}`,
+        fileName: pdfFile.name,
+        fileSize: pdfFile.size,
+      });
+
+      const response = await fetch(`${API_URL}/process_pdf`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const responseData = await response.json();
+      console.log("PDF upload response:", responseData);
+      console.log("Response status:", response.status);
+      console.log("Response ok:", response.ok);
+      console.log("ResponseData ok:", responseData.ok);
+
+      if (response.ok && responseData.ok) {
+        console.log("✅ PDF upload successful, refreshing sources...");
+        toast.success(
+          `PDF uploaded successfully! ${responseData.num_pages} pages, ${responseData.num_chunks} chunks created.`
+        );
+        setPdfFile(null);
+        setPdfFileName("");
+        setIsAddSourceDialogOpen(false);
+        setIsSourcesDialogOpen(false); // Close sources dialog too
+        // Refresh sources list
+        await fetchSources();
+        console.log("✅ Sources refreshed after PDF upload");
+
+        // Also refresh the file data to get the new PDF
+        await fetchFileData();
+        console.log("✅ File data refreshed after PDF upload");
+      } else {
+        console.error("❌ PDF upload failed:", responseData);
+        console.error(
+          "Response ok:",
+          response.ok,
+          "ResponseData ok:",
+          responseData.ok
+        );
+        toast.error(
+          `Couldn't upload error: ${responseData.error || "Unknown error"}`
+        );
+      }
+    } catch (error) {
+      console.error("Error uploading PDF:", error);
+
+      // if (error.response) {
+      //   console.error("Response status:", error.response.status);
+      //   console.error("Response data:", error.response.data);
+      //   toast.error(
+      //     `Couldn't upload error: ${error.response.data?.error || error.response.data?.message || "Unknown server error"}`
+      //   );
+      // } else if (error.request) {
+      //   console.error("Request error:", error.request);
+      //   toast.error(
+      //     "Couldn't upload error: Network error - Could not reach the server"
+      //   );
+      // } else {
+      //   console.error("Error message:", error.message);
+      //   toast.error(`Couldn't upload error: ${error.message}`);
+      // }
+    } finally {
+      setIsUploadingPdf(false);
+    }
+  };
+
+  // Add function to handle website submission
+  const handleAddWebsite = async () => {
+    if (!websiteUrl.trim() || !websiteNickname.trim() || isAddingWebsite)
+      return;
+
+    // Validate required fields
+    if (!auth.currentUser?.uid) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    if (!currentAgent?.id) {
+      toast.error("No agent selected");
+      return;
+    }
+
+    setIsAddingWebsite(true);
+    try {
+      const payload = {
+        user_id: auth.currentUser.uid,
+        agent_id: currentAgent.id,
+        url: websiteUrl.trim(),
+        nickname: websiteNickname.trim(),
+        request_id: `req_${Date.now()}`,
+      };
+
+      console.log("Sending website request with payload:", payload);
+
+      const response = await api.post("/api/process_url", payload);
+
+      console.log("Website API response:", response);
+
+      if (response.success) {
+        toast.success("Website source added successfully!");
+        setWebsiteUrl("");
+        setWebsiteNickname("");
+        setIsAddSourceDialogOpen(false);
+        // Refresh sources list
+        await fetchSources();
+      } else {
+        console.error("API returned error:", response);
+        toast.error(
+          `Failed to add website source: ${response.error || "Unknown error"}`
+        );
+      }
+    } catch (error) {
+      console.error("Error adding website source:", error);
+
+      // More detailed error logging
+      // if (error.response) {
+      //   console.error("Response status:", error.response.status);
+      //   console.error("Response data:", error.response.data);
+      //   toast.error(`Server error (${error.response.status}): ${error.response.data?.error || error.response.data?.message || 'Unknown server error'}`);
+      // } else if (error.request) {
+      //   console.error("Request error:", error.request);
+      //   toast.error("Network error: Could not reach the server");
+      // } else {
+      //   console.error("Error message:", error.message);
+      //   toast.error(`Error: ${error.message}`);
+      // }
+    } finally {
+      setIsAddingWebsite(false);
+    }
+  };
+
+  // Add function to add new source (legacy - keeping for now)
   const handleAddSource = async () => {
     if (!newSourceUrl.trim() || isAddingSource) return;
 
@@ -2572,9 +3140,8 @@ export default function Notebook() {
         );
         setNewSourceUrl("");
         setShowAddSourceInput(false);
-        // Refresh sources list and URLs
+        // Refresh sources list
         await fetchSources();
-        await fetchUrlsFromSources();
       } else {
         toast.error("Failed to add source");
       }
@@ -2583,6 +3150,74 @@ export default function Notebook() {
       toast.error("Failed to add source");
     } finally {
       setIsAddingSource(false);
+    }
+  };
+
+  // Add this state near your other useState declarations
+  const [fileDownloadUrl, setFileDownloadUrl] = useState<string | null>(null);
+  const [isLoadingDownloadUrl, setIsLoadingDownloadUrl] = useState(false);
+
+  // Add useEffect to fetch the download URL when fileData loads
+  useEffect(() => {
+    const fetchDownloadUrl = async () => {
+      if (fileData?.storage_path) {
+        setIsLoadingDownloadUrl(true);
+        try {
+          const url = await getFirebaseDownloadUrl(fileData.storage_path);
+          setFileDownloadUrl(url);
+        } catch (error) {
+          console.error("Failed to get download URL:", error);
+          setFileDownloadUrl(null);
+        } finally {
+          setIsLoadingDownloadUrl(false);
+        }
+
+        // NEW: Also fetch the signed URL
+        await fetchSignedUrl(fileData.storage_path);
+      }
+    };
+
+    fetchDownloadUrl();
+  }, [fileData?.storage_path]);
+
+  // Usage in your component
+  // const directFileUrl = getDirectFileUrl(PUBLIC_FILE_URL);
+
+  // Add this near your other state declarations
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [isLoadingSignedUrl, setIsLoadingSignedUrl] = useState(false);
+  const [signedUrlError, setSignedUrlError] = useState<string | null>(null);
+
+  // Add function to fetch signed URL
+  const fetchSignedUrl = async (storagePath: string) => {
+    console.log(
+      "�� Notebook: Fetching signed URL for storage path:",
+      storagePath
+    );
+    setIsLoadingSignedUrl(true);
+    setSignedUrlError(null);
+
+    try {
+      const response = await api.post("/get_signed_url", {
+        path: storagePath,
+      });
+
+      console.log("🔍 Notebook: Signed URL API response:", response);
+
+      if (response.success && response.url) {
+        console.log("✅ Notebook: Signed URL received:", response.url);
+        setSignedUrl(response.url);
+      } else {
+        console.log("❌ Notebook: Signed URL API failed:", response);
+        setSignedUrlError("Failed to get signed URL");
+      }
+    } catch (error) {
+      console.error("❌ Notebook: Error fetching signed URL:", error);
+      setSignedUrlError(
+        `Something went wrong. Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    } finally {
+      setIsLoadingSignedUrl(false);
     }
   };
 
@@ -2686,120 +3321,168 @@ export default function Notebook() {
           {/* Conditional rendering based on agent_type */}
           {isChatDataAgent ? (
             // Chat Data Agent UI - split screen with chat and content viewer
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[90vh]">
-              {/* Left side - Content Viewer */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[70vh]">
+              {/* Left side - Source Viewer */}
               <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 flex flex-col">
-                <h2 className="text-xl font-semibold text-white mb-4">
-                  Content Viewer
-                </h2>
+                {/* Source Navigation Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-white">
+                    {sources.length > 0
+                      ? sources[currentSourceIndex]?.url || "Source Viewer"
+                      : "Source Viewer"}
+                  </h2>
 
-                {/* Markdown Viewer for URLs */}
-                <div className="flex-1 flex flex-col">
-                  {isLoadingUrls ? (
+                  {/* Source Navigation */}
+                  {sources.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={goToPreviousSource}
+                        variant="outline"
+                        size="sm"
+                        className="border-gray-600 text-white hover:bg-gray-700"
+                      >
+                        ←
+                      </Button>
+                      <span className="text-sm text-gray-400">
+                        {currentSourceIndex + 1} of {sources.length}
+                      </span>
+                      <Button
+                        onClick={goToNextSource}
+                        variant="outline"
+                        size="sm"
+                        className="border-gray-600 text-white hover:bg-gray-700"
+                      >
+                        →
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Source Content Display */}
+                <div
+                  className="flex-1 flex flex-col overflow-y-auto"
+                  style={{ height: "70vh" }}
+                >
+                  {sources.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center text-gray-400">
                       <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300 mx-auto mb-2"></div>
-                        <div>Loading URLs...</div>
+                        <div className="text-lg mb-2">📄</div>
+                        <div>No sources available</div>
+                        <div className="text-sm mt-2">
+                          Add sources to view them here
+                        </div>
                       </div>
                     </div>
-                  ) : urls.length > 0 ? (
-                    <>
-                      {/* URL Navigation */}
-                      <div className="flex items-center justify-between mb-4 p-3 bg-gray-700 rounded-lg">
-                        <button
-                          onClick={goToPreviousUrl}
-                          disabled={urls.length <= 1}
-                          className="flex items-center gap-2 px-3 py-1 bg-gray-600 hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
-                        >
-                          <span>←</span> Previous
-                        </button>
+                  ) : (
+                    (() => {
+                      const currentSource = sources[currentSourceIndex];
+                      const sourceType = currentSource?.type || "pdf";
 
-                        <div className="text-center">
-                          <div className="text-white font-medium text-sm">
-                            URL {currentUrlIndex + 1} of {urls.length}
-                          </div>
-                          <div className="text-gray-400 text-xs truncate max-w-xs">
-                            {urls[currentUrlIndex]}
-                          </div>
-                        </div>
+                      if (sourceType === "website") {
+                        // Website source - display markdown
+                        const isLoading = isLoadingMarkdown[currentSource.id];
+                        const content = markdownContent[currentSource.id];
 
-                        <button
-                          onClick={goToNextUrl}
-                          disabled={urls.length <= 1}
-                          className="flex items-center gap-2 px-3 py-1 bg-gray-600 hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
-                        >
-                          Next <span>→</span>
-                        </button>
-                      </div>
-
-                      {/* Markdown Content Display */}
-                      <div className="flex-1 bg-white rounded-lg overflow-hidden border border-gray-600 max-h-[50vh]">
-                        {(() => {
-                          const currentUrl = urls[currentUrlIndex];
-                          const currentMarkdown = markdownContent[currentUrl];
-                          const isLoadingCurrentMarkdown =
-                            isLoadingMarkdown[currentUrl];
-
-                          // If we're loading markdown, show loading state
-                          if (isLoadingCurrentMarkdown) {
-                            return (
-                              <div className="flex items-center justify-center h-full text-gray-400">
-                                <div className="text-center">
-                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300 mx-auto mb-2"></div>
-                                  <div>Loading content...</div>
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          // If we have markdown content, show it
-                          if (currentMarkdown) {
-                            return (
-                              <div className="h-full p-4 overflow-y-auto max-h-[45vh]">
-                                <div
-                                  className="prose prose-sm max-w-none"
-                                  dangerouslySetInnerHTML={{
-                                    __html: currentMarkdown.replace(
-                                      /\n/g,
-                                      "<br>"
-                                    ),
-                                  }}
-                                />
-                              </div>
-                            );
-                          }
-
-                          // If no markdown available, show empty state
+                        if (isLoading) {
                           return (
-                            <div className="flex items-center justify-center h-full text-gray-400">
+                            <div className="flex-1 flex items-center justify-center text-gray-400">
                               <div className="text-center">
-                                <div className="text-lg mb-2">📄</div>
-                                <div>No content available</div>
-                                <div className="text-sm mt-1">
-                                  Content will appear here when loaded
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300 mx-auto mb-2"></div>
+                                <div>Loading markdown...</div>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        if (content) {
+                          return (
+                            <div
+                              className="bg-gray-900 rounded-lg border border-gray-600 overflow-hidden"
+                              style={{ height: "calc(70vh - 120px)" }}
+                            >
+                              <div
+                                className="overflow-y-auto p-4"
+                                style={{ height: "100%" }}
+                              >
+                                <div className="prose prose-invert max-w-none">
+                                  <ReactMarkdown>{content}</ReactMarkdown>
                                 </div>
                               </div>
                             </div>
                           );
-                        })()}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center text-gray-400">
-                      <div className="text-center">
-                        <div className="text-lg mb-2">🌐</div>
-                        <div>No URLs found in sources</div>
-                        <div className="text-sm mt-1">
-                          Add sources with URLs to see them here
-                        </div>
-                        <button
-                          onClick={fetchUrlsFromSources}
-                          className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
-                        >
-                          Refresh
-                        </button>
-                      </div>
-                    </div>
+                        } else {
+                          return (
+                            <div className="flex-1 flex items-center justify-center text-gray-400">
+                              <div className="text-center">
+                                <div className="text-lg mb-2">🌐</div>
+                                <div>Website content not loaded</div>
+                                <Button
+                                  onClick={() =>
+                                    currentSource.originalUrl &&
+                                    fetchMarkdownForSource(
+                                      currentSource.id,
+                                      currentSource.originalUrl
+                                    )
+                                  }
+                                  className="mt-2 bg-blue-600 hover:bg-blue-700"
+                                >
+                                  Load Content
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        }
+                      } else {
+                        // PDF or other file source - display in PDF viewer
+                        const currentSourceSignedUrl =
+                          sourceSignedUrls[currentSource.id];
+                        const isLoadingSignedUrl =
+                          isLoadingSourceSignedUrl[currentSource.id];
+
+                        if (isLoadingSignedUrl) {
+                          return (
+                            <div className="flex-1 flex items-center justify-center text-gray-400">
+                              <div className="text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300 mx-auto mb-2"></div>
+                                <div>Loading PDF...</div>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        if (currentSourceSignedUrl) {
+                          return (
+                            <div className="flex-1 bg-gray-900 rounded-lg border border-gray-600 overflow-hidden">
+                              <PDFCanvasViewer
+                                url={currentSourceSignedUrl}
+                                highlightText={highlightText}
+                              />
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="flex-1 flex items-center justify-center text-gray-400">
+                              <div className="text-center">
+                                <div className="text-lg mb-2">📄</div>
+                                <div>No PDF available</div>
+                                <Button
+                                  onClick={() =>
+                                    currentSource.filePath &&
+                                    fetchSignedUrlForSource(
+                                      currentSource.id,
+                                      currentSource.filePath
+                                    )
+                                  }
+                                  className="mt-2 bg-blue-600 hover:bg-blue-700"
+                                >
+                                  Load PDF
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        }
+                      }
+                    })()
                   )}
                 </div>
               </div>
@@ -2811,7 +3494,10 @@ export default function Notebook() {
                 </h2>
 
                 {/* Chat messages area */}
-                <div className="bg-gray-900 rounded-lg p-4 flex-1 overflow-y-auto border border-gray-600 mb-4 max-h-[60vh] scroll-smooth">
+                <div
+                  ref={chatMessagesRef}
+                  className="bg-gray-900 rounded-lg p-4 flex-1 overflow-y-auto border border-gray-600 mb-4 max-h-[60vh] scroll-smooth"
+                >
                   {chatMessages.length === 0 ? (
                     <div className="text-gray-400 text-center py-8">
                       <div className="text-lg mb-2">👋 Hello!</div>
@@ -2831,7 +3517,13 @@ export default function Notebook() {
                                 : "bg-gray-700 text-gray-100"
                             }`}
                           >
-                            <div className="text-sm">{message.content}</div>
+                            <div className="text-sm">
+                              {message.role === "assistant" ? (
+                                <ReactMarkdown>{message.content}</ReactMarkdown>
+                              ) : (
+                                message.content
+                              )}
+                            </div>
                             <div
                               className={`text-xs mt-1 ${
                                 message.role === "user"
@@ -2841,6 +3533,37 @@ export default function Notebook() {
                             >
                               {message.timestamp.toLocaleTimeString()}
                             </div>
+
+                            {/* Citations for assistant messages */}
+                            {message.role === "assistant" &&
+                              message.citations &&
+                              message.citations.length > 0 && (
+                                <div className="mt-3">
+                                  <div className="text-xs text-gray-400 mb-2">
+                                    Sources:
+                                  </div>
+                                  <div className="flex gap-2 overflow-x-auto pb-2">
+                                    {message.citations.map(
+                                      (citation, index) => (
+                                        <div
+                                          key={index}
+                                          onClick={() =>
+                                            handleCitationClick(citation.quote)
+                                          }
+                                          className="flex-shrink-0 bg-gray-600 hover:bg-gray-500 cursor-pointer rounded px-2 py-1 text-xs max-w-48"
+                                        >
+                                          <div className="truncate">
+                                            {citation.quote &&
+                                            citation.quote.length > 100
+                                              ? `${citation.quote.substring(0, 100)}...`
+                                              : citation.quote || "Citation"}
+                                          </div>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                           </div>
                         </div>
                       ))}
@@ -2966,53 +3689,334 @@ export default function Notebook() {
 
               {/* Add source section */}
               <div className="border-t border-gray-700 pt-4">
-                {!showAddSourceInput ? (
-                  <Button
-                    onClick={() => setShowAddSourceInput(true)}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                  >
-                    Add Source
-                  </Button>
-                ) : (
-                  <div className="space-y-3">
-                    <Input
-                      value={newSourceUrl}
-                      onChange={(e) => setNewSourceUrl(e.target.value)}
-                      placeholder="Enter website URL (e.g., https://example.com)"
-                      className="w-full bg-gray-800 border-gray-600 text-white"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={handleAddSource}
-                        disabled={!newSourceUrl.trim() || isAddingSource}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700"
-                      >
-                        {isAddingSource ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Adding...
-                          </>
-                        ) : (
-                          "Add Source"
-                        )}
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setShowAddSourceInput(false);
-                          setNewSourceUrl("");
-                        }}
-                        variant="outline"
-                        className="flex-1 border-gray-600 text-white hover:bg-gray-800"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <Button
+                  onClick={() => setIsAddSourceDialogOpen(true)}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  Add Source
+                </Button>
               </div>
             </div>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Citation Dialog */}
+        <AlertDialog
+          open={isCitationDialogOpen}
+          onOpenChange={setIsCitationDialogOpen}
+        >
+          <AlertDialogContent className="max-w-4xl w-full bg-black border-gray-700">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-white">
+                Source Quote
+              </AlertDialogTitle>
+            </AlertDialogHeader>
+            <div className="bg-gray-800 rounded-lg p-4 max-h-96 overflow-y-auto">
+              <div className="text-white text-sm whitespace-pre-wrap">
+                {selectedCitation}
+              </div>
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button
+                onClick={() => setIsCitationDialogOpen(false)}
+                className="bg-gray-600 hover:bg-gray-500 text-white"
+              >
+                Close
+              </Button>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* New Add Source Dialog */}
+        <AlertDialog
+          open={isAddSourceDialogOpen}
+          onOpenChange={setIsAddSourceDialogOpen}
+        >
+          <AlertDialogContent className="max-w-2xl w-full bg-black border-gray-700">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-white">
+                Add Source
+              </AlertDialogTitle>
+            </AlertDialogHeader>
+
+            <div className="space-y-6">
+              {/* Source Type Tabs */}
+              <div className="flex space-x-1 bg-gray-800 p-1 rounded-lg">
+                <button
+                  onClick={() => setSelectedSourceType("website")}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    selectedSourceType === "website"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  Website
+                </button>
+                <button
+                  onClick={() => setSelectedSourceType("pdf")}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    selectedSourceType === "pdf"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  PDF
+                </button>
+                <button
+                  onClick={() => setSelectedSourceType("csv")}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    selectedSourceType === "csv"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  CSV
+                </button>
+              </div>
+
+              {/* Content based on selected tab */}
+              <div className="min-h-[300px]">
+                {selectedSourceType === "website" && (
+                  <div className="space-y-4">
+                    <div className="grid gap-2">
+                      <label className="text-sm font-medium text-white">
+                        Website URL
+                      </label>
+                      <Input
+                        value={websiteUrl}
+                        onChange={(e) => setWebsiteUrl(e.target.value)}
+                        placeholder="Enter website URL (e.g., https://example.com)"
+                        className="w-full bg-gray-800 border-gray-600 text-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label className="text-sm font-medium text-white">
+                        Nickname
+                      </label>
+                      <Input
+                        value={websiteNickname}
+                        onChange={(e) => setWebsiteNickname(e.target.value)}
+                        placeholder="Enter a nickname for this source"
+                        className="w-full bg-gray-800 border-gray-600 text-white"
+                      />
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      Enter the URL of the website you want to scrape and add as
+                      a source.
+                    </div>
+                  </div>
+                )}
+
+                {selectedSourceType === "pdf" && (
+                  <div className="space-y-4">
+                    <div className="grid gap-2">
+                      <label className="text-sm font-medium text-white">
+                        Upload PDF File
+                      </label>
+                      <div
+                        className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-gray-500 transition-colors"
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        onClick={() =>
+                          document.getElementById("pdf-upload")?.click()
+                        }
+                      >
+                        <input
+                          id="pdf-upload"
+                          type="file"
+                          accept=".pdf"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                        />
+                        <div className="text-gray-400 mb-2">
+                          <svg
+                            className="mx-auto h-12 w-12"
+                            stroke="currentColor"
+                            fill="none"
+                            viewBox="0 0 48 48"
+                          >
+                            <path
+                              d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </div>
+                        {pdfFile ? (
+                          <div className="text-green-400">
+                            <p className="font-medium">✓ {pdfFile.name}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {(pdfFile.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-gray-400">
+                              Drag and drop your PDF file here, or click to
+                              browse
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Supports PDF files up to 10MB
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {pdfFile && (
+                      <div className="grid gap-2">
+                        <label className="text-sm font-medium text-white">
+                          File Name (optional)
+                        </label>
+                        <Input
+                          value={pdfFileName}
+                          onChange={(e) => setPdfFileName(e.target.value)}
+                          placeholder="Enter a custom name for this PDF"
+                          className="w-full bg-gray-800 border-gray-600 text-white"
+                        />
+                        <div className="text-xs text-gray-500">
+                          Leave empty to use original filename: {pdfFile.name}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="text-sm text-gray-400">
+                      Upload a PDF document to add as a source for your chat
+                      agent.
+                    </div>
+                  </div>
+                )}
+
+                {selectedSourceType === "csv" && (
+                  <div className="space-y-4">
+                    <div className="grid gap-2">
+                      <label className="text-sm font-medium text-white">
+                        Upload CSV File
+                      </label>
+                      <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center">
+                        <div className="text-gray-400 mb-2">
+                          <svg
+                            className="mx-auto h-12 w-12"
+                            stroke="currentColor"
+                            fill="none"
+                            viewBox="0 0 48 48"
+                          >
+                            <path
+                              d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </div>
+                        <p className="text-gray-400">
+                          Drag and drop your CSV file here, or click to browse
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Supports CSV files up to 5MB
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      Upload a CSV file to add structured data as a source for
+                      your chat agent.
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Dialog Actions */}
+              <div className="flex justify-end space-x-2 pt-4 border-t border-gray-700">
+                <Button
+                  onClick={() => {
+                    setIsAddSourceDialogOpen(false);
+                    setSelectedSourceType("website"); // Reset to default
+                    setWebsiteUrl(""); // Reset form fields
+                    setWebsiteNickname("");
+                    setPdfFile(null); // Reset PDF fields
+                    setPdfFileName("");
+                  }}
+                  variant="outline"
+                  className="border-gray-600 text-white hover:bg-gray-800"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    // Handle submit based on selectedSourceType
+                    if (selectedSourceType === "website") {
+                      handleAddWebsite();
+                    } else if (selectedSourceType === "pdf") {
+                      handleAddPdf();
+                    } else {
+                      console.log(
+                        "Submitting source type:",
+                        selectedSourceType
+                      );
+                      // TODO: Add actual submission logic for CSV
+                      setIsAddSourceDialogOpen(false);
+                    }
+                  }}
+                  disabled={
+                    (selectedSourceType === "website" &&
+                      (!websiteUrl.trim() ||
+                        !websiteNickname.trim() ||
+                        isAddingWebsite)) ||
+                    (selectedSourceType === "pdf" &&
+                      (!pdfFile || !pdfFileName.trim() || isUploadingPdf)) ||
+                    isAddingWebsite ||
+                    isUploadingPdf
+                  }
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isAddingWebsite
+                    ? "Adding..."
+                    : isUploadingPdf
+                      ? "Uploading..."
+                      : "Add Source"}
+                </Button>
+              </div>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Primary Input Dialog */}
+        {isPrimaryInputDialogOpen && (
+          <PrimaryInputDialog
+            blocks={primaryInputBlocks}
+            onComplete={(updatedBlocks) => {
+              console.log("=== PrimaryInputDialog COMPLETED ===");
+              console.log("Updated blocks:", updatedBlocks);
+              setIsPrimaryInputDialogOpen(false);
+              dialogResolver?.(updatedBlocks);
+            }}
+            onCancel={handleCancel}
+            onRun={() => {
+              console.log("=== PrimaryInputDialog RUN CLICKED ===");
+              // This will be handled by the dialog's internal logic
+            }}
+            onExecuteBlock={async (blockNumber: number) => {
+              console.log(
+                `=== EXECUTING BLOCK ${blockNumber} FROM PRIMARY INPUT ===`
+              );
+              const blockRef = blockRefs.current[blockNumber];
+              if (blockRef && typeof blockRef.processBlock === "function") {
+                await blockRef.processBlock();
+              } else {
+                throw new Error(`Block ref not found for block ${blockNumber}`);
+              }
+            }}
+          />
+        )}
+
+        {/* Variable Input Dialog */}
+        {isVariableInputDialogOpen && (
+          <VariableInputDialog
+            onComplete={handleVariableInputComplete}
+            onCancel={handleVariableInputCancel}
+          />
+        )}
 
         {/* ... keep all existing modals and dialogs ... */}
       </div>

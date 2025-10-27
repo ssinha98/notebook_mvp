@@ -149,6 +149,13 @@ export interface Block {
 export interface AgentBlock extends BaseBlock {
   type: "agent";
   sourceInfo?: SourceInfo;
+  imageMode?: boolean; // New: indicates if this is an image analysis block
+  images?: {
+    // New: array of images for analysis
+    type: "base64";
+    data: string;
+    mime_type: string;
+  }[];
 }
 
 // Add new interface for DeepResearchAgent

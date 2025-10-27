@@ -238,6 +238,14 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
   saveAgent: async (blocks: Block[]) => {
     try {
+      console.log(
+        "🔍 AgentStore saveAgent called with blocks:",
+        blocks.map((b) => ({
+          blockNumber: b.blockNumber,
+          type: b.type,
+          outputVariable: b.outputVariable,
+        }))
+      );
       // console.log("=== SAVE AGENT DEBUG ===");
       // console.log("Total blocks received:", blocks.length);
 
@@ -337,6 +345,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               userPrompt: agentBlock.userPrompt || "",
               saveAsCsv: Boolean(agentBlock.saveAsCsv),
               skip: agentBlock.skip || false, // NEW FIELD
+              imageMode: agentBlock.imageMode || false, // NEW FIELD
+              images: agentBlock.images || [], // NEW FIELD
               outputVariable:
                 agentBlock.outputVariable?.id &&
                 agentBlock.outputVariable.name &&
@@ -656,6 +666,22 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
         // Process blocks to ensure all fields are properly set
         const processedBlocks = agent.blocks.map((block) => {
+          if (block.type === "agent") {
+            return {
+              ...block,
+              systemPrompt: block.systemPrompt || "",
+              userPrompt: block.userPrompt || "",
+              saveAsCsv: block.saveAsCsv || false,
+              skip: block.skip || false, // NEW FIELD
+              imageMode: block.imageMode || false, // NEW FIELD
+              images: block.images || [], // NEW FIELD
+              outputVariable: block.outputVariable || null,
+              sourceInfo: block.sourceInfo || {
+                nickname: "",
+                downloadUrl: "",
+              },
+            };
+          }
           if (block.type === "codeblock") {
             return {
               ...block,
@@ -944,6 +970,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
               userPrompt: agentBlock.userPrompt || "",
               saveAsCsv: Boolean(agentBlock.saveAsCsv),
               skip: agentBlock.skip || false, // NEW FIELD
+              imageMode: agentBlock.imageMode || false, // NEW FIELD
+              images: agentBlock.images || [], // NEW FIELD
               outputVariable:
                 agentBlock.outputVariable?.id &&
                 agentBlock.outputVariable.name &&

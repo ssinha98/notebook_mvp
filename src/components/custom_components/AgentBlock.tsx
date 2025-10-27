@@ -39,6 +39,7 @@ import { auth } from "@/tools/firebase";
 import { toast } from "sonner";
 import { Copy } from "lucide-react";
 import VariableDropdown from "./VariableDropdown";
+import { ImageUploader } from "./ImageUploader";
 import {
   Table,
   TableBody,
@@ -92,7 +93,8 @@ interface AgentBlockProps {
       columnName?: string;
     } | null,
     containsPrimaryInput?: boolean,
-    skip?: boolean // Add this line
+    skip?: boolean, // Add this line
+    images?: { type: "base64"; data: string; mime_type: string }[] // Add this line
   ) => void;
   onProcessedPrompts?: (processedSystem: string, processedUser: string) => void;
   isProcessing: boolean;
@@ -114,6 +116,8 @@ interface AgentBlockProps {
     columnName?: string;
   } | null;
   skip?: boolean; // Add this line
+  imageMode?: boolean; // Add this line
+  initialImages?: { type: "base64"; data: string; mime_type: string }[]; // Add this line
 }
 
 // Add this interface to define the ref methods
@@ -144,6 +148,19 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     // Otherwise use the ID directly
     return props.initialOutputVariable?.id || "";
   });
+
+  // Sync selectedVariableId with initialOutputVariable when props change
+  useEffect(() => {
+    if (props.initialOutputVariable?.columnName) {
+      setSelectedVariableId(
+        `${props.initialOutputVariable.id}:${props.initialOutputVariable.columnName}`
+      );
+    } else if (props.initialOutputVariable?.id) {
+      setSelectedVariableId(props.initialOutputVariable.id);
+    } else {
+      setSelectedVariableId("");
+    }
+  }, [props.initialOutputVariable]);
   const [selectedSource, setSelectedSource] = useState<string>(
     props.initialSource?.nickname || "none"
   );
@@ -159,6 +176,10 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
   const [output, setOutput] = useState<any>(null);
   // Remove this line:
   // const [skip, setskip] = useState(props.skip || false);
+  const [images, setImages] = useState<
+    { type: "base64"; data: string; mime_type: string }[]
+  >(props.initialImages || []);
+  const [isImageUploadOpen, setIsImageUploadOpen] = useState(false);
 
   // Add store hook for updating block names
   const { updateBlockName } = useSourceStore();
@@ -169,6 +190,18 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       (block) => block.blockNumber === props.blockNumber
     )
   );
+
+  // Detect if this is image mode
+  const isImageMode = props.imageMode || images.length > 0;
+
+  // Debug logging for images state
+  console.log("🔍 AgentBlock Debug:", {
+    blockNumber: props.blockNumber,
+    imagesLength: images.length,
+    initialImagesLength: props.initialImages?.length || 0,
+    isImageMode,
+    propsImageMode: props.imageMode,
+  });
 
   // Debounce the prompts to avoid excessive updates
   const debouncedSystemPrompt = useDebounce(systemPrompt, 500);
@@ -193,6 +226,13 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       setSaveAsCsv(props.initialSaveAsCsv);
     }
   }, [props.initialSaveAsCsv]);
+
+  // Add useEffect to update images when they change
+  useEffect(() => {
+    if (props.initialImages !== undefined) {
+      setImages(props.initialImages);
+    }
+  }, [props.initialImages]);
 
   // Update useEffect to re-run when fileNicknames changes
   useEffect(() => {
@@ -298,7 +338,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           : undefined,
         outputVariable || null,
         currentBlock?.containsPrimaryInput || false,
-        currentBlock?.skip || false // Add this line
+        currentBlock?.skip || false, // Add this line
+        images // Add this line
       );
     }
   };
@@ -619,7 +660,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           sourceInfo,
           outputVariable || null,
           currentBlock?.containsPrimaryInput || false,
-          currentBlock?.skip || false // Add this line
+          currentBlock?.skip || false, // Add this line
+          images // Add this line
         );
 
         // Give it a moment to save
@@ -687,7 +729,30 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
         : selectedSource;
 
       let response;
-      if (
+      if (isImageMode && images.length > 0) {
+        // Vision API call
+        const visionPayload = {
+          request_id: newRequestId,
+          question: processedUserPrompt,
+          images: images,
+          system_prompt: processedSystemPrompt,
+        };
+
+        console.log(
+          "🔍 Vision API Payload:",
+          JSON.stringify(visionPayload, null, 2)
+        );
+        console.log("🔍 Images array length:", images.length);
+        console.log("🔍 First image data length:", images[0]?.data?.length);
+        console.log("🔍 First image structure:", {
+          type: images[0]?.type,
+          mime_type: images[0]?.mime_type,
+          hasData: !!images[0]?.data,
+          dataStartsWith: images[0]?.data?.substring(0, 50),
+        });
+
+        response = await api.post("/api/ask-model-multimodal", visionPayload);
+      } else if (
         sourceNickname &&
         sourceNickname !== "none" &&
         fileNicknames[sourceNickname]
@@ -824,7 +889,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       sourceInfo,
       outputVariable || null,
       currentBlock?.containsPrimaryInput || false,
-      currentBlock?.skip || false // Add this line
+      currentBlock?.skip || false, // Add this line
+      images // Add this line
     );
   }, [
     systemPrompt,
@@ -837,6 +903,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     props.blockNumber,
     currentBlock?.containsPrimaryInput,
     currentBlock?.skip, // Add this line
+    images, // Add this line
   ]);
 
   // Debounced save function for auto-save when typing
@@ -891,7 +958,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       sourceInfo,
       outputVariable || null,
       currentBlock?.containsPrimaryInput || false,
-      currentBlock?.skip || false // Add this line
+      currentBlock?.skip || false, // Add this line
+      images // Add this line
     );
   }, [
     debouncedSystemPrompt,
@@ -904,6 +972,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
     props.blockNumber,
     currentBlock?.containsPrimaryInput,
     currentBlock?.skip, // Add this line
+    images, // Add this line
   ]);
 
   // Save prompts only when debounced values change
@@ -973,7 +1042,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           : undefined,
         updates.outputVariable,
         currentBlock?.containsPrimaryInput || false,
-        currentBlock?.skip || false // Add this line
+        currentBlock?.skip || false, // Add this line
+        images // Add this line
       );
     },
     [
@@ -986,6 +1056,7 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
       fileNicknames,
       currentBlock?.containsPrimaryInput,
       currentBlock?.skip, // Add this line
+      images, // Add this line
     ]
   );
 
@@ -1083,7 +1154,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                           })()
                         : undefined,
                       checked as boolean, // This is correct
-                      currentBlock?.skip || false // This should be the current value, not the new value
+                      currentBlock?.skip || false, // This should be the current value, not the new value
+                      images // Add this line
                     );
                   }}
                   className="border-gray-600 bg-gray-700"
@@ -1141,7 +1213,8 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                           })()
                         : undefined,
                       currentBlock?.containsPrimaryInput || false, // Add this line - use current value
-                      checked as boolean // This is correct
+                      checked as boolean, // This is correct
+                      images // Add this line
                     );
                   }}
                   className="border-gray-600 bg-gray-700"
@@ -1264,6 +1337,91 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
           )}
         </div>
 
+        {/* Image Upload Section - always show */}
+        <div className="mb-4">
+          <div
+            className="flex items-center justify-between cursor-pointer text-gray-300"
+            onClick={() => setIsImageUploadOpen(!isImageUploadOpen)}
+          >
+            <span>Images {images.length > 0 && `(${images.length})`}</span>
+            <span className="transition-transform">
+              {isImageUploadOpen ? "▼" : "▶"}
+            </span>
+          </div>
+          {isImageUploadOpen && (
+            <div className="mt-2">
+              <ImageUploader
+                images={images}
+                onImagesChange={(newImages) => {
+                  console.log("🔍 ImageUploader onImagesChange:", {
+                    oldLength: images.length,
+                    newLength: newImages.length,
+                    newImages: newImages,
+                  });
+                  setImages(newImages);
+
+                  // Immediately save images to block state
+                  console.log("🔍 About to call onSavePrompts with images:", {
+                    blockNumber: props.blockNumber,
+                    systemPrompt,
+                    userPrompt,
+                    saveAsCsv,
+                    newImages,
+                    newImagesLength: newImages.length,
+                  });
+
+                  props.onSavePrompts(
+                    props.blockNumber,
+                    systemPrompt,
+                    userPrompt,
+                    saveAsCsv,
+                    selectedSource !== "none" && fileNicknames[selectedSource]
+                      ? {
+                          nickname: selectedSource,
+                          downloadUrl:
+                            fileNicknames[selectedSource].downloadLink,
+                        }
+                      : undefined,
+                    selectedVariableId
+                      ? (() => {
+                          if (selectedVariableId.includes(":")) {
+                            const [tableId, columnName] =
+                              selectedVariableId.split(":");
+                            const tableVar = Object.values(storeVariables).find(
+                              (v) => v.id === tableId
+                            );
+                            if (tableVar) {
+                              return {
+                                id: tableId,
+                                name: `${tableVar.name}.${columnName}`,
+                                type: "table",
+                                columnName: columnName,
+                              };
+                            }
+                          }
+                          const variable = Object.values(storeVariables).find(
+                            (v) => v.id === selectedVariableId
+                          );
+                          return {
+                            id: selectedVariableId,
+                            name: variable?.name || "",
+                            type: variable?.type || "input",
+                          };
+                        })()
+                      : undefined,
+                    currentBlock?.containsPrimaryInput || false,
+                    currentBlock?.skip || false,
+                    newImages // Save the new images immediately
+                  );
+
+                  console.log("🔍 onSavePrompts call completed");
+                }}
+                maxSize={2 * 1024 * 1024} // 2MB limit
+              />
+            </div>
+          )}
+        </div>
+
         <hr className="border-gray-700 my-4" />
 
         <div className="flex items-center gap-2 text-gray-300 mb-4">
@@ -1346,9 +1504,10 @@ const AgentBlock = forwardRef<AgentBlockRef, AgentBlockProps>((props, ref) => {
                             type: variable?.type || "input",
                           };
                         })()
-                      : undefined
-                    // currentBlock?.containsPrimaryInput || false,
-                    // currentBlock?.skip || false // Add this line
+                      : undefined,
+                    currentBlock?.containsPrimaryInput || false,
+                    currentBlock?.skip || false,
+                    images // Add this line
                   );
                 }}
                 className="form-checkbox bg-gray-700 border-gray-600"
